@@ -3,6 +3,7 @@ obj/
 .vs/
 
 ImageKeeper_publish_test/
+runcheck/
 
 *.user
 *.suo
