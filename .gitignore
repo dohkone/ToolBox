@@ -1,0 +1,10 @@
+bin/
+obj/
+.vs/
+
+ImageKeeper_publish_test/
+
+*.user
+*.suo
+*.cache
+*.pdb
