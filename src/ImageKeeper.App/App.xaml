@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:converters="clr-namespace:ImageKeeper.App.Converters">
     <Application.Resources>
-        <SolidColorBrush x:Key="AppBackgroundBrush" Color="#F5F7FB" />
+        <SolidColorBrush x:Key="AppBackgroundBrush" Color="#F6F6F6" />
         <SolidColorBrush x:Key="PanelBrush" Color="#FFFFFF" />
         <SolidColorBrush x:Key="PanelAltBrush" Color="#FAFBFE" />
         <SolidColorBrush x:Key="BorderBrush" Color="#D9E1EC" />
@@ -11,6 +11,8 @@
         <SolidColorBrush x:Key="AccentSoftBrush" Color="#EAF1FF" />
         <SolidColorBrush x:Key="SuccessBrush" Color="#67C23A" />
         <SolidColorBrush x:Key="SuccessSoftBrush" Color="#F0F9EB" />
+        <SolidColorBrush x:Key="DangerBrush" Color="#F56C6C" />
+        <SolidColorBrush x:Key="DangerSoftBrush" Color="#FEF0F0" />
         <SolidColorBrush x:Key="MutedTextBrush" Color="#7C8AA5" />
         <SolidColorBrush x:Key="TitleTextBrush" Color="#1F2A37" />
 
@@ -28,7 +30,10 @@
             <Setter Property="Background" Value="{StaticResource AccentBrush}" />
             <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Padding" Value="12,7" />
+            <Setter Property="Padding" Value="14,5" />
+            <Setter Property="MinHeight" Value="32" />
+            <Setter Property="MinWidth" Value="72" />
+            <Setter Property="FontSize" Value="14" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Template">
                 <Setter.Value>
@@ -36,7 +41,7 @@
                         <Border Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="10">
+                                CornerRadius="8">
                             <ContentPresenter HorizontalAlignment="Center"
                                               VerticalAlignment="Center"
                                               Margin="{TemplateBinding Padding}" />
@@ -67,6 +72,18 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+        </Style>
+
+        <Style x:Key="SmallIconButtonStyle" TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+            <Setter Property="Foreground" Value="#1F2A37" />
+            <Setter Property="Background" Value="White" />
+            <Setter Property="BorderBrush" Value="#D6DCE8" />
+            <Setter Property="Width" Value="32" />
+            <Setter Property="MinWidth" Value="32" />
+            <Setter Property="Height" Value="32" />
+            <Setter Property="MinHeight" Value="32" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="FontSize" Value="16" />
         </Style>
 
         <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}" />

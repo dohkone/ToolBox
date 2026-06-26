@@ -20,7 +20,9 @@ public partial class MainWindow : Window
             CreateFolderScanService(),
             CreateWorkspaceService(),
             CreateWorkspaceStateService(),
-            CreateProductSheetService());
+            CreateProductSheetService(),
+            CreateTemplateGenerationService(),
+            CreateSpBatchService());
         DataContext = _viewModel;
         Loaded += OnLoadedAsync;
     }
@@ -49,10 +51,22 @@ public partial class MainWindow : Window
     private static IProductSheetService CreateProductSheetService()
     {
         var pythonRunner = new PythonScriptRunner("python");
-        var fillProductSheetScript = ResolveToolPath("fill_product_sheet.py");
-        var buildSizeIndexScript = ResolveToolPath("build_size_index.py");
+        var fillProductSheetScript = ResolveToolPath("temu-product-sheet", "fill_product_sheet.py");
+        var buildSizeIndexScript = ResolveToolPath("temu-product-sheet", "build_size_index.py");
         var yingdaoLauncher = CreateYingdaoLauncher();
         return new ProductSheetService(pythonRunner, fillProductSheetScript, buildSizeIndexScript, yingdaoLauncher);
+    }
+
+    private static ITemplateGenerationService CreateTemplateGenerationService()
+    {
+        var scriptPath = ResolveToolPath("template-random-generate", "random_generate_from_template.py");
+        return new TemplateGenerationService("python", scriptPath);
+    }
+
+    private static ISpBatchService CreateSpBatchService()
+    {
+        var scriptPath = ResolveToolPath("sp-batch", "SP_Batch.py");
+        return new SpBatchService("python", scriptPath);
     }
 
     private static IYingdaoLauncher CreateYingdaoLauncher()
@@ -63,12 +77,13 @@ public partial class MainWindow : Window
         return new YingdaoLauncher("node", scriptPath, configPath);
     }
 
-    private static string ResolveToolPath(string fileName)
+    private static string ResolveToolPath(string toolFolder, string fileName)
     {
         var appBase = AppContext.BaseDirectory;
         var candidates = new[]
         {
-            Path.Combine(appBase, "tools", "python", "temu-product-sheet", fileName),
+            Path.Combine(appBase, "tools", "python", toolFolder, fileName),
+            Path.Combine(@"D:\new_project\tools\python", toolFolder, fileName),
             Path.Combine(@"D:\temu_auto\tools", fileName),
             Path.Combine(@"D:\temu_auto", fileName)
         };
@@ -88,14 +103,14 @@ public partial class MainWindow : Window
 
         if (files.Count == 0)
         {
-            System.Windows.MessageBox.Show(this, "只能拖入图片文件到当前目录。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+            System.Windows.MessageBox.Show(this, "只能拖入图片文件到当前目录。", "提示", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
             e.Handled = true;
             return;
         }
 
         if (!card.CanAcceptDrop(files))
         {
-            System.Windows.MessageBox.Show(this, "请先从左侧资源树选择一个文件夹。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+            System.Windows.MessageBox.Show(this, "请先从左侧资源树选择一个文件夹。", "提示", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
             e.Handled = true;
             return;
         }
@@ -106,7 +121,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            System.Windows.MessageBox.Show(this, $"添加图片失败：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            System.Windows.MessageBox.Show(this, $"添加图片失败：{ex.Message}", "错误", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
         }
 
         e.Handled = true;

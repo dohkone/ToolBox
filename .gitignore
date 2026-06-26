@@ -9,3 +9,5 @@ runcheck/
 *.suo
 *.cache
 *.pdb
+ImageKeeper_publish_test_sc/
+tools/python/image2-generate/.image2_api_key

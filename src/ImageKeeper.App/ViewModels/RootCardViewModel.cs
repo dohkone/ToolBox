@@ -16,6 +16,8 @@ public sealed class RootCardViewModel : ViewModelBase
     private readonly IWorkspaceStateService _workspaceStateService;
     private readonly RootCardState _cardState;
     private readonly RelayCommand _invertSelectionCommand;
+    private readonly RelayCommand _selectAllCommand;
+    private readonly RelayCommand _clearSelectionCommand;
     private readonly RelayCommand _collapseCommand;
     private readonly RelayCommand _expandCommand;
     private readonly AsyncRelayCommand _addImagesCommand;
@@ -56,6 +58,8 @@ public sealed class RootCardViewModel : ViewModelBase
         _isCollapsed = _cardState.IsCollapsed;
 
         _invertSelectionCommand = new RelayCommand(_ => InvertSelection(), _ => SelectedNode is not null && TotalImageCount > 0);
+        _selectAllCommand = new RelayCommand(_ => SetSelectionState(true), _ => SelectedNode is not null && TotalImageCount > 0);
+        _clearSelectionCommand = new RelayCommand(_ => SetSelectionState(false), _ => SelectedNode is not null && TotalImageCount > 0);
         _collapseCommand = new RelayCommand(_ => SetCollapsed(true));
         _expandCommand = new RelayCommand(_ =>
         {
@@ -90,6 +94,10 @@ public sealed class RootCardViewModel : ViewModelBase
     public ObservableCollection<ImageItemViewModel> CurrentImages { get; } = [];
 
     public RelayCommand InvertSelectionCommand => _invertSelectionCommand;
+
+    public RelayCommand SelectAllCommand => _selectAllCommand;
+
+    public RelayCommand ClearSelectionCommand => _clearSelectionCommand;
 
     public RelayCommand CollapseCommand => _collapseCommand;
 
@@ -506,6 +514,22 @@ public sealed class RootCardViewModel : ViewModelBase
         UpdateCounts();
     }
 
+    private void SetSelectionState(bool isSelected)
+    {
+        if (SelectedNode is null)
+        {
+            return;
+        }
+
+        _workspaceService.SetSelectionState(SelectedNode.Model, isSelected);
+        foreach (var image in CurrentImages)
+        {
+            image.SyncSelectionStateFromModel();
+        }
+
+        UpdateCounts();
+    }
+
     private void SetCollapsed(bool collapsed)
     {
         IsCollapsed = collapsed;
@@ -772,6 +796,8 @@ public sealed class RootCardViewModel : ViewModelBase
         OnPropertyChanged(nameof(HasMoreImages));
         OnPropertyChanged(nameof(CountsText));
         _invertSelectionCommand.RaiseCanExecuteChanged();
+        _selectAllCommand.RaiseCanExecuteChanged();
+        _clearSelectionCommand.RaiseCanExecuteChanged();
         _addImagesCommand.RaiseCanExecuteChanged();
         _loadMoreImagesCommand.RaiseCanExecuteChanged();
         SelectionContextChanged?.Invoke(this);

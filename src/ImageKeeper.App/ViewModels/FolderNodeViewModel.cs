@@ -42,7 +42,7 @@ public sealed class FolderNodeViewModel : ViewModelBase
 
     public string ImageCountText => $"{ImageCount} 张";
 
-    public string ExpandGlyph => !HasChildren ? "·" : IsExpanded ? "▾" : "▸";
+    public string ExpandGlyph => !HasChildren ? string.Empty : IsExpanded ? "▾" : "▸";
 
     public bool IsRootCardNode => Depth <= 0;
 
@@ -90,6 +90,7 @@ public sealed class FolderNodeViewModel : ViewModelBase
             Model.IsSelected = value;
             OnPropertyChanged(nameof(RowBackground));
             OnPropertyChanged(nameof(RowBorderBrush));
+            OnPropertyChanged(nameof(CountForeground));
         }
     }
 }

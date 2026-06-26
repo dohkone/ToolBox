@@ -18,8 +18,29 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Resource Include="..\..\logo\new_logo.png">
+      <Link>Assets\new_logo.png</Link>
+    </Resource>
+  </ItemGroup>
+
+  <ItemGroup>
     <None Include="..\..\tools\python\temu-product-sheet\**\*.py">
       <Link>tools\python\temu-product-sheet\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+    <None Include="..\..\tools\python\template-random-generate\**\*.py">
+      <Link>tools\python\template-random-generate\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+    <None Include="..\..\tools\python\sp-batch\**\*.py">
+      <Link>tools\python\sp-batch\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+    <None Include="..\..\tools\python\image2-generate\**\*">
+      <Link>tools\python\image2-generate\%(RecursiveDir)%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </None>

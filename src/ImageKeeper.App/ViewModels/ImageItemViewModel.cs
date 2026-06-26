@@ -76,6 +76,19 @@ public sealed class ImageItemViewModel : ViewModelBase
         ? new Media.SolidColorBrush(Media.Color.FromRgb(159, 190, 255))
         : new Media.SolidColorBrush(Media.Color.FromRgb(217, 225, 236));
 
+    public void SyncSelectionStateFromModel()
+    {
+        if (_isSelected == Model.IsSelected)
+        {
+            return;
+        }
+
+        _isSelected = Model.IsSelected;
+        OnPropertyChanged(nameof(IsSelected));
+        OnPropertyChanged(nameof(CardBackground));
+        OnPropertyChanged(nameof(CardBorderBrush));
+    }
+
     private async void LoadThumbnailAsync()
     {
         await ThumbnailGate.WaitAsync();

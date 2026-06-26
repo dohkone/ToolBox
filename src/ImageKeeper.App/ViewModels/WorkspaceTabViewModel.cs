@@ -59,7 +59,16 @@ public sealed class WorkspaceTabViewModel : ViewModelBase
     public string RootFolder
     {
         get => _rootFolder;
-        private set => SetProperty(ref _rootFolder, value);
+        private set
+        {
+            if (!SetProperty(ref _rootFolder, value))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(LoadedFolderText));
+            OnPropertyChanged(nameof(IsPlaceholder));
+        }
     }
 
     public string BackupFolder
@@ -93,6 +102,8 @@ public sealed class WorkspaceTabViewModel : ViewModelBase
 
     public bool HasRootCards => RootCards.Count > 0;
 
+    public bool IsPlaceholder => string.IsNullOrWhiteSpace(RootFolder);
+
     public RootCardViewModel? ActiveCard { get; private set; }
 
     public string LoadedFolderText => string.IsNullOrWhiteSpace(RootFolder)
@@ -102,6 +113,12 @@ public sealed class WorkspaceTabViewModel : ViewModelBase
     public NodeCounts GetTabCounts()
     {
         return _imageWorkspaceService.CalculateCounts(RootCards.Select(card => card.RootNode.Model));
+    }
+
+    public void SetRootFolder(string rootFolder)
+    {
+        RootFolder = rootFolder;
+        Title = BuildTitle(rootFolder);
     }
 
     public void SetRootNodes(IEnumerable<FolderNode> nodes)
@@ -183,7 +200,9 @@ public sealed class WorkspaceTabViewModel : ViewModelBase
             return $"当前文件夹：{ActiveCard.CurrentFolderPath}";
         }
 
-        return $"当前父目录：{RootFolder}";
+        return string.IsNullOrWhiteSpace(RootFolder)
+            ? "当前文件夹：未选择"
+            : $"当前父目录：{RootFolder}";
     }
 
     public void InvertSelection()
@@ -248,7 +267,7 @@ public sealed class WorkspaceTabViewModel : ViewModelBase
     {
         if (string.IsNullOrWhiteSpace(rootFolder))
         {
-            return "新建标签";
+            return "新标签页";
         }
 
         var name = Path.GetFileName(rootFolder.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
