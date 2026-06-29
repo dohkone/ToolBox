@@ -3,7 +3,13 @@ obj/
 .vs/
 
 ImageKeeper_publish_test/
+ImageKeeper_publish_test_20260627/
 runcheck/
+dist/
+temp_test_image2/
+temp_test_image2_old/
+tmp_*/
+tools/python/**/__pycache__/
 
 *.user
 *.suo

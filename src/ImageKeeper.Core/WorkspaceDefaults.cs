@@ -1,9 +1,30 @@
+using System.IO;
+
 namespace ImageKeeper.Core;
 
 public static class WorkspaceDefaults
 {
-    public const string DefaultOpenFolder = @"D:\temu_auto\review";
-    public const string DefaultBackupFolder = @"D:\temu_auto\backup";
-    public const string DefaultExcelFolder = @"D:\temu_auto\excel";
-    public const string DefaultSpBatchOutputFolder = @"D:\temu_auto\assert";
+    private static readonly string LegacyRoot = @"D:\temu_auto";
+
+    private static string PackagedWorkspaceRoot => Path.Combine(AppContext.BaseDirectory, "data", "workspace");
+
+    public static string DefaultOpenFolder => ResolveWorkspaceFolder("review");
+
+    public static string DefaultBackupFolder => ResolveWorkspaceFolder("backup");
+
+    public static string DefaultExcelFolder => ResolveWorkspaceFolder("excel");
+
+    public static string DefaultSpBatchOutputFolder => ResolveWorkspaceFolder("assert");
+
+    public static string DefaultTempFolder => ResolveWorkspaceFolder("temp");
+
+    private static string ResolveWorkspaceFolder(string folderName)
+    {
+        if (Directory.Exists(PackagedWorkspaceRoot))
+        {
+            return Path.Combine(PackagedWorkspaceRoot, folderName);
+        }
+
+        return Path.Combine(LegacyRoot, folderName);
+    }
 }

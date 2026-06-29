@@ -12,6 +12,7 @@ public sealed class WorkspaceTabViewModel : ViewModelBase
     private readonly IProductSheetService? _productSheetService;
     private readonly Func<bool>? _isAutoPublishBusyProvider;
     private readonly Func<Func<Task>, Task>? _runExclusiveAsync;
+    private readonly Action? _batchSelectionChanged;
     private readonly RelayCommand _activateCommand;
     private readonly RelayCommand _closeCommand;
     private string _rootFolder;
@@ -26,7 +27,8 @@ public sealed class WorkspaceTabViewModel : ViewModelBase
         IWorkspaceStateService workspaceStateService,
         IProductSheetService? productSheetService = null,
         Func<bool>? isAutoPublishBusyProvider = null,
-        Func<Func<Task>, Task>? runExclusiveAsync = null)
+        Func<Func<Task>, Task>? runExclusiveAsync = null,
+        Action? batchSelectionChanged = null)
     {
         _rootFolder = rootFolder;
         _backupFolder = backupFolder;
@@ -35,6 +37,7 @@ public sealed class WorkspaceTabViewModel : ViewModelBase
         _productSheetService = productSheetService;
         _isAutoPublishBusyProvider = isAutoPublishBusyProvider;
         _runExclusiveAsync = runExclusiveAsync;
+        _batchSelectionChanged = batchSelectionChanged;
         _title = BuildTitle(rootFolder);
         _activateCommand = new RelayCommand(_ => RequestedActivate?.Invoke(this));
         _closeCommand = new RelayCommand(_ => RequestedClose?.Invoke(this));
@@ -143,7 +146,8 @@ public sealed class WorkspaceTabViewModel : ViewModelBase
                 BackupFolder,
                 _productSheetService,
                 _isAutoPublishBusyProvider,
-                _runExclusiveAsync);
+                _runExclusiveAsync,
+                _batchSelectionChanged);
             card.PreviewRequested += OnCardPreviewRequested;
             card.StatusChanged += OnCardStatusChanged;
             card.Activated += OnCardActivated;
@@ -216,6 +220,15 @@ public sealed class WorkspaceTabViewModel : ViewModelBase
         {
             card.NotifyAutoPublishStateChanged();
         }
+
+        _batchSelectionChanged?.Invoke();
+    }
+
+    public IReadOnlyList<RootCardViewModel> GetBatchSelectedCards()
+    {
+        return RootCards
+            .Where(card => card.IsCollapsed && card.IsBatchSelected && card.CanBatchSelect)
+            .ToArray();
     }
 
     private void OnCardPreviewRequested(PreviewRequest? request)

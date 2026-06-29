@@ -69,11 +69,11 @@ public sealed class ImageItemViewModel : ViewModelBase
     }
 
     public Media.Brush CardBackground => IsSelected
-        ? new Media.SolidColorBrush(Media.Color.FromRgb(234, 241, 255))
+        ? new Media.SolidColorBrush(Media.Color.FromRgb(238, 238, 238))
         : Media.Brushes.White;
 
     public Media.Brush CardBorderBrush => IsSelected
-        ? new Media.SolidColorBrush(Media.Color.FromRgb(159, 190, 255))
+        ? Media.Brushes.Transparent
         : new Media.SolidColorBrush(Media.Color.FromRgb(217, 225, 236));
 
     public void SyncSelectionStateFromModel()

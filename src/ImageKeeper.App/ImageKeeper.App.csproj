@@ -8,6 +8,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationIcon>..\..\logo\new_logo.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
@@ -21,6 +22,9 @@
     <Resource Include="..\..\logo\new_logo.png">
       <Link>Assets\new_logo.png</Link>
     </Resource>
+    <Resource Include="..\..\logo\new_logo.ico">
+      <Link>Assets\new_logo.ico</Link>
+    </Resource>
   </ItemGroup>
 
   <ItemGroup>
@@ -29,8 +33,18 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </None>
+    <None Include="..\..\tools\python\temu-product-sheet\data\**\*">
+      <Link>tools\python\temu-product-sheet\data\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
     <None Include="..\..\tools\python\template-random-generate\**\*.py">
       <Link>tools\python\template-random-generate\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+    <None Include="..\..\tools\python\template-random-generate\data\**\*">
+      <Link>tools\python\template-random-generate\data\%(RecursiveDir)%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </None>

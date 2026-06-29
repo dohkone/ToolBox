@@ -49,17 +49,17 @@ public sealed class FolderNodeViewModel : ViewModelBase
     public FontWeight DisplayWeight => IsRootCardNode ? FontWeights.SemiBold : FontWeights.Medium;
 
     public Media.Brush RowBackground => IsSelected
-        ? new Media.SolidColorBrush(Media.Color.FromRgb(214, 229, 255))
+        ? new Media.SolidColorBrush(Media.Color.FromRgb(238, 238, 238))
         : Media.Brushes.Transparent;
 
     public Media.Brush RowBorderBrush => IsSelected
-        ? new Media.SolidColorBrush(Media.Color.FromRgb(78, 124, 255))
+        ? Media.Brushes.Transparent
         : Media.Brushes.Transparent;
 
     public Media.Brush NameForeground => new Media.SolidColorBrush(Media.Color.FromRgb(31, 42, 55));
 
     public Media.Brush CountForeground => IsSelected
-        ? new Media.SolidColorBrush(Media.Color.FromRgb(89, 112, 163))
+        ? new Media.SolidColorBrush(Media.Color.FromRgb(96, 98, 102))
         : new Media.SolidColorBrush(Media.Color.FromRgb(140, 154, 181));
 
     public bool IsExpanded

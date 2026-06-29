@@ -1,7 +1,10 @@
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Linq;
+using System.Windows.Interop;
 using ImageKeeper.App.ViewModels;
 using ImageKeeper.Core.Services;
 using ImageKeeper.Infrastructure.Services;
@@ -11,6 +14,10 @@ namespace ImageKeeper.App;
 
 public partial class MainWindow : Window
 {
+    private const int DwmaBorderColor = 34;
+    private const int DwmaCaptionColor = 35;
+    private const int DwmaTextColor = 36;
+
     private readonly MainWindowViewModel _viewModel;
 
     public MainWindow()
@@ -20,17 +27,39 @@ public partial class MainWindow : Window
             CreateFolderScanService(),
             CreateWorkspaceService(),
             CreateWorkspaceStateService(),
+            CreateAppSettingsService(),
             CreateProductSheetService(),
             CreateTemplateGenerationService(),
             CreateSpBatchService());
         DataContext = _viewModel;
         Loaded += OnLoadedAsync;
+        SourceInitialized += OnSourceInitialized;
+        PreviewKeyDown += OnPreviewKeyDownAsync;
     }
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int dwAttribute, ref uint pvAttribute, int cbAttribute);
 
     private async void OnLoadedAsync(object sender, RoutedEventArgs e)
     {
         Loaded -= OnLoadedAsync;
         await _viewModel.InitializeAsync();
+    }
+
+    private void OnSourceInitialized(object? sender, EventArgs e)
+    {
+        ApplyWindowChromeTheme();
+    }
+
+    private async void OnPreviewKeyDownAsync(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key != Key.F5)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        await _viewModel.RefreshCurrentPageAsync();
     }
 
     private static IFolderScanService CreateFolderScanService()
@@ -48,9 +77,15 @@ public partial class MainWindow : Window
         return new WorkspaceStateService();
     }
 
+    private static IAppSettingsService CreateAppSettingsService()
+    {
+        return new AppSettingsService();
+    }
+
     private static IProductSheetService CreateProductSheetService()
     {
-        var pythonRunner = new PythonScriptRunner("python");
+        var pythonExePath = ResolvePythonExecutable();
+        var pythonRunner = new PythonScriptRunner(pythonExePath);
         var fillProductSheetScript = ResolveToolPath("temu-product-sheet", "fill_product_sheet.py");
         var buildSizeIndexScript = ResolveToolPath("temu-product-sheet", "build_size_index.py");
         var yingdaoLauncher = CreateYingdaoLauncher();
@@ -60,13 +95,13 @@ public partial class MainWindow : Window
     private static ITemplateGenerationService CreateTemplateGenerationService()
     {
         var scriptPath = ResolveToolPath("template-random-generate", "random_generate_from_template.py");
-        return new TemplateGenerationService("python", scriptPath);
+        return new TemplateGenerationService(ResolvePythonExecutable(), scriptPath);
     }
 
     private static ISpBatchService CreateSpBatchService()
     {
         var scriptPath = ResolveToolPath("sp-batch", "SP_Batch.py");
-        return new SpBatchService("python", scriptPath);
+        return new SpBatchService(ResolvePythonExecutable(), scriptPath);
     }
 
     private static IYingdaoLauncher CreateYingdaoLauncher()
@@ -74,7 +109,7 @@ public partial class MainWindow : Window
         var appBase = AppContext.BaseDirectory;
         var scriptPath = Path.Combine(appBase, "tools", "node", "yingdao", "start_miaoshou.js");
         var configPath = Path.Combine(appBase, "config", "yingdao.json");
-        return new YingdaoLauncher("node", scriptPath, configPath);
+        return new YingdaoLauncher(ResolveNodeExecutable(), scriptPath, configPath);
     }
 
     private static string ResolveToolPath(string toolFolder, string fileName)
@@ -91,9 +126,35 @@ public partial class MainWindow : Window
         return candidates.FirstOrDefault(File.Exists) ?? candidates[0];
     }
 
+    private static string ResolvePythonExecutable()
+    {
+        var appBase = AppContext.BaseDirectory;
+        var candidates = new[]
+        {
+            Path.Combine(appBase, "runtime", "python", "python.exe"),
+            Path.Combine(appBase, "python", "python.exe"),
+            "python"
+        };
+
+        return candidates.FirstOrDefault(File.Exists) ?? candidates[^1];
+    }
+
+    private static string ResolveNodeExecutable()
+    {
+        var appBase = AppContext.BaseDirectory;
+        var candidates = new[]
+        {
+            Path.Combine(appBase, "runtime", "node", "node.exe"),
+            Path.Combine(appBase, "node", "node.exe"),
+            "node"
+        };
+
+        return candidates.FirstOrDefault(File.Exists) ?? candidates[^1];
+    }
+
     private async void WorkspaceContentBorder_OnDrop(object sender, System.Windows.DragEventArgs e)
     {
-        if (sender is not Border { DataContext: RootCardViewModel card })
+        if (!TryGetRootCardFromSender(sender, out var card))
         {
             return;
         }
@@ -139,7 +200,7 @@ public partial class MainWindow : Window
 
     private void WorkspaceContentBorder_OnDragLeave(object sender, System.Windows.DragEventArgs e)
     {
-        if (sender is Border { DataContext: RootCardViewModel card })
+        if (TryGetRootCardFromSender(sender, out var card))
         {
             card.SetDropTarget(false);
         }
@@ -149,7 +210,7 @@ public partial class MainWindow : Window
 
     private void HandleWorkspaceDragState(object sender, System.Windows.DragEventArgs e)
     {
-        if (sender is not Border { DataContext: RootCardViewModel card })
+        if (!TryGetRootCardFromSender(sender, out var card))
         {
             return;
         }
@@ -159,6 +220,18 @@ public partial class MainWindow : Window
         card.SetDropTarget(canAccept);
         e.Effects = canAccept ? System.Windows.DragDropEffects.Copy : System.Windows.DragDropEffects.None;
         e.Handled = true;
+    }
+
+    private static bool TryGetRootCardFromSender(object sender, out RootCardViewModel card)
+    {
+        if (sender is FrameworkElement { DataContext: RootCardViewModel dataContext })
+        {
+            card = dataContext;
+            return true;
+        }
+
+        card = null!;
+        return false;
     }
 
     private static IReadOnlyList<string> GetDroppedImageFiles(System.Windows.IDataObject dataObject)
@@ -207,5 +280,115 @@ public partial class MainWindow : Window
         var parent = scrollViewer.Parent as UIElement;
         parent?.RaiseEvent(reroutedEvent);
         e.Handled = true;
+    }
+
+    private void GeneratedImageCard_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (IsFromButton(e.OriginalSource))
+        {
+            return;
+        }
+
+        if (sender is FrameworkElement { DataContext: GeneratedImageResultCardViewModel card })
+        {
+            _viewModel.HandleGeneratedImageCardClick(card, e.ClickCount);
+            e.Handled = true;
+        }
+    }
+
+    private void SpBatchSourceCard_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (IsFromButton(e.OriginalSource))
+        {
+            return;
+        }
+
+        if (sender is FrameworkElement { DataContext: GeneratedImageResultCardViewModel card })
+        {
+            _viewModel.HandleSpBatchSourceImageCardClick(card, e.ClickCount);
+            e.Handled = true;
+        }
+    }
+
+    private void SpBatchStagingArea_OnDragEnter(object sender, System.Windows.DragEventArgs e)
+    {
+        HandleSpBatchStagingDragState(e);
+    }
+
+    private void SpBatchStagingArea_OnDragOver(object sender, System.Windows.DragEventArgs e)
+    {
+        HandleSpBatchStagingDragState(e);
+    }
+
+    private void SpBatchStagingArea_OnDragLeave(object sender, System.Windows.DragEventArgs e)
+    {
+        _viewModel.SetSpBatchStagingDropTarget(false);
+        e.Handled = true;
+    }
+
+    private void SpBatchStagingArea_OnDrop(object sender, System.Windows.DragEventArgs e)
+    {
+        _viewModel.SetSpBatchStagingDropTarget(false);
+        var files = GetDroppedImageFiles(e.Data);
+        if (files.Count > 0)
+        {
+            _viewModel.AddDroppedImagesToSpBatch(files);
+        }
+
+        e.Handled = true;
+    }
+
+    private void HandleSpBatchStagingDragState(System.Windows.DragEventArgs e)
+    {
+        var files = GetDroppedImageFiles(e.Data);
+        var hasFiles = files.Count > 0;
+        _viewModel.SetSpBatchStagingDropTarget(hasFiles);
+        e.Effects = hasFiles ? System.Windows.DragDropEffects.Copy : System.Windows.DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private void ApplyWindowChromeTheme()
+    {
+        try
+        {
+            var hwnd = new WindowInteropHelper(this).Handle;
+            if (hwnd == IntPtr.Zero)
+            {
+                return;
+            }
+
+            var captionColor = ToColorRef(246, 246, 246);
+            var borderColor = ToColorRef(230, 230, 230);
+            var textColor = ToColorRef(51, 51, 51);
+
+            DwmSetWindowAttribute(hwnd, DwmaCaptionColor, ref captionColor, sizeof(uint));
+            DwmSetWindowAttribute(hwnd, DwmaBorderColor, ref borderColor, sizeof(uint));
+            DwmSetWindowAttribute(hwnd, DwmaTextColor, ref textColor, sizeof(uint));
+        }
+        catch
+        {
+            // Ignore failures on systems that do not support caption color overrides.
+        }
+    }
+
+    private static uint ToColorRef(byte red, byte green, byte blue)
+    {
+        return (uint)(red | (green << 8) | (blue << 16));
+    }
+
+    private static bool IsFromButton(object originalSource)
+    {
+        DependencyObject? current = originalSource as DependencyObject;
+        while (current is not null)
+        {
+            if (current is System.Windows.Controls.Button)
+            {
+                return true;
+            }
+
+            current = System.Windows.Media.VisualTreeHelper.GetParent(current);
+        }
+
+        return false;
     }
 }

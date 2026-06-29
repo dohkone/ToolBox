@@ -18,12 +18,13 @@ public sealed class MainWindowViewModel : ViewModelBase
     private const string ImageGenerateSection = "image-generate";
     private const string TemplateGenerateTab = "template-generate";
     private const string SpBatchTab = "sp-batch";
-    private const string DefaultTemplateLibraryPath = @"D:\temu_auto\temp\文生图模板库_Codex.xlsx";
-    private const string DefaultImage2ScriptPath = @"D:\new_project\tools\python\image2-generate\scripts\generate_image.py";
+    private static string DefaultTemplateLibraryPath => ResolveTemplateLibraryPath();
+    private static string DefaultImage2ScriptPath => ResolveImage2ScriptPath();
 
     private readonly IFolderScanService _folderScanService;
     private readonly IImageWorkspaceService _imageWorkspaceService;
     private readonly IWorkspaceStateService _workspaceStateService;
+    private readonly IAppSettingsService _appSettingsService;
     private readonly IProductSheetService _productSheetService;
     private readonly ITemplateGenerationService _templateGenerationService;
     private readonly ISpBatchService _spBatchService;
@@ -38,14 +39,19 @@ public sealed class MainWindowViewModel : ViewModelBase
     private readonly RelayCommand _showTemplateGenerateTabCommand;
     private readonly RelayCommand _showSpBatchTabCommand;
     private readonly AsyncRelayCommand _chooseTemplateLibraryCommand;
+    private readonly RelayCommand _openTemplateLibraryFileCommand;
     private readonly AsyncRelayCommand _chooseGenerationOutputFolderCommand;
     private readonly RelayCommand _openGenerationOutputFolderCommand;
     private readonly AsyncRelayCommand _runTemplateGenerationCommand;
+    private readonly RelayCommand _stopTemplateGenerationCommand;
+    private readonly AsyncRelayCommand _chooseGenerationImagesCommand;
+    private readonly RelayCommand _sendSelectedImagesToSpBatchCommand;
     private readonly AsyncRelayCommand _chooseSpBatchInputFolderCommand;
     private readonly AsyncRelayCommand _chooseSpBatchOutputFolderCommand;
-    private readonly RelayCommand _openSpBatchOutputFolderCommand;
     private readonly AsyncRelayCommand _runSpBatchCommand;
+    private readonly AsyncRelayCommand _runBatchAutoPublishCommand;
     private CancellationTokenSource? _previewCancellationTokenSource;
+    private CancellationTokenSource? _templateGenerationCancellationTokenSource;
     private WorkspaceTabViewModel? _selectedTab;
     private string _selectedSection = ReviewWorkspaceSection;
     private string _selectedImageGenerateTab = TemplateGenerateTab;
@@ -55,41 +61,44 @@ public sealed class MainWindowViewModel : ViewModelBase
     private string _statusMessage = "请选择文件夹开始筛图。";
     private string _loadedFolderText = "当前文件夹：未选择";
     private string _selectionSummaryText = "图片 0 张，已选中 0 张，未选中 0 张";
-    private string _backupFolderText = $"备份目录：{WorkspaceDefaults.DefaultBackupFolder}";
+    private string _backupFolderText = "备份目录：未设置";
     private string _loadingTitle = "正在加载图片资源...";
     private string _loadingDetail = "目录或图片较多时会稍慢一些，请稍候。";
     private string _scanProgressText = "等待加载";
     private string _previewMeta = "大小：-\r\n完整路径：-";
     private Media.ImageSource? _previewImageSource;
-    private string _backupFolder = WorkspaceDefaults.DefaultBackupFolder;
+    private string _backupFolder = string.Empty;
     private bool _isAutoPublishRunning;
     private bool _isTemplateGenerating;
-    private string _templateLibraryPath = DefaultTemplateLibraryPath;
-    private string _generationOutputDirectory = WorkspaceDefaults.DefaultOpenFolder;
+    private bool _isTemplateGenerationStopping;
+    private string _templateLibraryPath = string.Empty;
+    private string _generationOutputDirectory = string.Empty;
     private string _generationCountText = "1";
     private string _generationConcurrencyText = "1";
     private bool _isGenerationUniqueScene = true;
     private bool _isGenerationPromptsOnly = false;
     private string _generationPageDescription = "用于模板生图与 SP 批量处理";
     private string _generationStatusText = "待命";
-    private string _generationResultText = "这里会显示本次生成的提示词、输出目录和结果明细。";
     private string _generationResultModeText = "模式：待命";
-    private string _generationResultOutputText = $"输出目录：{WorkspaceDefaults.DefaultOpenFolder}";
+    private string _generationResultOutputText = "输出目录：未设置";
     private bool _isSpBatchRunning;
-    private string _spBatchInputDirectory = WorkspaceDefaults.DefaultOpenFolder;
-    private string _spBatchOutputDirectory = WorkspaceDefaults.DefaultSpBatchOutputFolder;
+    private string _spBatchInputDirectory = string.Empty;
+    private string _spBatchOutputDirectory = string.Empty;
     private string _spBatchConcurrencyText = "2";
     private string _spBatchRetriesText = "4";
     private SpBatchMode _spBatchMode = SpBatchMode.Generate;
     private string _spBatchStatusText = "待命";
     private string _spBatchSummaryText = "用于批量创建日期目录、SP 结构和 6 色 SKU 图。";
-    private string _spBatchResultRootText = $"日期目录：{WorkspaceDefaults.DefaultSpBatchOutputFolder}";
+    private string _spBatchResultRootText = "日期目录：未设置";
     private string _spBatchResultStatsText = "SP 数量：0  总任务：0  成功：0  跳过：0  失败：0";
+
+    private bool _isSpBatchStagingDropTarget;
 
     public MainWindowViewModel(
         IFolderScanService folderScanService,
         IImageWorkspaceService imageWorkspaceService,
         IWorkspaceStateService workspaceStateService,
+        IAppSettingsService appSettingsService,
         IProductSheetService productSheetService,
         ITemplateGenerationService templateGenerationService,
         ISpBatchService spBatchService)
@@ -97,6 +106,7 @@ public sealed class MainWindowViewModel : ViewModelBase
         _folderScanService = folderScanService;
         _imageWorkspaceService = imageWorkspaceService;
         _workspaceStateService = workspaceStateService;
+        _appSettingsService = appSettingsService;
         _productSheetService = productSheetService;
         _templateGenerationService = templateGenerationService;
         _spBatchService = spBatchService;
@@ -111,18 +121,23 @@ public sealed class MainWindowViewModel : ViewModelBase
         _showTemplateGenerateTabCommand = new RelayCommand(_ => SetSelectedImageGenerateTab(TemplateGenerateTab));
         _showSpBatchTabCommand = new RelayCommand(_ => SetSelectedImageGenerateTab(SpBatchTab));
         _chooseTemplateLibraryCommand = new AsyncRelayCommand(_ => ChooseTemplateLibraryAsync(), _ => !IsBusy);
+        _openTemplateLibraryFileCommand = new RelayCommand(_ => OpenTemplateLibraryFile(), _ => File.Exists(TemplateLibraryPath));
         _chooseGenerationOutputFolderCommand = new AsyncRelayCommand(_ => ChooseGenerationOutputFolderAsync(), _ => !IsBusy);
         _openGenerationOutputFolderCommand = new RelayCommand(_ => OpenGenerationOutputFolder(), _ => Directory.Exists(GenerationOutputDirectory));
         _runTemplateGenerationCommand = new AsyncRelayCommand(_ => RunTemplateGenerationAsync(), _ => !IsBusy);
+        _stopTemplateGenerationCommand = new RelayCommand(_ => StopTemplateGeneration(), _ => IsTemplateGenerating);
+        _chooseGenerationImagesCommand = new AsyncRelayCommand(_ => ChooseGenerationImagesAsync(), _ => !IsBusy);
+        _sendSelectedImagesToSpBatchCommand = new RelayCommand(_ => SendSelectedImagesToSpBatch(), _ => CanSendSelectedImagesToSpBatch());
         _chooseSpBatchInputFolderCommand = new AsyncRelayCommand(_ => ChooseSpBatchInputFolderAsync(), _ => !IsBusy);
         _chooseSpBatchOutputFolderCommand = new AsyncRelayCommand(_ => ChooseSpBatchOutputFolderAsync(), _ => !IsBusy);
-        _openSpBatchOutputFolderCommand = new RelayCommand(_ => OpenSpBatchOutputFolder(), _ => Directory.Exists(SpBatchOutputDirectory));
-        _runSpBatchCommand = new AsyncRelayCommand(_ => RunSpBatchAsync(), _ => !IsBusy);
+        _runSpBatchCommand = new AsyncRelayCommand(_ => RunSpBatchFromStagingAsync(), _ => !IsBusy);
+        _runBatchAutoPublishCommand = new AsyncRelayCommand(_ => RunBatchAutoPublishAsync(), _ => CanRunBatchAutoPublish());
     }
 
     public ObservableCollection<WorkspaceTabViewModel> WorkspaceTabs { get; } = [];
     public ObservableCollection<GenerationPromptCardViewModel> GenerationPromptCards { get; } = [];
     public ObservableCollection<GeneratedImageResultCardViewModel> GeneratedImageResultCards { get; } = [];
+    public ObservableCollection<GeneratedImageResultCardViewModel> SpBatchSourceImageCards { get; } = [];
     public ObservableCollection<GeneratedImageResultCardViewModel> SpBatchImageResultCards { get; } = [];
     public ObservableCollection<SpBatchResultCardViewModel> SpBatchResultCards { get; } = [];
 
@@ -136,13 +151,17 @@ public sealed class MainWindowViewModel : ViewModelBase
     public ICommand ShowTemplateGenerateTabCommand => _showTemplateGenerateTabCommand;
     public ICommand ShowSpBatchTabCommand => _showSpBatchTabCommand;
     public ICommand ChooseTemplateLibraryCommand => _chooseTemplateLibraryCommand;
+    public ICommand OpenTemplateLibraryFileCommand => _openTemplateLibraryFileCommand;
     public ICommand ChooseGenerationOutputFolderCommand => _chooseGenerationOutputFolderCommand;
     public ICommand OpenGenerationOutputFolderCommand => _openGenerationOutputFolderCommand;
     public ICommand RunTemplateGenerationCommand => _runTemplateGenerationCommand;
+    public ICommand StopTemplateGenerationCommand => _stopTemplateGenerationCommand;
+    public ICommand ChooseGenerationImagesCommand => _chooseGenerationImagesCommand;
+    public ICommand SendSelectedImagesToSpBatchCommand => _sendSelectedImagesToSpBatchCommand;
     public ICommand ChooseSpBatchInputFolderCommand => _chooseSpBatchInputFolderCommand;
     public ICommand ChooseSpBatchOutputFolderCommand => _chooseSpBatchOutputFolderCommand;
-    public ICommand OpenSpBatchOutputFolderCommand => _openSpBatchOutputFolderCommand;
     public ICommand RunSpBatchCommand => _runSpBatchCommand;
+    public ICommand RunBatchAutoPublishCommand => _runBatchAutoPublishCommand;
 
     public WorkspaceTabViewModel? SelectedTab
     {
@@ -181,8 +200,10 @@ public sealed class MainWindowViewModel : ViewModelBase
             OnPropertyChanged();
             OnPropertyChanged(nameof(HasTabs));
             OnPropertyChanged(nameof(HasRootCards));
+            OnPropertyChanged(nameof(HasBatchSelectedCards));
             _invertSelectionCommand.RaiseCanExecuteChanged();
             _generateProductSheetCommand.RaiseCanExecuteChanged();
+            _runBatchAutoPublishCommand.RaiseCanExecuteChanged();
         }
     }
 
@@ -194,15 +215,29 @@ public sealed class MainWindowViewModel : ViewModelBase
     public bool IsSpBatchTabSelected => _selectedImageGenerateTab == SpBatchTab;
     public bool IsLoadingVisible => IsBusy && !IsTemplateGenerating && !IsSpBatchRunning;
     public bool HasPreviewImage => PreviewImageSource is not null;
+    public bool HasBatchSelectedCards => SelectedTab?.GetBatchSelectedCards().Count > 0;
+    public bool CanOpenTemplateLibraryFile => File.Exists(TemplateLibraryPath);
     public bool CanOpenGenerationOutputFolder => Directory.Exists(GenerationOutputDirectory);
-    public bool CanOpenSpBatchOutputFolder => Directory.Exists(SpBatchOutputDirectory);
     public bool HasGenerationPromptCards => GenerationPromptCards.Count > 0;
     public bool HasGeneratedImageResultCards => GeneratedImageResultCards.Count > 0;
     public bool HasAnyGenerationResultCards => HasGenerationPromptCards || HasGeneratedImageResultCards;
+    public bool HasSelectedGeneratedImages => GeneratedImageResultCards.Any(card => card.IsSelected);
+    public bool CanGenerateSkuFromTemplate => !IsGenerationPromptsOnly && HasSelectedGeneratedImages && !IsBusy;
+    public string TemplateGenerationButtonText => IsTemplateGenerationStopping
+        ? "正在停止..."
+        : IsTemplateGenerating
+            ? "停止执行"
+            : "开始执行";
     public bool HasSpBatchResultCards => SpBatchResultCards.Count > 0;
     public bool HasSpBatchImageResultCards => SpBatchImageResultCards.Count > 0;
     public bool HasAnySpBatchResultCards => HasSpBatchResultCards || HasSpBatchImageResultCards;
+    public bool HasSpBatchSourceImageCards => SpBatchSourceImageCards.Count > 0;
     public bool ShouldShowSpBatchDetailCards => HasSpBatchResultCards && !HasSpBatchImageResultCards;
+    public bool IsSpBatchStagingDropTarget
+    {
+        get => _isSpBatchStagingDropTarget;
+        private set => SetProperty(ref _isSpBatchStagingDropTarget, value);
+    }
 
     public bool IsBusy
     {
@@ -223,9 +258,13 @@ public sealed class MainWindowViewModel : ViewModelBase
             _chooseTemplateLibraryCommand.RaiseCanExecuteChanged();
             _chooseGenerationOutputFolderCommand.RaiseCanExecuteChanged();
             _runTemplateGenerationCommand.RaiseCanExecuteChanged();
+            _stopTemplateGenerationCommand.RaiseCanExecuteChanged();
+            _chooseGenerationImagesCommand.RaiseCanExecuteChanged();
+            _sendSelectedImagesToSpBatchCommand.RaiseCanExecuteChanged();
             _chooseSpBatchInputFolderCommand.RaiseCanExecuteChanged();
             _chooseSpBatchOutputFolderCommand.RaiseCanExecuteChanged();
             _runSpBatchCommand.RaiseCanExecuteChanged();
+            _runBatchAutoPublishCommand.RaiseCanExecuteChanged();
             NotifyAutoPublishStateChanged();
         }
     }
@@ -314,7 +353,10 @@ public sealed class MainWindowViewModel : ViewModelBase
                 return;
             }
 
-            BackupFolderText = $"备份目录：{value}";
+            PersistUserPathSettings();
+            BackupFolderText = string.IsNullOrWhiteSpace(value)
+                ? "备份目录：未设置"
+                : $"备份目录：{value}";
             foreach (var tab in WorkspaceTabs)
             {
                 tab.SetBackupFolder(value);
@@ -325,7 +367,31 @@ public sealed class MainWindowViewModel : ViewModelBase
     public bool IsTemplateGenerating
     {
         get => _isTemplateGenerating;
-        private set => SetProperty(ref _isTemplateGenerating, value);
+        private set
+        {
+            if (!SetProperty(ref _isTemplateGenerating, value))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(TemplateGenerationButtonText));
+            _stopTemplateGenerationCommand.RaiseCanExecuteChanged();
+        }
+    }
+
+    public bool IsTemplateGenerationStopping
+    {
+        get => _isTemplateGenerationStopping;
+        private set
+        {
+            if (!SetProperty(ref _isTemplateGenerationStopping, value))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(TemplateGenerationButtonText));
+            _stopTemplateGenerationCommand.RaiseCanExecuteChanged();
+        }
     }
 
     public string GenerationPageDescription
@@ -337,7 +403,17 @@ public sealed class MainWindowViewModel : ViewModelBase
     public string TemplateLibraryPath
     {
         get => _templateLibraryPath;
-        set => SetProperty(ref _templateLibraryPath, value);
+        set
+        {
+            if (!SetProperty(ref _templateLibraryPath, value))
+            {
+                return;
+            }
+
+            PersistUserPathSettings();
+            OnPropertyChanged(nameof(CanOpenTemplateLibraryFile));
+            _openTemplateLibraryFileCommand.RaiseCanExecuteChanged();
+        }
     }
 
     public string GenerationOutputDirectory
@@ -350,7 +426,10 @@ public sealed class MainWindowViewModel : ViewModelBase
                 return;
             }
 
-            GenerationResultOutputText = $"输出目录：{value}";
+            PersistUserPathSettings();
+            GenerationResultOutputText = string.IsNullOrWhiteSpace(value)
+                ? "输出目录：未设置"
+                : $"输出目录：{value}";
             OnPropertyChanged(nameof(CanOpenGenerationOutputFolder));
             _openGenerationOutputFolderCommand.RaiseCanExecuteChanged();
         }
@@ -371,25 +450,46 @@ public sealed class MainWindowViewModel : ViewModelBase
     public bool IsGenerationUniqueScene
     {
         get => _isGenerationUniqueScene;
-        set => SetProperty(ref _isGenerationUniqueScene, value);
+        set
+        {
+            if (!SetProperty(ref _isGenerationUniqueScene, value))
+            {
+                return;
+            }
+
+            if (value && _isGenerationPromptsOnly)
+            {
+                _isGenerationPromptsOnly = false;
+                OnPropertyChanged(nameof(IsGenerationPromptsOnly));
+            }
+        }
     }
 
     public bool IsGenerationPromptsOnly
     {
         get => _isGenerationPromptsOnly;
-        set => SetProperty(ref _isGenerationPromptsOnly, value);
+        set
+        {
+            if (!SetProperty(ref _isGenerationPromptsOnly, value))
+            {
+                return;
+            }
+
+            if (value && _isGenerationUniqueScene)
+            {
+                _isGenerationUniqueScene = false;
+                OnPropertyChanged(nameof(IsGenerationUniqueScene));
+            }
+
+            OnPropertyChanged(nameof(CanGenerateSkuFromTemplate));
+            _sendSelectedImagesToSpBatchCommand.RaiseCanExecuteChanged();
+        }
     }
 
     public string GenerationStatusText
     {
         get => _generationStatusText;
         private set => SetProperty(ref _generationStatusText, value);
-    }
-
-    public string GenerationResultText
-    {
-        get => _generationResultText;
-        private set => SetProperty(ref _generationResultText, value);
     }
 
     public string GenerationResultModeText
@@ -413,7 +513,15 @@ public sealed class MainWindowViewModel : ViewModelBase
     public string SpBatchInputDirectory
     {
         get => _spBatchInputDirectory;
-        set => SetProperty(ref _spBatchInputDirectory, value);
+        set
+        {
+            if (!SetProperty(ref _spBatchInputDirectory, value))
+            {
+                return;
+            }
+
+            PersistUserPathSettings();
+        }
     }
 
     public string SpBatchOutputDirectory
@@ -426,9 +534,10 @@ public sealed class MainWindowViewModel : ViewModelBase
                 return;
             }
 
-            SpBatchResultRootText = $"日期目录：{value}";
-            OnPropertyChanged(nameof(CanOpenSpBatchOutputFolder));
-            _openSpBatchOutputFolderCommand.RaiseCanExecuteChanged();
+            PersistUserPathSettings();
+            SpBatchResultRootText = string.IsNullOrWhiteSpace(value)
+                ? "日期目录：未设置"
+                : $"日期目录：{value}";
         }
     }
 
@@ -513,10 +622,17 @@ public sealed class MainWindowViewModel : ViewModelBase
     public async Task InitializeAsync()
     {
         await Task.Yield();
+        var userSettings = _appSettingsService.LoadUserPaths();
+        ApplyUserPathSettings(userSettings);
         EnsurePlaceholderTab();
         ResetSummary();
         ResetGenerationSummary();
         ResetSpBatchSummary();
+
+        if (!string.IsNullOrWhiteSpace(userSettings.ReviewRootFolder) && Directory.Exists(userSettings.ReviewRootFolder))
+        {
+            await LoadFolderAsync(userSettings.ReviewRootFolder);
+        }
     }
 
     public async Task LoadFolderAsync(string folderPath)
@@ -543,7 +659,46 @@ public sealed class MainWindowViewModel : ViewModelBase
 
         tab.SetRootFolder(folderPath);
         SelectedTab = tab;
+        PersistUserPathSettings();
         await ReloadTabAsync(tab);
+    }
+
+    public async Task RefreshCurrentPageAsync()
+    {
+        if (IsBusy)
+        {
+            return;
+        }
+
+        if (IsReviewWorkspaceSelected)
+        {
+            var tab = SelectedTab;
+            if (tab is null || tab.IsPlaceholder || string.IsNullOrWhiteSpace(tab.RootFolder) || !Directory.Exists(tab.RootFolder))
+            {
+                StatusMessage = "当前没有可刷新的文件夹。";
+                return;
+            }
+
+            StatusMessage = $"正在刷新：{tab.RootFolder}";
+            await ReloadTabAsync(tab);
+            return;
+        }
+
+        if (IsImageGenerateSelected)
+        {
+            if (IsTemplateGenerateTabSelected)
+            {
+                ResetGenerationSummary();
+                StatusMessage = "已刷新图片生成页。";
+                return;
+            }
+
+            if (IsSpBatchTabSelected)
+            {
+                ResetSpBatchSummary();
+                StatusMessage = "已刷新 SP 批处理页。";
+            }
+        }
     }
 
     private WorkspaceTabViewModel CreateAndAddTab(string folderPath)
@@ -563,7 +718,8 @@ public sealed class MainWindowViewModel : ViewModelBase
             _workspaceStateService,
             _productSheetService,
             () => _isAutoPublishRunning || IsBusy,
-            RunAutoPublishExclusiveAsync);
+            RunAutoPublishExclusiveAsync,
+            OnBatchSelectionChanged);
         tab.RequestedActivate += OnTabRequestedActivate;
         tab.RequestedClose += OnTabRequestedClose;
         return tab;
@@ -602,6 +758,19 @@ public sealed class MainWindowViewModel : ViewModelBase
             NotifyAutoPublishStateChanged();
             _autoPublishLock.Release();
         }
+    }
+
+    private void OnBatchSelectionChanged()
+    {
+        OnPropertyChanged(nameof(HasBatchSelectedCards));
+        _runBatchAutoPublishCommand.RaiseCanExecuteChanged();
+    }
+
+    private bool CanRunBatchAutoPublish()
+    {
+        return !IsBusy
+            && !_isAutoPublishRunning
+            && SelectedTab?.GetBatchSelectedCards().Count > 0;
     }
 
     private void NotifyAutoPublishStateChanged()
@@ -704,7 +873,7 @@ public sealed class MainWindowViewModel : ViewModelBase
         using var dialog = new Forms.FolderBrowserDialog
         {
             Description = "选择备份目录",
-            InitialDirectory = Directory.Exists(BackupFolder) ? BackupFolder : WorkspaceDefaults.DefaultBackupFolder,
+            InitialDirectory = Directory.Exists(BackupFolder) ? BackupFolder : string.Empty,
             ShowNewFolderButton = true
         };
 
@@ -726,7 +895,9 @@ public sealed class MainWindowViewModel : ViewModelBase
             Filter = "Excel 文件|*.xlsx;*.xlsm;*.xls|所有文件|*.*",
             InitialDirectory = Directory.Exists(Path.GetDirectoryName(TemplateLibraryPath))
                 ? Path.GetDirectoryName(TemplateLibraryPath)
-                : @"D:\temu_auto\temp"
+                : Directory.Exists(Path.GetDirectoryName(DefaultTemplateLibraryPath))
+                    ? Path.GetDirectoryName(DefaultTemplateLibraryPath)
+                : WorkspaceDefaults.DefaultTempFolder
         };
 
         if (dialog.ShowDialog() == true)
@@ -756,9 +927,46 @@ public sealed class MainWindowViewModel : ViewModelBase
         await Task.CompletedTask;
     }
 
+    private async Task ChooseGenerationImagesAsync()
+    {
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "选择图片",
+            Filter = "图片文件|*.jpg;*.jpeg;*.png;*.bmp;*.gif;*.tif;*.tiff;*.webp;*.jfif|所有文件|*.*",
+            Multiselect = true,
+            InitialDirectory = Directory.Exists(GenerationOutputDirectory)
+                ? GenerationOutputDirectory
+                : WorkspaceDefaults.DefaultOpenFolder
+        };
+
+        if (dialog.ShowDialog() != true || dialog.FileNames.Length == 0)
+        {
+            return;
+        }
+
+        ClearGenerationPromptCards();
+        AddGenerationImages(dialog.FileNames);
+        StatusMessage = $"已添加 {dialog.FileNames.Length} 张图片到模板生图区。";
+        await Task.CompletedTask;
+    }
+
     private void OpenGenerationOutputFolder()
     {
         OpenFolder(GenerationOutputDirectory);
+    }
+
+    private void OpenTemplateLibraryFile()
+    {
+        if (!File.Exists(TemplateLibraryPath))
+        {
+            return;
+        }
+
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = TemplateLibraryPath,
+            UseShellExecute = true
+        });
     }
 
     private async Task ChooseSpBatchInputFolderAsync()
@@ -799,11 +1007,6 @@ public sealed class MainWindowViewModel : ViewModelBase
         await Task.CompletedTask;
     }
 
-    private void OpenSpBatchOutputFolder()
-    {
-        OpenFolder(SpBatchOutputDirectory);
-    }
-
     private static void OpenFolder(string folderPath)
     {
         if (!Directory.Exists(folderPath))
@@ -831,7 +1034,7 @@ public sealed class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        if (!TryParsePositiveInt(GenerationConcurrencyText, "并发数", out var concurrency))
+        if (!TryParsePositiveInt(GenerationConcurrencyText, "并发数量", out var concurrency))
         {
             return;
         }
@@ -841,13 +1044,16 @@ public sealed class MainWindowViewModel : ViewModelBase
         IsBusy = true;
         IsTemplateGenerating = true;
         GenerationStatusText = IsGenerationPromptsOnly ? "正在生成提示词..." : "正在批量生成图片...";
-        GenerationResultText = "正在调用本地模板脚本...";
         GenerationResultModeText = $"模式：{(IsGenerationPromptsOnly ? "只出提示词" : "直接生图")}";
         GenerationResultOutputText = $"输出目录：{GenerationOutputDirectory}";
         ClearGenerationPromptCards();
         ClearGeneratedImageResultCards();
         ClearGeneratedImageResultCards();
         StatusMessage = GenerationStatusText;
+        IsTemplateGenerationStopping = false;
+        _templateGenerationCancellationTokenSource?.Cancel();
+        _templateGenerationCancellationTokenSource?.Dispose();
+        _templateGenerationCancellationTokenSource = new CancellationTokenSource();
 
         try
         {
@@ -862,18 +1068,25 @@ public sealed class MainWindowViewModel : ViewModelBase
                 PromptsOnly = IsGenerationPromptsOnly
             };
 
-            var result = await _templateGenerationService.GenerateAsync(request);
+            var result = await _templateGenerationService.GenerateAsync(request, _templateGenerationCancellationTokenSource.Token);
             GenerationStatusText = result.Mode == "prompts_only" ? "提示词生成完成" : "图片生成完成";
-            GenerationResultText = BuildGenerationResultText(result);
+            ApplyGenerationResult(result);
             ApplyGenerationVisualResult(result);
             StatusMessage = result.Mode == "prompts_only"
                 ? $"提示词生成完成，共 {result.Prompts.Count} 条。"
                 : $"图片生成完成，共 {result.Items.Count} 张。";
         }
+        catch (OperationCanceledException)
+        {
+            IsTemplateGenerationStopping = false;
+            GenerationStatusText = "已停止";
+            GenerationResultModeText = "模式：已停止";
+            GenerationResultOutputText = $"输出目录：{GenerationOutputDirectory}";
+            StatusMessage = "已停止当前生图任务。";
+        }
         catch (Exception ex)
         {
             GenerationStatusText = "执行失败";
-            GenerationResultText = $"模板随机生成失败：{ex.Message}";
             GenerationResultModeText = "模式：执行失败";
             GenerationResultOutputText = $"输出目录：{GenerationOutputDirectory}";
             ClearGenerationPromptCards();
@@ -885,13 +1098,30 @@ public sealed class MainWindowViewModel : ViewModelBase
             });
             OnPropertyChanged(nameof(HasGenerationPromptCards));
             OnPropertyChanged(nameof(HasGeneratedImageResultCards));
-            StatusMessage = GenerationResultText;
+            StatusMessage = $"模板随机生成失败：{ex.Message}";
         }
         finally
         {
+            IsTemplateGenerationStopping = false;
+            _templateGenerationCancellationTokenSource?.Dispose();
+            _templateGenerationCancellationTokenSource = null;
             IsTemplateGenerating = false;
             IsBusy = false;
         }
+    }
+
+    private void StopTemplateGeneration()
+    {
+        if (!IsTemplateGenerating || IsTemplateGenerationStopping)
+        {
+            return;
+        }
+
+        IsTemplateGenerationStopping = true;
+        GenerationStatusText = "正在停止...";
+        StatusMessage = "正在停止当前生图任务...";
+        _templateGenerationService.CancelCurrentRun();
+        _templateGenerationCancellationTokenSource?.Cancel();
     }
 
     private async Task RunSpBatchAsync()
@@ -901,15 +1131,12 @@ public sealed class MainWindowViewModel : ViewModelBase
             throw new InvalidOperationException("请输入有效的批处理输入目录。");
         }
 
-        if (!TryParsePositiveInt(SpBatchConcurrencyText, "并发数", out var concurrency))
+        if (!TryParsePositiveInt(SpBatchConcurrencyText, "并发数量", out var concurrency))
         {
             return;
         }
 
-        if (!TryParsePositiveInt(SpBatchRetriesText, "重试次数", out var retries))
-        {
-            return;
-        }
+        var retries = 4;
 
         Directory.CreateDirectory(SpBatchOutputDirectory);
 
@@ -1002,6 +1229,51 @@ public sealed class MainWindowViewModel : ViewModelBase
         }
     }
 
+    private async Task RunBatchAutoPublishAsync()
+    {
+        var selectedCards = SelectedTab?.GetBatchSelectedCards();
+        if (selectedCards is null || selectedCards.Count == 0)
+        {
+            StatusMessage = "请先勾选需要批量上架的已修改卡片。";
+            return;
+        }
+
+        await RunAutoPublishExclusiveAsync(async () =>
+        {
+            IsBusy = true;
+            LoadingTitle = "正在批量上架";
+            IsScanProgressIndeterminate = true;
+            ScanProgressValue = 0;
+
+            try
+            {
+                for (var index = 0; index < selectedCards.Count; index++)
+                {
+                    var card = selectedCards[index];
+                    var summary = card.CollapsedSummaryText;
+                    LoadingDetail = $"正在处理第 {index + 1}/{selectedCards.Count} 个：{summary}";
+                    StatusMessage = $"批量上架进行中：{index + 1}/{selectedCards.Count}";
+                    await card.RunAutoPublishInternalAsync();
+                    card.IsBatchSelected = false;
+                }
+
+                LoadingDetail = $"已完成 {selectedCards.Count} 个卡片的批量上架。";
+                StatusMessage = $"批量上架完成：共处理 {selectedCards.Count} 个卡片。";
+            }
+            catch (Exception ex)
+            {
+                LoadingDetail = ex.Message;
+                StatusMessage = $"批量上架失败：{ex.Message}";
+                throw;
+            }
+            finally
+            {
+                IsBusy = false;
+                OnBatchSelectionChanged();
+            }
+        });
+    }
+
     private void OnFolderScanProgress(FolderScanProgress progress)
     {
         LoadingTitle = progress.Stage;
@@ -1071,26 +1343,27 @@ public sealed class MainWindowViewModel : ViewModelBase
     {
         LoadedFolderText = "当前文件夹：未选择";
         SelectionSummaryText = "图片 0 张，已选中 0 张，未选中 0 张";
-        BackupFolderText = $"备份目录：{BackupFolder}";
+        BackupFolderText = string.IsNullOrWhiteSpace(BackupFolder)
+            ? "备份目录：未设置"
+            : $"备份目录：{BackupFolder}";
         StatusMessage = "请选择文件夹开始筛图。";
     }
 
     private void ResetGenerationSummary()
     {
-        GenerationPageDescription = "用于模板生图与 SP 批量处理";
-        GenerationStatusText = "待命";
-        GenerationResultText = "这里会显示本次生成的提示词、输出目录和结果明细。";
-        GenerationResultModeText = "模式：待命";
-        GenerationResultOutputText = $"输出目录：{GenerationOutputDirectory}";
+        GenerationPageDescription = "\u7528\u4e8e\u6a21\u677f\u751f\u56fe\u4e0e SP \u6279\u91cf\u5904\u7406";
+        GenerationStatusText = "\u5f85\u547d";
+        GenerationResultModeText = "\u6a21\u5f0f\uff1a\u5f85\u547d";
+        GenerationResultOutputText = $"\u8f93\u51fa\u76ee\u5f55\uff1a{GenerationOutputDirectory}";
         ClearGenerationPromptCards();
     }
 
     private void ResetSpBatchSummary()
     {
-        SpBatchStatusText = "待命";
-        SpBatchSummaryText = "用于批量创建日期目录、SP 结构和 6 色 SKU 图。";
-        SpBatchResultRootText = $"日期目录：{SpBatchOutputDirectory}";
-        SpBatchResultStatsText = "SP 数量：0  总任务：0  成功：0  跳过：0  失败：0";
+        SpBatchStatusText = "\u5f85\u547d";
+        SpBatchSummaryText = "\u7528\u4e8e\u6279\u91cf\u521b\u5efa\u65e5\u671f\u76ee\u5f55\u3001SP \u7ed3\u6784\u548c 6 \u8272 SKU \u56fe\u3002";
+        SpBatchResultRootText = $"\u65e5\u671f\u76ee\u5f55\uff1a{SpBatchOutputDirectory}";
+        SpBatchResultStatsText = "SP \u6570\u91cf\uff1a0  \u603b\u4efb\u52a1\uff1a0  \u6210\u529f\uff1a0  \u8df3\u8fc7\uff1a0  \u5931\u8d25\uff1a0";
         ClearSpBatchResultCards();
     }
 
@@ -1098,7 +1371,9 @@ public sealed class MainWindowViewModel : ViewModelBase
     {
         LoadedFolderText = tab.GetCurrentFolderText();
         SelectionSummaryText = tab.GetSelectionSummaryText();
-        BackupFolderText = $"备份目录：{BackupFolder}";
+        BackupFolderText = string.IsNullOrWhiteSpace(BackupFolder)
+            ? "备份目录：未设置"
+            : $"备份目录：{BackupFolder}";
     }
 
     private void OnTabRequestedActivate(WorkspaceTabViewModel tab)
@@ -1223,53 +1498,77 @@ public sealed class MainWindowViewModel : ViewModelBase
         return $"{size:0.##} {units[unitIndex]}";
     }
 
+
+    private static string ResolveTemplateLibraryPath()
+    {
+        var appBase = AppContext.BaseDirectory;
+        var candidates = new[]
+        {
+            Path.Combine(appBase, "data", "workspace", "temp", "\u6587\u751f\u56fe\u6a21\u677f\u5e93_Codex.xlsx"),
+            Path.Combine(WorkspaceDefaults.DefaultTempFolder, "\u6587\u751f\u56fe\u6a21\u677f\u5e93_Codex.xlsx"),
+            @"D:\temu_auto\temp\文生图模板库_Codex.xlsx"
+        };
+
+        return candidates.FirstOrDefault(File.Exists) ?? candidates[0];
+    }
+
+    private static string ResolveImage2ScriptPath()
+    {
+        var appBase = AppContext.BaseDirectory;
+        var candidates = new[]
+        {
+            Path.Combine(appBase, "tools", "python", "image2-generate", "scripts", "generate_image.py"),
+            Path.Combine(@"D:\new_project\tools\python", "image2-generate", "scripts", "generate_image.py")
+        };
+
+        return candidates.FirstOrDefault(File.Exists) ?? candidates[0];
+    }
+
+    private void ApplyUserPathSettings(AppUserPathsState state)
+    {
+        BackupFolder = state.BackupFolder ?? string.Empty;
+        TemplateLibraryPath = state.TemplateLibraryPath ?? string.Empty;
+        GenerationOutputDirectory = state.GenerationOutputDirectory ?? string.Empty;
+        SpBatchInputDirectory = state.SpBatchInputDirectory ?? string.Empty;
+        SpBatchOutputDirectory = state.SpBatchOutputDirectory ?? string.Empty;
+    }
+
+    private void PersistUserPathSettings()
+    {
+        _appSettingsService.SaveUserPaths(new AppUserPathsState
+        {
+            ReviewRootFolder = SelectedTab?.IsPlaceholder == false ? SelectedTab.RootFolder : string.Empty,
+            BackupFolder = BackupFolder,
+            TemplateLibraryPath = TemplateLibraryPath,
+            GenerationOutputDirectory = GenerationOutputDirectory,
+            SpBatchInputDirectory = SpBatchInputDirectory,
+            SpBatchOutputDirectory = SpBatchOutputDirectory
+        });
+    }
+
+
     private static bool TryParsePositiveInt(string text, string fieldName, out int value)
     {
         if (!int.TryParse(text, out value) || value <= 0)
         {
-            throw new InvalidOperationException($"{fieldName}必须是大于 0 的整数。");
+            throw new InvalidOperationException($"{fieldName}\u5fc5\u987b\u662f\u5927\u4e8e 0 \u7684\u6574\u6570\u3002");
         }
 
         return true;
     }
 
-    private static string BuildGenerationResultText(TemplateGenerateResult result)
-    {
-        var builder = new StringBuilder();
-        builder.AppendLine($"模式：{(result.Mode == "prompts_only" ? "只出提示词" : "直接生图")}");
-        builder.AppendLine($"输出目录：{result.OutputDirectory}");
-        builder.AppendLine();
-
-        if (result.Prompts.Count > 0)
-        {
-            builder.AppendLine("提示词：");
-            for (var index = 0; index < result.Prompts.Count; index++)
-            {
-                builder.AppendLine($"{index + 1}. {result.Prompts[index]}");
-            }
-        }
-
-        if (result.Items.Count > 0)
-        {
-            builder.AppendLine();
-            builder.AppendLine("生成结果：");
-            foreach (var item in result.Items)
-            {
-                builder.AppendLine($"#{item.Index}  文件名：{item.FileName}");
-                builder.AppendLine($"图片路径：{item.ImagePath}");
-                builder.AppendLine($"提示词：{item.Prompt}");
-                builder.AppendLine();
-            }
-        }
-
-        return builder.ToString().TrimEnd();
-    }
-
     private void ApplyGenerationResult(TemplateGenerateResult result)
     {
-        GenerationResultModeText = $"模式：{(result.Mode == "prompts_only" ? "只出提示词" : "直接生图")}";
-        GenerationResultOutputText = $"输出目录：{result.OutputDirectory}";
+        GenerationResultModeText = $"\u6a21\u5f0f\uff1a{(result.Mode == "prompts_only" ? "\u53ea\u51fa\u63d0\u793a\u8bcd" : "\u76f4\u63a5\u751f\u56fe")}";
+        GenerationResultOutputText = $"\u8f93\u51fa\u76ee\u5f55\uff1a{result.OutputDirectory}";
         ClearGenerationPromptCards();
+
+        if (!string.Equals(result.Mode, "prompts_only", StringComparison.OrdinalIgnoreCase))
+        {
+            OnPropertyChanged(nameof(HasGenerationPromptCards));
+            OnPropertyChanged(nameof(HasAnyGenerationResultCards));
+            return;
+        }
 
         if (result.Prompts.Count > 0)
         {
@@ -1283,14 +1582,14 @@ public sealed class MainWindowViewModel : ViewModelBase
                         Environment.NewLine,
                         new[]
                         {
-                            string.IsNullOrWhiteSpace(item.FileName) ? null : $"文件名：{item.FileName}",
-                            string.IsNullOrWhiteSpace(item.ImagePath) ? null : $"图片路径：{item.ImagePath}"
+                            string.IsNullOrWhiteSpace(item.FileName) ? null : $"\u6587\u4ef6\u540d\uff1a{item.FileName}",
+                            string.IsNullOrWhiteSpace(item.ImagePath) ? null : $"\u56fe\u7247\u8def\u5f84\uff1a{item.ImagePath}"
                         }.Where(text => !string.IsNullOrWhiteSpace(text)));
                 }
 
                 GenerationPromptCards.Add(new GenerationPromptCardViewModel
                 {
-                    Title = $"提示词 {index + 1}",
+                    Title = $"\u63d0\u793a\u8bcd {index + 1}",
                     PromptText = result.Prompts[index],
                     MetaText = metaText
                 });
@@ -1302,20 +1601,21 @@ public sealed class MainWindowViewModel : ViewModelBase
             {
                 GenerationPromptCards.Add(new GenerationPromptCardViewModel
                 {
-                    Title = $"结果 {item.Index}",
+                    Title = $"\u7ed3\u679c {item.Index}",
                     PromptText = item.Prompt,
                     MetaText = string.Join(
                         Environment.NewLine,
                         new[]
                         {
-                            string.IsNullOrWhiteSpace(item.FileName) ? null : $"文件名：{item.FileName}",
-                            string.IsNullOrWhiteSpace(item.ImagePath) ? null : $"图片路径：{item.ImagePath}"
+                            string.IsNullOrWhiteSpace(item.FileName) ? null : $"\u6587\u4ef6\u540d\uff1a{item.FileName}",
+                            string.IsNullOrWhiteSpace(item.ImagePath) ? null : $"\u56fe\u7247\u8def\u5f84\uff1a{item.ImagePath}"
                         }.Where(text => !string.IsNullOrWhiteSpace(text)))
                 });
             }
         }
 
         OnPropertyChanged(nameof(HasGenerationPromptCards));
+        OnPropertyChanged(nameof(HasAnyGenerationResultCards));
     }
 
     private void ClearGenerationPromptCards()
@@ -1327,26 +1627,27 @@ public sealed class MainWindowViewModel : ViewModelBase
 
         GenerationPromptCards.Clear();
         OnPropertyChanged(nameof(HasGenerationPromptCards));
+        OnPropertyChanged(nameof(HasAnyGenerationResultCards));
     }
 
     private void ApplySpBatchResult(SpBatchResult result)
     {
         SpBatchStatusText = result.Mode switch
         {
-            "dry_run" => "预检查完成",
-            "prepared" => "目录结构创建完成",
-            _ => result.FailedCount > 0 ? "部分执行失败" : "批处理完成"
+            "dry_run" => "\u9884\u68c0\u67e5\u5b8c\u6210",
+            "prepared" => "\u76ee\u5f55\u7ed3\u6784\u521b\u5efa\u5b8c\u6210",
+            _ => result.FailedCount > 0 ? "\u90e8\u5206\u6267\u884c\u5931\u8d25" : "\u6279\u5904\u7406\u5b8c\u6210"
         };
 
         SpBatchSummaryText = result.Mode switch
         {
-            "dry_run" => $"预检查完成，共规划 {result.Results.Count} 个颜色任务。",
-            "prepared" => $"目录结构创建完成，共准备 {result.PreparedBundles.Count} 个 SP 目录。",
-            _ => $"批处理完成，共 {result.Results.Count} 个任务，成功 {result.SuccessCount}，跳过 {result.SkippedCount}，失败 {result.FailedCount}。"
+            "dry_run" => $"\u9884\u68c0\u67e5\u5b8c\u6210\uff0c\u5171\u89c4\u5212 {result.Results.Count} \u4e2a\u989c\u8272\u4efb\u52a1\u3002",
+            "prepared" => $"\u76ee\u5f55\u7ed3\u6784\u521b\u5efa\u5b8c\u6210\uff0c\u5171\u51c6\u5907 {result.PreparedBundles.Count} \u4e2a SP \u76ee\u5f55\u3002",
+            _ => $"\u6279\u5904\u7406\u5b8c\u6210\uff0c\u5171 {result.Results.Count} \u4e2a\u4efb\u52a1\uff0c\u6210\u529f {result.SuccessCount}\uff0c\u8df3\u8fc7 {result.SkippedCount}\uff0c\u5931\u8d25 {result.FailedCount}\u3002"
         };
 
-        SpBatchResultRootText = $"日期目录：{result.DatedRoot}";
-        SpBatchResultStatsText = $"SP 数量：{CountSpDirectories(result)}  总任务：{result.Results.Count}  成功：{result.SuccessCount}  跳过：{result.SkippedCount}  失败：{result.FailedCount}";
+        SpBatchResultRootText = $"\u65e5\u671f\u76ee\u5f55\uff1a{result.DatedRoot}";
+        SpBatchResultStatsText = $"SP \u6570\u91cf\uff1a{CountSpDirectories(result)}  \u603b\u4efb\u52a1\uff1a{result.Results.Count}  \u6210\u529f\uff1a{result.SuccessCount}  \u8df3\u8fc7\uff1a{result.SkippedCount}  \u5931\u8d25\uff1a{result.FailedCount}";
         ClearSpBatchResultCards();
 
         foreach (var group in result.Results.GroupBy(item => item.SpDirectory).OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase))
@@ -1361,49 +1662,50 @@ public sealed class MainWindowViewModel : ViewModelBase
             var detailLines = new List<string>();
             if (bundle is not null)
             {
-                detailLines.Add($"main：{bundle.MainDirectory}");
-                detailLines.Add($"sku：{bundle.SkuDirectory}");
-                detailLines.Add($"detail：{bundle.DetailDirectory}");
-                detailLines.Add($"封面：{bundle.SourceCopyPath}");
+                detailLines.Add($"\u4e3b\u56fe\u76ee\u5f55\uff1a{bundle.MainDirectory}");
+                detailLines.Add($"SKU \u76ee\u5f55\uff1a{bundle.SkuDirectory}");
+                detailLines.Add($"\u8be6\u60c5\u76ee\u5f55\uff1a{bundle.DetailDirectory}");
             }
 
-            var colorLine = string.Join(" / ", group.Select(item => item.Color).Distinct(StringComparer.OrdinalIgnoreCase));
-            if (!string.IsNullOrWhiteSpace(colorLine))
+            foreach (var item in group.OrderBy(item => item.Index))
             {
-                detailLines.Add($"颜色：{colorLine}");
+                detailLines.Add($"#{item.Index}  \u989c\u8272\uff1a{item.Color}  \u72b6\u6001\uff1a{item.Status}");
+                if (!string.IsNullOrWhiteSpace(item.ImagePath))
+                {
+                    detailLines.Add($"\u8f93\u51fa\uff1a{item.ImagePath}");
+                }
+                if (!string.IsNullOrWhiteSpace(item.Error))
+                {
+                    detailLines.Add($"\u9519\u8bef\uff1a{item.Error}");
+                }
+            }
+
+            var statusText = failedCount > 0
+                ? "\u5931\u8d25"
+                : plannedCount > 0
+                    ? "\u5df2\u89c4\u5212"
+                    : skippedCount > 0 && successCount == 0
+                        ? "\u5df2\u8df3\u8fc7"
+                        : "\u5b8c\u6210";
+
+            var summaryText = $"\u6210\u529f {successCount}\uff0c\u8df3\u8fc7 {skippedCount}\uff0c\u5931\u8d25 {failedCount}";
+            if (plannedCount > 0)
+            {
+                summaryText = $"\u5df2\u89c4\u5212 {plannedCount} \u4e2a\u4efb\u52a1";
             }
 
             SpBatchResultCards.Add(new SpBatchResultCardViewModel
             {
-                Title = string.IsNullOrWhiteSpace(title) ? group.Key : title,
-                SummaryText = $"成功 {successCount}  跳过 {skippedCount}  失败 {failedCount}  计划 {plannedCount}",
-                DetailText = string.Join(Environment.NewLine, detailLines),
-                StatusText = failedCount > 0
-                    ? "失败"
-                    : plannedCount > 0
-                        ? "预检查"
-                        : result.Mode == "prepared"
-                            ? "已建结构"
-                            : "完成"
+                Title = title,
+                SummaryText = summaryText,
+                StatusText = statusText,
+                DetailText = string.Join(Environment.NewLine, detailLines)
             });
         }
 
-        if (SpBatchResultCards.Count == 0 && result.PreparedBundles.Count > 0)
-        {
-            foreach (var bundle in result.PreparedBundles)
-            {
-                var title = Path.GetFileName(bundle.SpDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
-                SpBatchResultCards.Add(new SpBatchResultCardViewModel
-                {
-                    Title = title,
-                    SummaryText = "目录结构已创建",
-                    DetailText = $"main：{bundle.MainDirectory}{Environment.NewLine}sku：{bundle.SkuDirectory}{Environment.NewLine}detail：{bundle.DetailDirectory}{Environment.NewLine}封面：{bundle.SourceCopyPath}",
-                    StatusText = "已建结构"
-                });
-            }
-        }
-
         OnPropertyChanged(nameof(HasSpBatchResultCards));
+        OnPropertyChanged(nameof(HasAnySpBatchResultCards));
+        OnPropertyChanged(nameof(ShouldShowSpBatchDetailCards));
     }
 
     private void ClearSpBatchResultCards()
@@ -1429,6 +1731,9 @@ public sealed class MainWindowViewModel : ViewModelBase
         GeneratedImageResultCards.Clear();
         OnPropertyChanged(nameof(HasGeneratedImageResultCards));
         OnPropertyChanged(nameof(HasAnyGenerationResultCards));
+        OnPropertyChanged(nameof(HasSelectedGeneratedImages));
+        OnPropertyChanged(nameof(CanGenerateSkuFromTemplate));
+        _sendSelectedImagesToSpBatchCommand.RaiseCanExecuteChanged();
     }
 
     private void ClearSpBatchImageResultCards()
@@ -1469,12 +1774,19 @@ public sealed class MainWindowViewModel : ViewModelBase
                 continue;
             }
 
-            GeneratedImageResultCards.Add(new GeneratedImageResultCardViewModel(item.ImagePath, item.FileName));
+            GeneratedImageResultCards.Add(new GeneratedImageResultCardViewModel(
+                item.ImagePath,
+                item.FileName,
+                canToggleSelection: true,
+                selectionChanged: OnGeneratedImageSelectionChanged));
         }
 
         OnPropertyChanged(nameof(HasGenerationPromptCards));
         OnPropertyChanged(nameof(HasGeneratedImageResultCards));
         OnPropertyChanged(nameof(HasAnyGenerationResultCards));
+        OnPropertyChanged(nameof(HasSelectedGeneratedImages));
+        OnPropertyChanged(nameof(CanGenerateSkuFromTemplate));
+        _sendSelectedImagesToSpBatchCommand.RaiseCanExecuteChanged();
     }
 
     private void ApplySpBatchVisualResult(SpBatchResult result)
@@ -1503,5 +1815,233 @@ public sealed class MainWindowViewModel : ViewModelBase
             .Where(path => !string.IsNullOrWhiteSpace(path))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Count();
+    }
+
+    private bool CanSendSelectedImagesToSpBatch()
+    {
+        return !IsBusy && !IsGenerationPromptsOnly && GeneratedImageResultCards.Any(card => card.IsSelected);
+    }
+
+    private void OnGeneratedImageSelectionChanged(GeneratedImageResultCardViewModel _)
+    {
+        OnPropertyChanged(nameof(HasSelectedGeneratedImages));
+        OnPropertyChanged(nameof(CanGenerateSkuFromTemplate));
+        _sendSelectedImagesToSpBatchCommand.RaiseCanExecuteChanged();
+    }
+
+    private void OnSpBatchSourceImageRemoved(GeneratedImageResultCardViewModel card)
+    {
+        if (!SpBatchSourceImageCards.Contains(card))
+        {
+            return;
+        }
+
+        SpBatchSourceImageCards.Remove(card);
+        OnPropertyChanged(nameof(HasSpBatchSourceImageCards));
+    }
+
+    private void SendSelectedImagesToSpBatch()
+    {
+        var selectedCards = GeneratedImageResultCards
+            .Where(card => card.IsSelected)
+            .ToArray();
+
+        if (selectedCards.Length == 0)
+        {
+            return;
+        }
+
+        foreach (var card in selectedCards)
+        {
+            AddSpBatchSourceImage(card.ImagePath, card.FileName);
+        }
+
+        SetSelectedImageGenerateTab(SpBatchTab);
+        StatusMessage = $"已将 {selectedCards.Length} 张图片加入 SP 批处理区域。";
+    }
+
+    private void AddGenerationImages(IEnumerable<string> filePaths)
+    {
+        var added = false;
+
+        foreach (var filePath in filePaths
+                     .Where(File.Exists)
+                     .Where(IsSupportedImageFile)
+                     .Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (GeneratedImageResultCards.Any(card => string.Equals(card.ImagePath, filePath, StringComparison.OrdinalIgnoreCase)))
+            {
+                continue;
+            }
+
+            GeneratedImageResultCards.Add(new GeneratedImageResultCardViewModel(
+                filePath,
+                Path.GetFileName(filePath),
+                canToggleSelection: true,
+                selectionChanged: OnGeneratedImageSelectionChanged));
+            GeneratedImageResultCards[^1].SetSelected(true);
+            added = true;
+        }
+
+        if (added)
+        {
+            OnPropertyChanged(nameof(HasGeneratedImageResultCards));
+            OnPropertyChanged(nameof(HasAnyGenerationResultCards));
+            OnPropertyChanged(nameof(HasSelectedGeneratedImages));
+            OnPropertyChanged(nameof(CanGenerateSkuFromTemplate));
+            _sendSelectedImagesToSpBatchCommand.RaiseCanExecuteChanged();
+        }
+    }
+
+    private void AddSpBatchSourceImage(string imagePath, string? fileName = null)
+    {
+        if (!File.Exists(imagePath) || !IsSupportedImageFile(imagePath))
+        {
+            return;
+        }
+
+        if (SpBatchSourceImageCards.Any(card => string.Equals(card.ImagePath, imagePath, StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        SpBatchSourceImageCards.Add(new GeneratedImageResultCardViewModel(
+            imagePath,
+            fileName ?? Path.GetFileName(imagePath),
+            showRemoveAction: true,
+            removeRequested: OnSpBatchSourceImageRemoved));
+        OnPropertyChanged(nameof(HasSpBatchSourceImageCards));
+    }
+
+    private void AddSpBatchSourceImages(IEnumerable<string> filePaths)
+    {
+        foreach (var filePath in filePaths)
+        {
+            AddSpBatchSourceImage(filePath);
+        }
+
+        StatusMessage = $"SP 批处理区域当前共有 {SpBatchSourceImageCards.Count} 张图片。";
+    }
+
+    private string CreateSpBatchStagingInputDirectory()
+    {
+        var stagingRoot = Path.Combine(Path.GetTempPath(), "ImageKeeper", "sp-batch-staging", DateTime.Now.ToString("yyyyMMdd_HHmmss_fff"));
+        Directory.CreateDirectory(stagingRoot);
+
+        var index = 1;
+        foreach (var card in SpBatchSourceImageCards)
+        {
+            var extension = Path.GetExtension(card.ImagePath);
+            var targetName = $"{index:000}{extension}";
+            var targetPath = Path.Combine(stagingRoot, targetName);
+            File.Copy(card.ImagePath, targetPath, overwrite: true);
+            index++;
+        }
+
+        return stagingRoot;
+    }
+
+    private async Task RunSpBatchFromStagingAsync()
+    {
+        if (SpBatchSourceImageCards.Count == 0)
+        {
+            throw new InvalidOperationException("请先添加需要进行 SP 批处理的图片。");
+        }
+
+        if (string.IsNullOrWhiteSpace(SpBatchOutputDirectory))
+        {
+            throw new InvalidOperationException("请选择 SP 批处理输出目录。");
+        }
+
+        if (!TryParsePositiveInt(SpBatchConcurrencyText, "并发数量", out var concurrency))
+        {
+            return;
+        }
+
+        var retries = 4;
+
+        Directory.CreateDirectory(SpBatchOutputDirectory);
+
+        IsBusy = true;
+        IsSpBatchRunning = true;
+        SpBatchStatusText = _spBatchMode switch
+        {
+            SpBatchMode.DryRun => "正在生成预检查计划...",
+            SpBatchMode.PrepareOnly => "正在创建 SP 目录结构...",
+            _ => "正在批量生成 SP 资源..."
+        };
+        SpBatchSummaryText = "任务执行中，请稍候。";
+        SpBatchResultRootText = $"日期目录：{SpBatchOutputDirectory}";
+        SpBatchResultStatsText = "SP 数量：0  总任务：0  成功：0  跳过：0  失败：0";
+        ClearSpBatchResultCards();
+        ClearSpBatchImageResultCards();
+        StatusMessage = SpBatchStatusText;
+
+        try
+        {
+            var stagingInputDirectory = CreateSpBatchStagingInputDirectory();
+            SpBatchInputDirectory = stagingInputDirectory;
+
+            var request = new SpBatchRequest
+            {
+                InputDirectory = stagingInputDirectory,
+                OutputDirectory = SpBatchOutputDirectory,
+                Image2ScriptPath = DefaultImage2ScriptPath,
+                Concurrency = concurrency,
+                Retries = retries,
+                Mode = _spBatchMode
+            };
+
+            var result = await _spBatchService.GenerateAsync(request);
+            ApplySpBatchVisualResult(result);
+            StatusMessage = SpBatchSummaryText;
+        }
+        catch (Exception ex)
+        {
+            SpBatchStatusText = "执行失败";
+            SpBatchSummaryText = $"SP 批处理失败：{ex.Message}";
+            ClearSpBatchResultCards();
+            ClearSpBatchImageResultCards();
+            SpBatchResultCards.Add(new SpBatchResultCardViewModel
+            {
+                Title = "错误信息",
+                SummaryText = ex.Message,
+                StatusText = "失败"
+            });
+            OnPropertyChanged(nameof(HasSpBatchResultCards));
+            OnPropertyChanged(nameof(HasSpBatchImageResultCards));
+            StatusMessage = SpBatchSummaryText;
+        }
+        finally
+        {
+            IsSpBatchRunning = false;
+            IsBusy = false;
+        }
+    }
+
+    public void SetSpBatchStagingDropTarget(bool isActive)
+    {
+        IsSpBatchStagingDropTarget = isActive;
+    }
+
+    public void AddDroppedImagesToSpBatch(IEnumerable<string> filePaths)
+    {
+        AddSpBatchSourceImages(filePaths);
+    }
+
+    public void HandleGeneratedImageCardClick(GeneratedImageResultCardViewModel? card, int clickCount)
+    {
+        card?.HandlePrimaryClick(clickCount);
+    }
+
+    public void HandleSpBatchSourceImageCardClick(GeneratedImageResultCardViewModel? card, int clickCount)
+    {
+        card?.HandlePrimaryClick(clickCount);
+    }
+
+    private static bool IsSupportedImageFile(string filePath)
+    {
+        var extension = Path.GetExtension(filePath).ToLowerInvariant();
+        return extension is ".jpg" or ".jpeg" or ".png" or ".bmp" or ".gif" or ".tif" or ".tiff" or ".webp" or ".jfif";
     }
 }

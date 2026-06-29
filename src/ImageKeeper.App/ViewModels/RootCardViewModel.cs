@@ -29,10 +29,12 @@ public sealed class RootCardViewModel : ViewModelBase
     private readonly IProductSheetService? _productSheetService;
     private readonly Func<bool>? _isAutoPublishBusyProvider;
     private readonly Func<Func<Task>, Task>? _runExclusiveAsync;
+    private readonly Action? _batchSelectionChanged;
     private FolderNodeViewModel? _selectedNode;
     private bool _isCollapsed;
     private bool _isActive;
     private bool _isDropTarget;
+    private bool _isBatchSelected;
     private int _totalCount;
     private int _selectedCount;
     private int _loadedImageCount;
@@ -45,7 +47,8 @@ public sealed class RootCardViewModel : ViewModelBase
         string backupFolder,
         IProductSheetService? productSheetService = null,
         Func<bool>? isAutoPublishBusyProvider = null,
-        Func<Func<Task>, Task>? runExclusiveAsync = null)
+        Func<Func<Task>, Task>? runExclusiveAsync = null,
+        Action? batchSelectionChanged = null)
     {
         _workspaceService = workspaceService;
         _workspaceStateService = workspaceStateService;
@@ -53,6 +56,7 @@ public sealed class RootCardViewModel : ViewModelBase
         _productSheetService = productSheetService;
         _isAutoPublishBusyProvider = isAutoPublishBusyProvider;
         _runExclusiveAsync = runExclusiveAsync;
+        _batchSelectionChanged = batchSelectionChanged;
         _rootNode = new FolderNodeViewModel(rootNode);
         _cardState = _workspaceStateService.GetOrCreateCardState(rootNode.Id);
         _isCollapsed = _cardState.IsCollapsed;
@@ -150,6 +154,28 @@ public sealed class RootCardViewModel : ViewModelBase
             }
 
             OnPropertyChanged(nameof(CollapsedSummaryText));
+            OnPropertyChanged(nameof(CanBatchSelect));
+
+            if (!value)
+            {
+                IsBatchSelected = false;
+            }
+
+            _batchSelectionChanged?.Invoke();
+        }
+    }
+
+    public bool IsBatchSelected
+    {
+        get => _isBatchSelected;
+        set
+        {
+            if (!SetProperty(ref _isBatchSelected, value))
+            {
+                return;
+            }
+
+            _batchSelectionChanged?.Invoke();
         }
     }
 
@@ -271,6 +297,8 @@ public sealed class RootCardViewModel : ViewModelBase
 
     public bool IsAutoPublishBusy => _isAutoPublishBusyProvider?.Invoke() ?? false;
 
+    public bool CanBatchSelect => IsCollapsed && !string.IsNullOrWhiteSpace(GetSpRootFolder());
+
     public Media.Brush CardBorderBrush => IsActive
         ? new Media.SolidColorBrush(Media.Color.FromRgb(159, 190, 255))
         : new Media.SolidColorBrush(Media.Color.FromRgb(217, 225, 236));
@@ -292,6 +320,7 @@ public sealed class RootCardViewModel : ViewModelBase
     {
         OnPropertyChanged(nameof(IsAutoPublishBusy));
         _autoPublishCommand.RaiseCanExecuteChanged();
+        _batchSelectionChanged?.Invoke();
     }
 
     public void InvertSelectionFromToolbar()
@@ -340,51 +369,60 @@ public sealed class RootCardViewModel : ViewModelBase
             && !string.IsNullOrWhiteSpace(GetSpRootFolder());
     }
 
-    private async Task AutoPublishAsync()
+    public async Task<string> RunAutoPublishInternalAsync()
     {
         var spRootFolder = GetSpRootFolder();
-        if (string.IsNullOrWhiteSpace(spRootFolder) || _productSheetService is null || _runExclusiveAsync is null)
+        if (string.IsNullOrWhiteSpace(spRootFolder) || _productSheetService is null)
         {
-            StatusChanged?.Invoke("当前卡片未解析到 SP 根目录，无法自动上架。");
-            return;
+            throw new InvalidOperationException("当前卡片未解析到 SP 根目录，无法自动上架。");
         }
 
         var validationError = ValidateAutoPublishInput(spRootFolder);
         if (validationError is not null)
         {
-            StatusChanged?.Invoke(validationError);
-            return;
+            throw new InvalidOperationException(validationError);
         }
 
         Activate();
+        NotifyAutoPublishStateChanged();
+
+        try
+        {
+            StatusChanged?.Invoke($"开始自动上架：{Path.GetFileName(spRootFolder)}");
+            var task = await _productSheetService.GenerateAsync(spRootFolder);
+            if (task.Status == "Completed")
+            {
+                var launchMessage = string.IsNullOrWhiteSpace(task.OutputPath)
+                    ? "妙手自动上架已启动。"
+                    : task.OutputPath;
+                StatusChanged?.Invoke($"自动上架完成：{Path.GetFileName(spRootFolder)}。{launchMessage}");
+                return launchMessage;
+            }
+
+            throw new InvalidOperationException($"自动上架失败：{Path.GetFileName(spRootFolder)}");
+        }
+        catch (Exception ex)
+        {
+            StatusChanged?.Invoke($"自动上架失败：{ex.Message}");
+            throw;
+        }
+        finally
+        {
+            NotifyAutoPublishStateChanged();
+        }
+    }
+
+    private async Task AutoPublishAsync()
+    {
+        if (_productSheetService is null || _runExclusiveAsync is null)
+        {
+            StatusChanged?.Invoke("当前卡片未解析到 SP 根目录，无法自动上架。");
+            return;
+        }
 
         await _runExclusiveAsync(async () =>
         {
-            NotifyAutoPublishStateChanged();
-            try
-            {
-                StatusChanged?.Invoke($"开始自动上架：{Path.GetFileName(spRootFolder)}");
-                var task = await _productSheetService.GenerateAsync(spRootFolder);
-                if (task.Status == "Completed")
-                {
-                    var launchMessage = string.IsNullOrWhiteSpace(task.OutputPath)
-                        ? "妙手自动上架已启动。"
-                        : task.OutputPath;
-                    StatusChanged?.Invoke($"自动上架完成：{Path.GetFileName(spRootFolder)}。{launchMessage}");
-                }
-                else
-                {
-                    StatusChanged?.Invoke($"自动上架失败：{Path.GetFileName(spRootFolder)}");
-                }
-            }
-            catch (Exception ex)
-            {
-                StatusChanged?.Invoke($"自动上架失败：{ex.Message}");
-            }
-            finally
-            {
-                NotifyAutoPublishStateChanged();
-            }
+            await RunAutoPublishInternalAsync();
         });
     }
 

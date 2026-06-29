@@ -8,8 +8,10 @@ from datetime import datetime
 from pathlib import Path
 
 
-DEFAULT_SOURCE = Path("D:/temu_auto/\u5c3a\u5bf8\u89c4\u683c.xlsx")
-DEFAULT_OUTPUT = Path("D:/temu_auto/json/\u5c3a\u5bf8\u89c4\u683c\u7d22\u5f15.json")
+SCRIPT_DIR = Path(__file__).resolve().parent
+DATA_DIR = SCRIPT_DIR / "data"
+DEFAULT_SOURCE = DATA_DIR / "size_specs.xlsx"
+DEFAULT_OUTPUT = DATA_DIR / "size_specs_index.json"
 NS = {"a": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
 
 
@@ -150,4 +152,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

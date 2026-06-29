@@ -6,7 +6,7 @@
         xmlns:viewModels="clr-namespace:ImageKeeper.App.ViewModels"
         mc:Ignorable="d"
         Title="TEMU 工具箱"
-        Icon="pack://application:,,,/Assets/new_logo.png"
+        Icon="pack://application:,,,/Assets/new_logo.ico"
         Width="1660"
         Height="960"
         MinWidth="1280"
@@ -31,7 +31,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Thumb">
-                        <Border Background="#C7D2E6"
+                        <Border Background="#EEEEEE"
                                 CornerRadius="3" />
                     </ControlTemplate>
                 </Setter.Value>
@@ -112,7 +112,8 @@
 
         <Style x:Key="SidebarNavButtonStyle" TargetType="Button" BasedOn="{StaticResource FlatButtonStyle}">
             <Setter Property="Padding" Value="12,6" />
-            <Setter Property="Margin" Value="0,0,0,1" />
+            <Setter Property="Margin" Value="0,0,0,8" />
+            <Setter Property="Width" Value="508" />
             <Setter Property="HorizontalContentAlignment" Value="Left" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
             <Setter Property="Foreground" Value="#303133" />
@@ -239,17 +240,49 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <Style x:Key="GhostIconButtonStyle" TargetType="Button" BasedOn="{StaticResource FlatButtonStyle}">
+            <Setter Property="Width" Value="28" />
+            <Setter Property="MinWidth" Value="28" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#F2F6FC" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#E6EEF8" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
-        <Grid>
+        <Grid Background="{StaticResource AppBackgroundBrush}">
             <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="120" />
+            <ColumnDefinition Width="236" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
         <Grid Grid.Column="0"
               Margin="12,16,0,16"
-              Background="Transparent">
+              Background="{StaticResource AppBackgroundBrush}">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
@@ -295,8 +328,10 @@
         </Grid>
 
         <Grid Grid.Column="1"
-              Margin="12,12,12,12">
-            <Grid Visibility="{Binding IsReviewWorkspaceSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
+              Margin="12,12,12,12"
+              Background="{StaticResource AppBackgroundBrush}">
+            <Grid Background="{StaticResource AppBackgroundBrush}"
+                  Visibility="{Binding IsReviewWorkspaceSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="352" />
@@ -392,20 +427,7 @@
                         </ScrollViewer>
                     </Border>
 
-                    <WrapPanel Grid.Row="1"
-                               Grid.ColumnSpan="3"
-                               Margin="0,2,0,8"
-                               Orientation="Horizontal">
-                        <Button Command="{Binding ChooseFolderCommand}"
-                                Margin="0,0,8,0"
-                                Content="选择文件夹" />
-                        <Button Command="{Binding SelectBackupFolderCommand}"
-                                Margin="0,0,8,0"
-                                Style="{StaticResource SecondaryButtonStyle}"
-                                Content="备份位置" />
-                    </WrapPanel>
-
-                    <Border Grid.Row="2"
+                    <Border Grid.Row="1"
                             Grid.ColumnSpan="3"
                             Margin="0,0,0,12"
                             Padding="14,10"
@@ -447,6 +469,41 @@
                         </StackPanel>
                     </Border>
 
+                    <Border Grid.Row="2"
+                            Grid.ColumnSpan="3"
+                            Margin="0,0,0,12"
+                            Padding="14,10"
+                            Background="{StaticResource PanelBrush}"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="10">
+                        <WrapPanel Orientation="Horizontal">
+                            <Button Command="{Binding ChooseFolderCommand}"
+                                    Margin="0,0,8,0"
+                                    Content="选择文件夹" />
+                            <Button Command="{Binding SelectBackupFolderCommand}"
+                                    Margin="0,0,8,0"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Content="备份位置" />
+                            <Button Margin="0,0,8,0"
+                                    Command="{Binding RunBatchAutoPublishCommand}"
+                                    Background="#409EFF"
+                                    BorderBrush="#409EFF"
+                                    Content="批量上架">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+                                        <Setter Property="IsEnabled" Value="False" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasBatchSelectedCards}" Value="True">
+                                                <Setter Property="IsEnabled" Value="True" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                        </WrapPanel>
+                    </Border>
+
                     <Border Grid.Row="3"
                             Grid.Column="0"
                             Background="{StaticResource PanelBrush}"
@@ -470,10 +527,16 @@
                                                                 Padding="14,12">
                                                             <Grid>
                                                                 <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="Auto" />
                                                                     <ColumnDefinition Width="*" />
                                                                     <ColumnDefinition Width="Auto" />
                                                                 </Grid.ColumnDefinitions>
-                                                                <Button Grid.Column="0"
+                                                                <CheckBox Grid.Column="0"
+                                                                          Margin="0,0,12,0"
+                                                                          VerticalAlignment="Center"
+                                                                          IsChecked="{Binding IsBatchSelected, Mode=TwoWay}"
+                                                                          Visibility="{Binding CanBatchSelect, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                                                <Button Grid.Column="1"
                                                                         HorizontalContentAlignment="Left"
                                                                         Style="{StaticResource FlatButtonStyle}"
                                                                         Command="{Binding ExpandCommand}">
@@ -481,7 +544,7 @@
                                                                                FontWeight="SemiBold"
                                                                                Text="{Binding CollapsedSummaryText}" />
                                                                 </Button>
-                                                                <StackPanel Grid.Column="1"
+                                                                <StackPanel Grid.Column="2"
                                                                             Orientation="Horizontal">
                                                                     <Button Margin="0,0,8,0"
                                                                             Content="编辑"
@@ -589,7 +652,7 @@
                                                                 <Grid Margin="8,6,8,8">
                                                                     <Grid.RowDefinitions>
                                                                         <RowDefinition Height="Auto" />
-                                                                        <RowDefinition Height="Auto" />
+                                                                        <RowDefinition Height="*" />
                                                                     </Grid.RowDefinitions>
 
                                                                     <DockPanel LastChildFill="False">
@@ -617,7 +680,7 @@
                                                                     <Grid Grid.Row="1"
                                                                           Margin="0,0,0,0">
                                                                         <Grid.RowDefinitions>
-                                                                            <RowDefinition Height="Auto" />
+                                                                            <RowDefinition Height="*" />
                                                                         </Grid.RowDefinitions>
 
                                                                         <Button HorizontalAlignment="Right"
@@ -716,6 +779,36 @@
                                                                         </ScrollViewer>
                                                                     </Grid>
                                                                 </Grid>
+
+                                                                <Border Margin="8,6,8,8"
+                                                                        Panel.ZIndex="20"
+                                                                        Background="#CCEFF6FF"
+                                                                        BorderBrush="#409EFF"
+                                                                        BorderThickness="2"
+                                                                        CornerRadius="12"
+                                                                        IsHitTestVisible="False"
+                                                                        Visibility="{Binding IsDropTarget, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                                    <Border BorderBrush="#8CC5FF"
+                                                                            BorderThickness="1"
+                                                                            CornerRadius="10"
+                                                                            Margin="6"
+                                                                            Background="#66FFFFFF">
+                                                                        <StackPanel HorizontalAlignment="Center"
+                                                                                    VerticalAlignment="Center">
+                                                                            <TextBlock HorizontalAlignment="Center"
+                                                                                       Foreground="#2563EB"
+                                                                                       FontSize="18"
+                                                                                       FontWeight="SemiBold"
+                                                                                       Text="释放鼠标即可添加图片" />
+                                                                            <TextBlock Margin="0,8,0,0"
+                                                                                       HorizontalAlignment="Center"
+                                                                                       Foreground="#4E6EAF"
+                                                                                       FontSize="13"
+                                                                                       Text="图片会复制到当前选中的文件夹"
+                                                                                       TextAlignment="Center" />
+                                                                        </StackPanel>
+                                                                    </Border>
+                                                                </Border>
                                                             </Grid>
                                                             </Grid>
                                                         </Grid>
@@ -887,12 +980,18 @@
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
                                         <TextBox Grid.Column="0"
                                                  IsReadOnly="True"
                                                  Style="{StaticResource ElementInputTextBoxStyle}"
-                                                 Text="{Binding TemplateLibraryPath, Mode=OneWay}" />
+                                                 Text="{Binding TemplateLibraryPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                         <Button Grid.Column="1"
+                                                Margin="6,0,0,0"
+                                                Content="打开文件"
+                                                Style="{StaticResource ElementSecondaryButtonStyle}"
+                                                Command="{Binding OpenTemplateLibraryFileCommand}" />
+                                        <Button Grid.Column="2"
                                                 Margin="6,0,0,0"
                                                 Content="选择模板库"
                                                 Style="{StaticResource ElementSecondaryButtonStyle}"
@@ -919,7 +1018,7 @@
                                             <TextBox Grid.Column="0"
                                                      IsReadOnly="True"
                                                      Style="{StaticResource ElementInputTextBoxStyle}"
-                                                     Text="{Binding GenerationOutputDirectory, Mode=OneWay}" />
+                                                     Text="{Binding GenerationOutputDirectory, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                             <Button Grid.Column="1"
                                                     Margin="6,0,0,0"
                                                     Content="选择目录"
@@ -949,7 +1048,7 @@
 
                                             <StackPanel Grid.Column="1">
                                                 <TextBlock Margin="0,0,0,6"
-                                                           Text="并发数" />
+                                                           Text="并发数量" />
                                                 <TextBox Style="{StaticResource ElementInputTextBoxStyle}"
                                                          Text="{Binding GenerationConcurrencyText, UpdateSourceTrigger=PropertyChanged}" />
                                             </StackPanel>
@@ -959,7 +1058,7 @@
                                                    Margin="0,10,0,0">
                                             <CheckBox Margin="0,0,16,0"
                                                       VerticalAlignment="Center"
-                                                      Content="场景不重复"
+                                                      Content="场景优先不重复"
                                                       IsChecked="{Binding IsGenerationUniqueScene}" />
                                             <CheckBox VerticalAlignment="Center"
                                                       Content="只出提示词不生图"
@@ -974,16 +1073,34 @@
                                                 BorderThickness="1"
                                                 CornerRadius="8">
                                             <TextBlock Foreground="{StaticResource MutedTextBrush}"
-                                                       Text="规则：布局模板随机、场景模板随机，主体跟随所选场景模板所在行，并支持场景不重复。"
+                                                       Text="规则：布局模板随机一个，场景模板随机一个，主体跟随该场景模板所在行；勾选后场景会优先不重复，用完后自动进入下一轮复用。"
                                                        TextWrapping="Wrap" />
                                         </Border>
                                     </Grid>
 
                                     <StackPanel Grid.Row="5"
                                                 Margin="0,12,0,0">
-                                        <Button FontWeight="SemiBold"
-                                                Content="开始执行"
-                                                Command="{Binding RunTemplateGenerationCommand}" />
+                                        <Button Margin="0,10,0,0"
+                                                FontWeight="SemiBold"
+                                                Content="{Binding TemplateGenerationButtonText}">
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+                                                    <Setter Property="Command" Value="{Binding RunTemplateGenerationCommand}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsTemplateGenerating}" Value="True">
+                                                            <Setter Property="Command" Value="{Binding StopTemplateGenerationCommand}" />
+                                                            <Setter Property="Background" Value="#F56C6C" />
+                                                            <Setter Property="BorderBrush" Value="#F56C6C" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsTemplateGenerationStopping}" Value="True">
+                                                            <Setter Property="Command" Value="{x:Null}" />
+                                                            <Setter Property="Background" Value="#E6A23C" />
+                                                            <Setter Property="BorderBrush" Value="#E6A23C" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
                                         <Border Margin="0,10,0,0"
                                                 Padding="12"
                                                 Background="#FFFFFF"
@@ -1004,9 +1121,7 @@
                                 <Grid Visibility="{Binding IsSpBatchTabSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="*" />
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
@@ -1015,116 +1130,169 @@
                                                FontWeight="SemiBold"
                                                Text="SP批处理" />
 
-                                    <TextBlock Grid.Row="1"
-                                               Margin="0,8,0,6"
-                                               Text="输入目录" />
-                                    <Grid Grid.Row="2">
-                                        <Grid.RowDefinitions>
-                                            <RowDefinition Height="Auto" />
-                                            <RowDefinition Height="Auto" />
-                                            <RowDefinition Height="Auto" />
-                                            <RowDefinition Height="Auto" />
-                                        </Grid.RowDefinitions>
-
+                                    <Border Grid.Row="1"
+                                            Margin="0,10,0,0"
+                                            Padding="12"
+                                            Background="#FFFFFF"
+                                            BorderBrush="#D9E1EC"
+                                            BorderThickness="1"
+                                            CornerRadius="8"
+                                            AllowDrop="True"
+                                            Drop="SpBatchStagingArea_OnDrop"
+                                            DragEnter="SpBatchStagingArea_OnDragEnter"
+                                            DragOver="SpBatchStagingArea_OnDragOver"
+                                            DragLeave="SpBatchStagingArea_OnDragLeave">
                                         <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-                                            <TextBox Grid.Column="0"
-                                                     IsReadOnly="True"
+                                            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                                          HorizontalScrollBarVisibility="Disabled">
+                                                <ItemsControl ItemsSource="{Binding SpBatchSourceImageCards}">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate>
+                                                            <WrapPanel />
+                                                        </ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate DataType="{x:Type viewModels:GeneratedImageResultCardViewModel}">
+                                                            <Border Width="116"
+                                                                    Margin="0,0,8,8"
+                                                                    Padding="8"
+                                                                    Background="White"
+                                                                    BorderBrush="#D9E1EC"
+                                                                    BorderThickness="1"
+                                                                    CornerRadius="8"
+                                                                    PreviewMouseLeftButtonDown="SpBatchSourceCard_PreviewMouseLeftButtonDown">
+                                                                <Grid>
+                                                                    <Grid.RowDefinitions>
+                                                                        <RowDefinition Height="Auto" />
+                                                                        <RowDefinition Height="Auto" />
+                                                                    </Grid.RowDefinitions>
+                                                                    <Button HorizontalAlignment="Right"
+                                                                            VerticalAlignment="Top"
+                                                                            Margin="0,-4,-4,0"
+                                                                            Width="20"
+                                                                            Height="20"
+                                                                            MinWidth="20"
+                                                                            Padding="0"
+                                                                            Style="{StaticResource GhostIconButtonStyle}"
+                                                                            Command="{Binding RemoveCommand}">
+                                                                        <TextBlock FontFamily="Segoe MDL2 Assets"
+                                                                                   FontSize="11"
+                                                                                   Foreground="#909399"
+                                                                                   Text="&#xE711;" />
+                                                                    </Button>
+                                                                    <StackPanel Grid.Row="1">
+                                                                        <Border CornerRadius="8"
+                                                                                ClipToBounds="True">
+                                                                            <Grid Width="98"
+                                                                                  Height="98"
+                                                                                  Background="{StaticResource PanelAltBrush}">
+                                                                                <Image Stretch="UniformToFill"
+                                                                                       Source="{Binding ThumbnailSource}" />
+                                                                            </Grid>
+                                                                        </Border>
+                                                                        <TextBlock Margin="0,8,0,0"
+                                                                                   FontSize="12"
+                                                                                   LineHeight="16"
+                                                                                   MaxHeight="32"
+                                                                                   Text="{Binding FileName}"
+                                                                                   TextTrimming="CharacterEllipsis"
+                                                                                   TextWrapping="Wrap" />
+                                                                    </StackPanel>
+                                                                </Grid>
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </ScrollViewer>
+
+                                            <Border Background="#F7F8FA"
+                                                    BorderBrush="#D9E1EC"
+                                                    BorderThickness="1"
+                                                    CornerRadius="8"
+                                                    Visibility="{Binding HasSpBatchSourceImageCards, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                                                <Grid>
+                                                    <TextBlock HorizontalAlignment="Center"
+                                                               VerticalAlignment="Center"
+                                                               Foreground="{StaticResource MutedTextBrush}"
+                                                               Text="把模板生图里选中的图片带到这里，或直接拖拽图片到此区域。" />
+                                                </Grid>
+                                            </Border>
+
+                                            <Border Background="#EEF2F8"
+                                                    BorderBrush="#D0D7E2"
+                                                    BorderThickness="2"
+                                                    CornerRadius="8"
+                                                    Visibility="{Binding IsSpBatchStagingDropTarget, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <Grid>
+                                                    <TextBlock HorizontalAlignment="Center"
+                                                               VerticalAlignment="Center"
+                                                               FontSize="14"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="#606266"
+                                                               Text="松开鼠标，将图片添加到 SP 批处理区域" />
+                                                </Grid>
+                                            </Border>
+                                        </Grid>
+                                    </Border>
+
+                                    <Grid Grid.Row="2"
+                                          Margin="0,10,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="1*" />
+                                            <ColumnDefinition Width="1*" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <StackPanel Grid.Column="0"
+                                                    Margin="0,0,8,0">
+                                            <TextBlock Margin="0,0,0,6"
+                                                       Text="输出目录" />
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBox Grid.Column="0"
+                                                         IsReadOnly="True"
+                                                         Style="{StaticResource ElementInputTextBoxStyle}"
+                                                         Text="{Binding SpBatchOutputDirectory, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                <Button Grid.Column="1"
+                                                        Margin="6,0,0,0"
+                                                        Content="选择目录"
+                                                        Style="{StaticResource ElementSecondaryButtonStyle}"
+                                                        Command="{Binding ChooseSpBatchOutputFolderCommand}" />
+                                            </Grid>
+                                        </StackPanel>
+
+                                        <StackPanel Grid.Column="1"
+                                                    Margin="8,0,0,0">
+                                            <TextBlock Margin="0,0,0,6"
+                                                       Text="并发数量" />
+                                            <TextBox HorizontalAlignment="Stretch"
                                                      Style="{StaticResource ElementInputTextBoxStyle}"
-                                                     Text="{Binding SpBatchInputDirectory, Mode=OneWay}" />
-                                            <Button Grid.Column="1"
-                                                    Margin="6,0,0,0"
-                                                    Content="选择文件夹"
-                                                    Style="{StaticResource ElementSecondaryButtonStyle}"
-                                                    Command="{Binding ChooseSpBatchInputFolderCommand}" />
-                                        </Grid>
-
-                                        <TextBlock Grid.Row="1"
-                                                   Margin="0,10,0,6"
-                                                   Text="输出目录" />
-                                        <Grid Grid.Row="2">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-                                            <TextBox Grid.Column="0"
-                                                     IsReadOnly="True"
-                                                     Style="{StaticResource ElementInputTextBoxStyle}"
-                                                     Text="{Binding SpBatchOutputDirectory, Mode=OneWay}" />
-                                            <Button Grid.Column="1"
-                                                    Margin="6,0,0,0"
-                                                    Content="选择目录"
-                                                    Style="{StaticResource ElementSecondaryButtonStyle}"
-                                                    Command="{Binding ChooseSpBatchOutputFolderCommand}" />
-                                            <Button Grid.Column="2"
-                                                    Margin="6,0,0,0"
-                                                    Content="打开目录"
-                                                    Style="{StaticResource ElementSecondaryButtonStyle}"
-                                                    Command="{Binding OpenSpBatchOutputFolderCommand}" />
-                                        </Grid>
-
-                                        <Grid Grid.Row="3"
-                                              Margin="0,10,0,0">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="1*" />
-                                                <ColumnDefinition Width="1*" />
-                                            </Grid.ColumnDefinitions>
-
-                                            <StackPanel Grid.Column="0"
-                                                        Margin="0,0,8,0">
-                                                <TextBlock Margin="0,0,0,6"
-                                                           Text="并发数" />
-                                                <TextBox Style="{StaticResource ElementInputTextBoxStyle}"
-                                                         Text="{Binding SpBatchConcurrencyText, UpdateSourceTrigger=PropertyChanged}" />
-                                            </StackPanel>
-
-                                            <StackPanel Grid.Column="1">
-                                                <TextBlock Margin="0,0,0,6"
-                                                           Text="重试次数" />
-                                                <TextBox Style="{StaticResource ElementInputTextBoxStyle}"
-                                                         Text="{Binding SpBatchRetriesText, UpdateSourceTrigger=PropertyChanged}" />
-                                            </StackPanel>
-                                        </Grid>
+                                                     Text="{Binding SpBatchConcurrencyText, UpdateSourceTrigger=PropertyChanged}" />
+                                        </StackPanel>
                                     </Grid>
 
                                     <StackPanel Grid.Row="3"
                                                 Margin="0,10,0,0">
                                         <TextBlock Margin="0,0,0,6"
                                                    Text="运行模式" />
-                                        <StackPanel>
-                                            <RadioButton Margin="0,0,0,6"
+                                        <WrapPanel>
+                                            <RadioButton Margin="0,0,18,0"
                                                          Content="仅预检查"
                                                          GroupName="SpBatchModeGroup"
                                                          IsChecked="{Binding IsSpBatchDryRun}" />
-                                            <RadioButton Margin="0,0,0,6"
+                                            <RadioButton Margin="0,0,18,0"
                                                          Content="仅建结构"
                                                          GroupName="SpBatchModeGroup"
                                                          IsChecked="{Binding IsSpBatchPrepareOnly}" />
                                             <RadioButton Content="正式生成"
                                                          GroupName="SpBatchModeGroup"
                                                          IsChecked="{Binding IsSpBatchGenerateMode}" />
-                                        </StackPanel>
-                                    </StackPanel>
+                                        </WrapPanel>
 
-                                    <Border Grid.Row="4"
-                                            Margin="0,10,0,0"
-                                            Padding="10,8"
-                                            Background="#F8FAFD"
-                                            BorderBrush="#D9E1EC"
-                                            BorderThickness="1"
-                                            CornerRadius="8">
-                                        <TextBlock Foreground="{StaticResource MutedTextBrush}"
-                                                   Text="固定规则：自动创建当天日期目录、自动生成 SP01/SP02...、自动创建 main/sku/detail，并生成 6 色 SKU 图。"
-                                                   TextWrapping="Wrap" />
-                                    </Border>
-
-                                    <StackPanel Grid.Row="5"
-                                                Margin="0,12,0,0">
-                                        <Button FontWeight="SemiBold"
+                                        <Button Margin="0,12,0,0"
+                                                FontWeight="SemiBold"
                                                 Content="开始执行"
                                                 Command="{Binding RunSpBatchCommand}" />
                                         <Border Margin="0,10,0,0"
@@ -1145,7 +1313,6 @@
                                 </Grid>
                             </Grid>
                         </Border>
-
                         <Border Grid.Column="1"
                                 Padding="14"
                                 Background="{StaticResource PanelAltBrush}"
@@ -1170,26 +1337,52 @@
                                             <RowDefinition Height="*" />
                                         </Grid.RowDefinitions>
 
-                                        <Border Padding="12,10"
-                                                Background="#FFFFFF"
-                                                BorderBrush="#D9E1EC"
-                                                BorderThickness="1"
-                                                CornerRadius="8">
-                                            <StackPanel>
-                                                <TextBlock FontWeight="SemiBold"
-                                                           Text="{Binding GenerationResultModeText}" />
-                                                <TextBlock Margin="0,4,0,0"
-                                                           Foreground="{StaticResource MutedTextBrush}"
-                                                           Text="{Binding GenerationResultOutputText}" />
-                                            </StackPanel>
-                                        </Border>
+                                        <Grid Grid.Row="0"
+                                              Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Button Grid.Column="0"
+                                                    MinWidth="96"
+                                                    Margin="0,0,8,0"
+                                                    FontWeight="SemiBold"
+                                                    Content="生成SKU图"
+                                                    Command="{Binding SendSelectedImagesToSpBatchCommand}">
+                                                <Button.Style>
+                                                    <Style TargetType="Button" BasedOn="{StaticResource ElementSecondaryButtonStyle}">
+                                                        <Setter Property="IsEnabled" Value="True" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding CanGenerateSkuFromTemplate}" Value="False">
+                                                                <Setter Property="IsEnabled" Value="False" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                            </Button>
+                                            <Button Grid.Column="1"
+                                                    MinWidth="96"
+                                                    Content="选择图片"
+                                                    Style="{StaticResource ElementSecondaryButtonStyle}"
+                                                    Command="{Binding ChooseGenerationImagesCommand}" />
+                                        </Grid>
 
                                         <Grid Grid.Row="1"
                                               Margin="0,8,0,0">
-                                            <TextBox IsReadOnly="True"
-                                                     Visibility="{Binding HasAnyGenerationResultCards, Converter={StaticResource InverseBooleanToVisibilityConverter}}"
-                                                     Style="{StaticResource MultiLineTextBoxStyle}"
-                                                     Text="{Binding GenerationResultText, Mode=OneWay}" />
+                                            <Border Visibility="{Binding HasAnyGenerationResultCards, Converter={StaticResource InverseBooleanToVisibilityConverter}}"
+                                                    Background="#FFFFFF"
+                                                    BorderBrush="#D9E1EC"
+                                                    BorderThickness="1"
+                                                    CornerRadius="8"
+                                                    Padding="16">
+                                                <TextBlock HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"
+                                                           Foreground="{StaticResource MutedTextBrush}"
+                                                           Text="这里会显示生成结果卡片。"
+                                                           TextAlignment="Center"
+                                                           TextWrapping="Wrap" />
+                                            </Border>
 
                                             <ScrollViewer VerticalScrollBarVisibility="Auto"
                                                           HorizontalScrollBarVisibility="Disabled"
@@ -1203,15 +1396,60 @@
                                                                     BorderBrush="#D9E1EC"
                                                                     BorderThickness="1"
                                                                     CornerRadius="8">
-                                                                <StackPanel>
-                                                                    <TextBlock FontSize="14"
-                                                                               FontWeight="SemiBold"
-                                                                               Text="{Binding Title}" />
-                                                                    <TextBlock Margin="0,6,0,0"
-                                                                               Foreground="{StaticResource TitleTextBrush}"
-                                                                               Text="{Binding PromptText}"
-                                                                               TextWrapping="Wrap" />
-                                                                    <Border Margin="0,6,0,0"
+                                                                <Grid>
+                                                                    <Grid.RowDefinitions>
+                                                                        <RowDefinition Height="Auto" />
+                                                                        <RowDefinition Height="Auto" />
+                                                                        <RowDefinition Height="Auto" />
+                                                                    </Grid.RowDefinitions>
+
+                                                                    <Grid>
+                                                                        <Grid.ColumnDefinitions>
+                                                                            <ColumnDefinition Width="*" />
+                                                                            <ColumnDefinition Width="Auto" />
+                                                                        </Grid.ColumnDefinitions>
+                                                                        <TextBlock Grid.Column="0"
+                                                                                   FontSize="14"
+                                                                                   FontWeight="SemiBold"
+                                                                                   VerticalAlignment="Center"
+                                                                                   Text="{Binding Title}" />
+                                                                        <Button Grid.Column="1"
+                                                                                Style="{StaticResource GhostIconButtonStyle}"
+                                                                                Command="{Binding CopyPromptCommand}">
+                                                                            <TextBlock HorizontalAlignment="Center"
+                                                                                       VerticalAlignment="Center"
+                                                                                       FontFamily="Segoe MDL2 Assets"
+                                                                                       FontSize="15">
+                                                                                <TextBlock.Style>
+                                                                                    <Style TargetType="TextBlock">
+                                                                                        <Setter Property="Text" Value="&#xE8C8;" />
+                                                                                        <Setter Property="Foreground" Value="#606266" />
+                                                                                        <Style.Triggers>
+                                                                                            <DataTrigger Binding="{Binding IsCopied}" Value="True">
+                                                                                                <Setter Property="Text" Value="&#xE73E;" />
+                                                                                                <Setter Property="Foreground" Value="#67C23A" />
+                                                                                            </DataTrigger>
+                                                                                        </Style.Triggers>
+                                                                                    </Style>
+                                                                                </TextBlock.Style>
+                                                                            </TextBlock>
+                                                                        </Button>
+                                                                    </Grid>
+
+                                                                    <Border Grid.Row="1"
+                                                                            Margin="0,8,0,0"
+                                                                            Padding="10,8"
+                                                                            Background="#F8FAFD"
+                                                                            BorderBrush="#E3EAF4"
+                                                                            BorderThickness="1"
+                                                                            CornerRadius="6">
+                                                                        <TextBlock Foreground="{StaticResource TitleTextBrush}"
+                                                                                   Text="{Binding PromptText}"
+                                                                                   TextWrapping="Wrap" />
+                                                                    </Border>
+
+                                                                    <Border Grid.Row="2"
+                                                                            Margin="0,8,0,0"
                                                                             Padding="10,8"
                                                                             Background="#F8FAFD"
                                                                             BorderBrush="#E3EAF4"
@@ -1222,7 +1460,7 @@
                                                                                    Text="{Binding MetaText}"
                                                                                    TextWrapping="Wrap" />
                                                                     </Border>
-                                                                </StackPanel>
+                                                                </Grid>
                                                             </Border>
                                                         </DataTemplate>
                                                     </ItemsControl.ItemTemplate>
@@ -1243,34 +1481,39 @@
                                                             <Border Width="116"
                                                                     Margin="0,0,8,8"
                                                                     Padding="8"
-                                                                    Background="White"
-                                                                    BorderBrush="#D9E1EC"
-                                                                    BorderThickness="1"
-                                                                    CornerRadius="8">
-                                                                <Button Padding="0"
-                                                                        Background="Transparent"
-                                                                        BorderThickness="0"
-                                                                        Command="{Binding OpenFileCommand}"
-                                                                        Style="{StaticResource FlatButtonStyle}">
-                                                                    <StackPanel>
-                                                                        <Border CornerRadius="8"
-                                                                                ClipToBounds="True">
-                                                                            <Grid Width="98"
-                                                                                  Height="98"
-                                                                                  Background="{StaticResource PanelAltBrush}">
-                                                                                <Image Stretch="UniformToFill"
-                                                                                       Source="{Binding ThumbnailSource}" />
-                                                                            </Grid>
-                                                                        </Border>
-                                                                        <TextBlock Margin="0,8,0,0"
-                                                                                   FontSize="12"
-                                                                                   LineHeight="16"
-                                                                                   MaxHeight="32"
-                                                                                   Text="{Binding FileName}"
-                                                                                   TextTrimming="CharacterEllipsis"
-                                                                                   TextWrapping="Wrap" />
-                                                                    </StackPanel>
-                                                                </Button>
+                                                                    CornerRadius="8"
+                                                                    PreviewMouseLeftButtonDown="GeneratedImageCard_PreviewMouseLeftButtonDown">
+                                                                <Border.Style>
+                                                                    <Style TargetType="Border">
+                                                                        <Setter Property="Background" Value="White" />
+                                                                        <Setter Property="BorderBrush" Value="#D9E1EC" />
+                                                                        <Setter Property="BorderThickness" Value="1" />
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                                <Setter Property="Background" Value="#EEEEEE" />
+                                                                                <Setter Property="BorderBrush" Value="#D0D0D0" />
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </Border.Style>
+                                                                <StackPanel>
+                                                                    <Border CornerRadius="8"
+                                                                            ClipToBounds="True">
+                                                                        <Grid Width="98"
+                                                                              Height="98"
+                                                                              Background="{StaticResource PanelAltBrush}">
+                                                                            <Image Stretch="UniformToFill"
+                                                                                   Source="{Binding ThumbnailSource}" />
+                                                                        </Grid>
+                                                                    </Border>
+                                                                    <TextBlock Margin="0,8,0,0"
+                                                                               FontSize="12"
+                                                                               LineHeight="16"
+                                                                               MaxHeight="32"
+                                                                               Text="{Binding FileName}"
+                                                                               TextTrimming="CharacterEllipsis"
+                                                                               TextWrapping="Wrap" />
+                                                                </StackPanel>
                                                             </Border>
                                                         </DataTemplate>
                                                     </ItemsControl.ItemTemplate>

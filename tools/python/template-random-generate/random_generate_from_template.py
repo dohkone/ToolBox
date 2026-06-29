@@ -159,11 +159,17 @@ def pick_templates(library: TemplateLibrary, count: int, unique_scene: bool) -> 
             scene_map.setdefault(scene, []).append(row)
 
     unique_scenes = list(scene_map.keys())
-    if len(unique_scenes) < count:
-        raise TemplateRandomError(f"可用不重复场景不足：需要 {count} 个，实际只有 {len(unique_scenes)} 个。")
+    if not unique_scenes:
+        raise TemplateRandomError("模板库里没有可用的场景模板。")
 
     selected: list[SelectedTemplate] = []
-    for scene in random.sample(unique_scenes, count):
+    scene_sequence: list[str] = []
+    while len(scene_sequence) < count:
+        round_scenes = unique_scenes[:]
+        random.shuffle(round_scenes)
+        scene_sequence.extend(round_scenes)
+
+    for scene in scene_sequence[:count]:
         selected.append(
             choose_selected_template(
                 random.choice(library.layout_templates),
@@ -216,7 +222,7 @@ def is_retryable_generation_error(error_text: str) -> bool:
 def run_image_generation(prompt: str, output_dir: str, filename: str, image2_script: str | None) -> str:
     script_path = image2_script or str((Path(__file__).resolve().parents[1] / "image2-generate" / "scripts" / "generate_image.py").resolve())
     command = [
-        "python",
+        sys.executable,
         script_path,
         "--prompt",
         prompt,

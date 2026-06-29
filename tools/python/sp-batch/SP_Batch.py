@@ -40,6 +40,7 @@ class SkuColorBatchError(Exception):
 class ColorSpec:
     suffix: str
     label: str
+    file_name: str
     hex_code: str
 
 
@@ -76,12 +77,12 @@ class Job:
 
 
 COLORS: tuple[ColorSpec, ...] = (
-    ColorSpec("black", "Black", "#0A0A0A"),
-    ColorSpec("offwhite", "Off-white", "#F4F4F2"),
-    ColorSpec("darkbrown", "Dark brown", "#634234"),
-    ColorSpec("lightgray", "Light gray", "#C4C8CA"),
-    ColorSpec("winered", "Wine red", "#722829"),
-    ColorSpec("royalblue", "Royal blue", "#0B1B6F"),
+    ColorSpec("black", "Black", "黑色", "#0A0A0A"),
+    ColorSpec("offwhite", "Off-white", "米白色", "#F4F4F2"),
+    ColorSpec("darkbrown", "Dark brown", "深棕色", "#634234"),
+    ColorSpec("lightgray", "Light gray", "深灰色", "#C4C8CA"),
+    ColorSpec("winered", "Wine red", "酒红色", "#722829"),
+    ColorSpec("royalblue", "Royal blue", "宝蓝色", "#0B1B6F"),
 )
 
 COLOR_ALIAS_MAP: dict[str, str] = {
@@ -256,7 +257,7 @@ def build_jobs(
     for image_path in images:
         bundle = bundles[image_path]
         for color in chosen_colors:
-            output_name = f"{image_path.stem}_{color.suffix}.png"
+            output_name = f"{color.file_name}.png"
             jobs.append(
                 Job(
                     index=index,
@@ -344,7 +345,7 @@ def run_job(job: Job, image2_script: Path, retries: int, overwrite: bool) -> dic
 
     job.bundle.sku_dir.mkdir(parents=True, exist_ok=True)
     command = [
-        "python",
+        sys.executable,
         str(image2_script),
         "--input-image",
         str(job.image_path),

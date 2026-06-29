@@ -12,12 +12,14 @@ from pathlib import Path
 from openpyxl import load_workbook
 
 
-DEFAULT_INDEX = Path("D:/temu_auto/json/\u5c3a\u5bf8\u89c4\u683c\u7d22\u5f15.json")
-DEFAULT_SOURCE = Path("D:/temu_auto/\u5c3a\u5bf8\u89c4\u683c.xlsx")
-DEFAULT_TEMPLATE = Path("D:/temu_auto/\u5546\u54c1\u4fe1\u606f\u8868.xlsx")
+SCRIPT_DIR = Path(__file__).resolve().parent
+DATA_DIR = SCRIPT_DIR / "data"
+DEFAULT_INDEX = DATA_DIR / "size_specs_index.json"
+DEFAULT_SOURCE = DATA_DIR / "size_specs.xlsx"
+DEFAULT_TEMPLATE = DATA_DIR / "product_sheet_template.xlsx"
 DEFAULT_OUTPUT_DIR = Path("D:/temu_auto/excel")
 DEFAULT_ASSERT_DIR = Path("D:/temu_auto/assert")
-DEFAULT_TITLE_JSON = Path("D:/temu_auto/json/title.json")
+DEFAULT_TITLE_JSON = DATA_DIR / "title.json"
 
 
 def parse_args():
@@ -158,16 +160,55 @@ $result.Text
 
 def parse_sizes_from_ocr_text(text):
     normalized = text.replace("\r", "\n")
-    matches = re.findall(r"(\d+(?:\.\d+)?)\s*[*xX]\s*(\d+(?:\.\d+)?)\s*cm", normalized, re.I)
     unique = []
     seen = set()
-    for width_text, length_text in matches:
+    matches = list(re.finditer(r"(\d+(?:\.\d+)?)\s*[*xX]\s*(\d+(?:\.\d+)?)\s*cm", normalized, re.I))
+    for index, match in enumerate(matches):
+        width_text, length_text = match.groups()
         size_text = f"{int(float(width_text))}*{int(float(length_text))}cm"
         if size_text in seen:
             continue
+
         seen.add(size_text)
-        unique.append(size_text)
+        display_size_text = size_text
+
+        next_start = matches[index + 1].start() if index + 1 < len(matches) else len(normalized)
+        trailing_text = normalized[match.end():next_start]
+        inch_match = re.search(
+            r"/?\s*([0-9][^*]{0,24})\s*[*xX]\s*([0-9][^i]{0,24})\s*inch",
+            trailing_text,
+            re.I,
+        )
+        if inch_match:
+            inch_width_text = normalize_decimal_token(inch_match.group(1))
+            inch_length_text = normalize_decimal_token(inch_match.group(2))
+            if inch_width_text and inch_length_text:
+                display_size_text = f"{size_text}/{inch_width_text}*{inch_length_text}inch"
+
+        unique.append(
+            {
+                "size_text": size_text,
+                "display_size_text": display_size_text,
+            }
+        )
+
     return unique
+
+
+def normalize_decimal_token(token):
+    cleaned = token.strip()
+    if not cleaned:
+        return None
+
+    if re.fullmatch(r"\d+(?:\.\d+)?", cleaned):
+        return cleaned
+
+    digit_groups = re.findall(r"\d+", cleaned)
+    if not digit_groups:
+        return None
+    if len(digit_groups) == 1:
+        return digit_groups[0]
+    return f"{digit_groups[0]}.{''.join(digit_groups[1:])}"
 
 
 def parse_size(size_text):
@@ -190,8 +231,11 @@ def load_titles(title_json_path):
         payload = json.load(handle)
 
     titles = payload.get("titles")
+    english_titles = payload.get("english_title")
     if not isinstance(titles, list):
         raise ValueError(f"Invalid title JSON format: {title_json_path}")
+    if not isinstance(english_titles, list):
+        raise ValueError(f"Invalid english_title JSON format: {title_json_path}")
 
     cleaned = []
     for item in titles:
@@ -200,9 +244,18 @@ def load_titles(title_json_path):
             if text:
                 cleaned.append(text)
 
+    cleaned_english = []
+    for item in english_titles:
+        if isinstance(item, str):
+            text = item.strip()
+            if text:
+                cleaned_english.append(text)
+
     if not cleaned:
         raise ValueError(f"No usable titles found in: {title_json_path}")
-    return cleaned
+    if not cleaned_english:
+        raise ValueError(f"No usable english titles found in: {title_json_path}")
+    return cleaned, cleaned_english
 
 
 def match_record(records, width, length):
@@ -267,12 +320,13 @@ def apply_template_row_format(sheet, target_row, template_row, start_col, end_co
 
 def write_main_rows(sheet, main_rows):
     for row_index, item in enumerate(main_rows, start=2):
-        apply_template_row_format(sheet, row_index, 2, 1, 5)
+        apply_template_row_format(sheet, row_index, 2, 1, 6)
         sheet.cell(row_index, 1).value = item["product_id"]
         sheet.cell(row_index, 2).value = item["title"]
-        sheet.cell(row_index, 3).value = item["main_path"]
-        sheet.cell(row_index, 4).value = item["detail_path"]
-        sheet.cell(row_index, 5).value = item["sku_path"]
+        sheet.cell(row_index, 3).value = item["english_title"]
+        sheet.cell(row_index, 4).value = item["main_path"]
+        sheet.cell(row_index, 5).value = item["detail_path"]
+        sheet.cell(row_index, 6).value = item["sku_path"]
 
 
 def write_rows(sheet, matched_rows):
@@ -281,7 +335,7 @@ def write_rows(sheet, matched_rows):
         record = item["record"]
         price = item["price"]
         sheet.cell(row_index, 1).value = item["product_id"]
-        sheet.cell(row_index, 2).value = item["size_text"]
+        sheet.cell(row_index, 2).value = item["display_size_text"]
         sheet.cell(row_index, 3).value = record["longest_edge_cm"]
         sheet.cell(row_index, 4).value = record["second_longest_edge_cm"]
         sheet.cell(row_index, 5).value = record["shortest_edge_cm"]
@@ -306,11 +360,13 @@ def collect_sp_directories(assert_dir):
     return sp_dirs
 
 
-def build_main_row(sp_dir, workbook, titles):
+def build_main_row(sp_dir, workbook, titles, english_titles):
     title = random.choice(titles)
+    english_title = random.choice(english_titles)
     return {
         "product_id": sp_dir.name,
         "title": title,
+        "english_title": english_title,
         "main_path": str((sp_dir / "main").resolve()),
         "detail_path": str((sp_dir / "detail").resolve()),
         "sku_path": str((sp_dir / "sku").resolve()),
@@ -318,13 +374,16 @@ def build_main_row(sp_dir, workbook, titles):
 
 
 def process_sp_dir(sp_dir, records):
-    size_texts = extract_sizes_from_sp_dir(sp_dir)
-    if not size_texts:
+    size_items = extract_sizes_from_sp_dir(sp_dir)
+    if not size_items:
         raise ValueError(f"No sizes were extracted from: {sp_dir}")
 
     matched_rows = []
     skipped_sizes = []
-    for size_text in size_texts:
+    size_texts = []
+    for size_item in size_items:
+        size_text = size_item["size_text"]
+        size_texts.append(size_text)
         width, length = parse_size(size_text)
         record = match_record(records, width, length)
         if record is None:
@@ -334,6 +393,7 @@ def process_sp_dir(sp_dir, records):
             {
                 "product_id": sp_dir.name,
                 "size_text": size_text,
+                "display_size_text": size_item["display_size_text"],
                 "record": record,
                 "price": random_price(record),
             }
@@ -366,7 +426,7 @@ def main():
     title_json_path = Path(args.title_json)
     ensure_index(index_path, source_path)
     records = load_records(index_path)
-    titles = load_titles(title_json_path)
+    titles, english_titles = load_titles(title_json_path)
 
     workbook = load_workbook(template_path)
     main_sheet = workbook.worksheets[0]
@@ -406,13 +466,13 @@ def main():
         )
     elif args.sp_dir:
         sp_path = Path(args.sp_dir)
-        main_rows.append(build_main_row(sp_path, workbook, titles))
+        main_rows.append(build_main_row(sp_path, workbook, titles, english_titles))
         summary = process_sp_dir(sp_path, records)
         matched_rows.extend(summary["matched_rows"])
         summaries.append(summary)
     else:
         for sp_path in collect_sp_directories(args.assert_dir):
-            main_rows.append(build_main_row(sp_path, workbook, titles))
+            main_rows.append(build_main_row(sp_path, workbook, titles, english_titles))
             summaries.append(process_sp_dir(sp_path, records))
         for summary in summaries:
             matched_rows.extend(summary["matched_rows"])

@@ -31,11 +31,20 @@ public sealed class ProductSheetService : IProductSheetService
             StartedAt = DateTime.Now
         };
 
-        var exitCode = await _scriptRunner.RunAsync(_fillProductSheetScriptPath, ["--sp-dir", spRootFolder], cancellationToken);
-        task.Status = exitCode == 0 ? "Completed" : "Failed";
-        if (task.Status == "Completed" && _yingdaoLauncher is not null)
+        try
         {
-            task.OutputPath = await _yingdaoLauncher.LaunchMiaoshouAsync(cancellationToken);
+            var exitCode = await _scriptRunner.RunAsync(_fillProductSheetScriptPath, ["--sp-dir", spRootFolder], cancellationToken);
+            task.Status = exitCode == 0 ? "Completed" : "Failed";
+            if (task.Status == "Completed" && _yingdaoLauncher is not null)
+            {
+                task.OutputPath = await _yingdaoLauncher.LaunchMiaoshouAsync(cancellationToken);
+            }
+        }
+        catch (Exception ex)
+        {
+            task.Status = "Failed";
+            task.OutputPath = ex.Message;
+            throw;
         }
 
         task.FinishedAt = DateTime.Now;

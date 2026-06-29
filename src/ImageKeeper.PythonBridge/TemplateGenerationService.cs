@@ -11,6 +11,8 @@ public sealed class TemplateGenerationService : ITemplateGenerationService
 {
     private readonly string _pythonExePath;
     private readonly string _scriptPath;
+    private readonly object _processSyncRoot = new();
+    private Process? _currentProcess;
 
     public TemplateGenerationService(string pythonExePath, string scriptPath)
     {
@@ -62,10 +64,23 @@ public sealed class TemplateGenerationService : ITemplateGenerationService
         }
 
         using var process = Process.Start(startInfo) ?? throw new InvalidOperationException("无法启动模板生图脚本。");
+        RegisterRunningProcess(process, cancellationToken);
         var stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
         var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
 
-        await process.WaitForExitAsync(cancellationToken);
+        try
+        {
+            await process.WaitForExitAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            TryKillProcessTree(process);
+            throw;
+        }
+        finally
+        {
+            ClearRunningProcess(process);
+        }
 
         var stdout = (await stdoutTask).Trim();
         var stderr = (await stderrTask).Trim();
@@ -104,6 +119,54 @@ public sealed class TemplateGenerationService : ITemplateGenerationService
                 })
                 .ToArray() ?? Array.Empty<TemplateGenerateItem>()
         };
+    }
+
+    public void CancelCurrentRun()
+    {
+        lock (_processSyncRoot)
+        {
+            if (_currentProcess is null)
+            {
+                return;
+            }
+
+            TryKillProcessTree(_currentProcess);
+        }
+    }
+
+    private void RegisterRunningProcess(Process process, CancellationToken cancellationToken)
+    {
+        lock (_processSyncRoot)
+        {
+            _currentProcess = process;
+        }
+
+        cancellationToken.Register(() => TryKillProcessTree(process));
+    }
+
+    private void ClearRunningProcess(Process process)
+    {
+        lock (_processSyncRoot)
+        {
+            if (ReferenceEquals(_currentProcess, process))
+            {
+                _currentProcess = null;
+            }
+        }
+    }
+
+    private static void TryKillProcessTree(Process process)
+    {
+        try
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+            }
+        }
+        catch
+        {
+        }
     }
 
     private sealed class TemplateGenerationPayload
