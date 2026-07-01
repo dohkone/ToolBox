@@ -2,12 +2,12 @@
 
 ## 目录结构
 
-- `ImageKeeper.App.exe`
+- `EcomTool Studio.exe`
 - `runtime\python\`
 - `runtime\node\`
 - `tools\python\`
 - `tools\node\`
-- `config\yingdao.json`
+- `config\miaoshou.json`
 - `data\workspace\review`
 - `data\workspace\backup`
 - `data\workspace\excel`
@@ -16,21 +16,22 @@
 
 ## 首次使用
 
-1. 解压整个目录到本地硬盘，例如 `D:\ImageKeeper_Portable`
+1. 解压整个目录到本地硬盘，例如 `D:\EcomTool_Studio_Portable`
 2. 进入 `data\workspace\temp`
    把模板库 `文生图模板库_Codex.xlsx` 放在这里
-3. 检查 `config\yingdao.json`
-   确认里面的影刀用户目录、应用 UUID、ShadowBot 路径和目标机器一致
-4. 如果要使用图片生成
+3. 如果要使用图片生成
    检查 `tools\python\image2-generate\.image2_api_key`
    确认密钥可用
-5. 双击 `ImageKeeper.App.exe`
+4. 如果要使用妙手批量上架
+   检查 `config\miaoshou.json`
+   确认妙手地址、浏览器通道和 profile 名称正确
+5. 双击 `EcomTool Studio.exe`
 
 ## 目标机器需要的环境
 
 - Windows 10 或 Windows 11
-- 如果要使用自动上架：需要安装 ShadowBot / 影刀客户端
-- 如果要启动“妙手自动上架”：目标机器里要有对应影刀应用
+- Edge 浏览器
+- 可正常登录妙手 ERP 的账号
 
 ## 不再需要单独安装的环境
 
@@ -55,14 +56,16 @@
 点击“自动上架”后，程序会：
 
 1. 生成商品信息表
-2. 启动影刀“妙手自动上架”
+2. 生成妙手批量上架 JSON
+3. 启动内置 Playwright 妙手批量上架流程
 
 如果失败，优先检查：
 
-- `config\yingdao.json`
+- `config\miaoshou.json`
 - `tools\python\temu-product-sheet\data\`
 - `tools\python\image2-generate\.image2_api_key`
 - 当前 SP 目录下是否存在 `main\2-*.png`
+- `output\miaoshou\` 下的 `publish.log`、`events.jsonl` 和 `batch-result.json`
 
 ## 打包命令
 
@@ -75,5 +78,5 @@ powershell -ExecutionPolicy Bypass -File D:\new_project\scripts\build_portable_p
 生成目录：
 
 ```text
-D:\new_project\dist\ImageKeeper_Portable
+D:\new_project\dist\EcomTool_Studio_Portable
 ```

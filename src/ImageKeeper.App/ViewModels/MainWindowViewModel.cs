@@ -1,7 +1,9 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
+using System.Text.Json;
 using System.Text;
+using System.Windows;
 using System.Windows.Input;
 using ImageKeeper.App.Utilities;
 using ImageKeeper.Core;
@@ -28,10 +30,15 @@ public sealed class MainWindowViewModel : ViewModelBase
     private readonly IProductSheetService _productSheetService;
     private readonly ITemplateGenerationService _templateGenerationService;
     private readonly ISpBatchService _spBatchService;
+    private readonly IMiaoshouPublishService _miaoshouPublishService;
+    private readonly IAutoPublishStateService _autoPublishStateService;
     private readonly SemaphoreSlim _autoPublishLock = new(1, 1);
     private readonly AsyncRelayCommand _chooseFolderCommand;
     private readonly AsyncRelayCommand _selectBackupFolderCommand;
     private readonly RelayCommand _invertSelectionCommand;
+    private readonly RelayCommand _selectAllBatchCardsCommand;
+    private readonly RelayCommand _clearAllBatchCardsCommand;
+    private readonly RelayCommand _setAutoPublishStatusFilterCommand;
     private readonly AsyncRelayCommand _generateProductSheetCommand;
     private readonly AsyncRelayCommand _addTabCommand;
     private readonly RelayCommand _showReviewWorkspaceCommand;
@@ -62,10 +69,12 @@ public sealed class MainWindowViewModel : ViewModelBase
     private string _loadedFolderText = "当前文件夹：未选择";
     private string _selectionSummaryText = "图片 0 张，已选中 0 张，未选中 0 张";
     private string _backupFolderText = "备份目录：未设置";
+    private AutoPublishStatusFilter _selectedAutoPublishStatusFilter = AutoPublishStatusFilter.All;
     private string _loadingTitle = "正在加载图片资源...";
     private string _loadingDetail = "目录或图片较多时会稍慢一些，请稍候。";
     private string _scanProgressText = "等待加载";
     private string _previewMeta = "大小：-\r\n完整路径：-";
+    private string _previewImagePath = string.Empty;
     private Media.ImageSource? _previewImageSource;
     private string _backupFolder = string.Empty;
     private bool _isAutoPublishRunning;
@@ -101,7 +110,9 @@ public sealed class MainWindowViewModel : ViewModelBase
         IAppSettingsService appSettingsService,
         IProductSheetService productSheetService,
         ITemplateGenerationService templateGenerationService,
-        ISpBatchService spBatchService)
+        ISpBatchService spBatchService,
+        IMiaoshouPublishService miaoshouPublishService,
+        IAutoPublishStateService autoPublishStateService)
     {
         _folderScanService = folderScanService;
         _imageWorkspaceService = imageWorkspaceService;
@@ -110,10 +121,15 @@ public sealed class MainWindowViewModel : ViewModelBase
         _productSheetService = productSheetService;
         _templateGenerationService = templateGenerationService;
         _spBatchService = spBatchService;
+        _miaoshouPublishService = miaoshouPublishService;
+        _autoPublishStateService = autoPublishStateService;
 
-        _chooseFolderCommand = new AsyncRelayCommand(_ => ChooseFolderAsync(), _ => !IsBusy);
-        _selectBackupFolderCommand = new AsyncRelayCommand(_ => SelectBackupFolderAsync(), _ => !IsBusy);
+        _chooseFolderCommand = new AsyncRelayCommand(_ => ChooseFolderAsync());
+        _selectBackupFolderCommand = new AsyncRelayCommand(_ => SelectBackupFolderAsync());
         _invertSelectionCommand = new RelayCommand(_ => SelectedTab?.InvertSelection(), _ => !IsBusy && SelectedTab?.ActiveCard is not null);
+        _selectAllBatchCardsCommand = new RelayCommand(_ => SelectAllBatchCards(), _ => CanModifyBatchSelection());
+        _clearAllBatchCardsCommand = new RelayCommand(_ => ClearAllBatchCards(), _ => CanModifyBatchSelection());
+        _setAutoPublishStatusFilterCommand = new RelayCommand(parameter => SetAutoPublishStatusFilter(parameter));
         _generateProductSheetCommand = new AsyncRelayCommand(_ => GenerateProductSheetAsync(), _ => !IsBusy && SelectedTab?.RootCards.Count > 0);
         _addTabCommand = new AsyncRelayCommand(_ => ChooseFolderAsync(), _ => !IsBusy);
         _showReviewWorkspaceCommand = new RelayCommand(_ => SetSelectedSection(ReviewWorkspaceSection));
@@ -131,7 +147,7 @@ public sealed class MainWindowViewModel : ViewModelBase
         _chooseSpBatchInputFolderCommand = new AsyncRelayCommand(_ => ChooseSpBatchInputFolderAsync(), _ => !IsBusy);
         _chooseSpBatchOutputFolderCommand = new AsyncRelayCommand(_ => ChooseSpBatchOutputFolderAsync(), _ => !IsBusy);
         _runSpBatchCommand = new AsyncRelayCommand(_ => RunSpBatchFromStagingAsync(), _ => !IsBusy);
-        _runBatchAutoPublishCommand = new AsyncRelayCommand(_ => RunBatchAutoPublishAsync(), _ => CanRunBatchAutoPublish());
+        _runBatchAutoPublishCommand = new AsyncRelayCommand(_ => RunBatchAutoPublishAsync(), _ => CanExecuteBatchAutoPublish());
     }
 
     public ObservableCollection<WorkspaceTabViewModel> WorkspaceTabs { get; } = [];
@@ -144,6 +160,9 @@ public sealed class MainWindowViewModel : ViewModelBase
     public ICommand ChooseFolderCommand => _chooseFolderCommand;
     public ICommand SelectBackupFolderCommand => _selectBackupFolderCommand;
     public ICommand InvertSelectionCommand => _invertSelectionCommand;
+    public ICommand SelectAllBatchCardsCommand => _selectAllBatchCardsCommand;
+    public ICommand ClearAllBatchCardsCommand => _clearAllBatchCardsCommand;
+    public ICommand SetAutoPublishStatusFilterCommand => _setAutoPublishStatusFilterCommand;
     public ICommand GenerateProductSheetCommand => _generateProductSheetCommand;
     public ICommand AddTabCommand => _addTabCommand;
     public ICommand ShowReviewWorkspaceCommand => _showReviewWorkspaceCommand;
@@ -201,7 +220,11 @@ public sealed class MainWindowViewModel : ViewModelBase
             OnPropertyChanged(nameof(HasTabs));
             OnPropertyChanged(nameof(HasRootCards));
             OnPropertyChanged(nameof(HasBatchSelectedCards));
+            ApplyAutoPublishStatusFilter();
+            NotifyAutoPublishFilterPropertiesChanged();
             _invertSelectionCommand.RaiseCanExecuteChanged();
+            _selectAllBatchCardsCommand.RaiseCanExecuteChanged();
+            _clearAllBatchCardsCommand.RaiseCanExecuteChanged();
             _generateProductSheetCommand.RaiseCanExecuteChanged();
             _runBatchAutoPublishCommand.RaiseCanExecuteChanged();
         }
@@ -216,6 +239,46 @@ public sealed class MainWindowViewModel : ViewModelBase
     public bool IsLoadingVisible => IsBusy && !IsTemplateGenerating && !IsSpBatchRunning;
     public bool HasPreviewImage => PreviewImageSource is not null;
     public bool HasBatchSelectedCards => SelectedTab?.GetBatchSelectedCards().Count > 0;
+    public bool CanRunBatchAutoPublish => HasBatchSelectedCards && !IsBusy && !_isAutoPublishRunning;
+    public AutoPublishStatusFilter SelectedAutoPublishStatusFilter
+    {
+        get => _selectedAutoPublishStatusFilter;
+        private set
+        {
+            if (!SetProperty(ref _selectedAutoPublishStatusFilter, value))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(IsAllStatusFilterSelected));
+            OnPropertyChanged(nameof(IsNotPublishedStatusFilterSelected));
+            OnPropertyChanged(nameof(IsPublishingStatusFilterSelected));
+            OnPropertyChanged(nameof(IsSuccessStatusFilterSelected));
+            OnPropertyChanged(nameof(IsFailedStatusFilterSelected));
+        }
+    }
+
+    public string AllStatusFilterText => $"全部 {CountAutoPublishStatusFilter(AutoPublishStatusFilter.All)}";
+    public string NotPublishedStatusFilterText => $"未上架 {CountAutoPublishStatusFilter(AutoPublishStatusFilter.NotPublished)}";
+    public string PublishingStatusFilterText => $"上架中 {CountAutoPublishStatusFilter(AutoPublishStatusFilter.Publishing)}";
+    public string SuccessStatusFilterText => $"上架成功 {CountAutoPublishStatusFilter(AutoPublishStatusFilter.Success)}";
+    public string FailedStatusFilterText => $"上架失败 {CountAutoPublishStatusFilter(AutoPublishStatusFilter.Failed)}";
+    public bool IsAutoPublishFilterEmpty => SelectedTab is not null
+        && SelectedTab.HasRootCards
+        && SelectedTab.FilteredRootCards.Count == 0;
+    public string AutoPublishFilterEmptyText => SelectedAutoPublishStatusFilter switch
+    {
+        AutoPublishStatusFilter.NotPublished => "当前没有未上架的卡片",
+        AutoPublishStatusFilter.Publishing => "当前没有上架中的卡片",
+        AutoPublishStatusFilter.Success => "当前没有上架成功的卡片",
+        AutoPublishStatusFilter.Failed => "当前没有上架失败的卡片",
+        _ => "当前没有可显示的卡片"
+    };
+    public bool IsAllStatusFilterSelected => SelectedAutoPublishStatusFilter == AutoPublishStatusFilter.All;
+    public bool IsNotPublishedStatusFilterSelected => SelectedAutoPublishStatusFilter == AutoPublishStatusFilter.NotPublished;
+    public bool IsPublishingStatusFilterSelected => SelectedAutoPublishStatusFilter == AutoPublishStatusFilter.Publishing;
+    public bool IsSuccessStatusFilterSelected => SelectedAutoPublishStatusFilter == AutoPublishStatusFilter.Success;
+    public bool IsFailedStatusFilterSelected => SelectedAutoPublishStatusFilter == AutoPublishStatusFilter.Failed;
     public bool CanOpenTemplateLibraryFile => File.Exists(TemplateLibraryPath);
     public bool CanOpenGenerationOutputFolder => Directory.Exists(GenerationOutputDirectory);
     public bool HasGenerationPromptCards => GenerationPromptCards.Count > 0;
@@ -250,9 +313,13 @@ public sealed class MainWindowViewModel : ViewModelBase
             }
 
             OnPropertyChanged(nameof(IsLoadingVisible));
+            OnPropertyChanged(nameof(CanRunBatchAutoPublish));
+            NotifyAutoPublishFilterPropertiesChanged();
             _chooseFolderCommand.RaiseCanExecuteChanged();
             _selectBackupFolderCommand.RaiseCanExecuteChanged();
             _invertSelectionCommand.RaiseCanExecuteChanged();
+            _selectAllBatchCardsCommand.RaiseCanExecuteChanged();
+            _clearAllBatchCardsCommand.RaiseCanExecuteChanged();
             _generateProductSheetCommand.RaiseCanExecuteChanged();
             _addTabCommand.RaiseCanExecuteChanged();
             _chooseTemplateLibraryCommand.RaiseCanExecuteChanged();
@@ -622,6 +689,7 @@ public sealed class MainWindowViewModel : ViewModelBase
     public async Task InitializeAsync()
     {
         await Task.Yield();
+        await _autoPublishStateService.InitializeAsync();
         var userSettings = _appSettingsService.LoadUserPaths();
         ApplyUserPathSettings(userSettings);
         EnsurePlaceholderTab();
@@ -719,6 +787,8 @@ public sealed class MainWindowViewModel : ViewModelBase
             _productSheetService,
             () => _isAutoPublishRunning || IsBusy,
             RunAutoPublishExclusiveAsync,
+            SetCardAutoPublishStatusAsync,
+            RunSingleAutoPublishAsync,
             OnBatchSelectionChanged);
         tab.RequestedActivate += OnTabRequestedActivate;
         tab.RequestedClose += OnTabRequestedClose;
@@ -763,18 +833,79 @@ public sealed class MainWindowViewModel : ViewModelBase
     private void OnBatchSelectionChanged()
     {
         OnPropertyChanged(nameof(HasBatchSelectedCards));
+        OnPropertyChanged(nameof(CanRunBatchAutoPublish));
+        _selectAllBatchCardsCommand.RaiseCanExecuteChanged();
+        _clearAllBatchCardsCommand.RaiseCanExecuteChanged();
         _runBatchAutoPublishCommand.RaiseCanExecuteChanged();
     }
 
-    private bool CanRunBatchAutoPublish()
+    private void SetAutoPublishStatusFilter(object? parameter)
+    {
+        if (parameter is AutoPublishStatusFilter filter)
+        {
+            SelectedAutoPublishStatusFilter = filter;
+        }
+        else if (parameter is string text && Enum.TryParse(text, out AutoPublishStatusFilter parsed))
+        {
+            SelectedAutoPublishStatusFilter = parsed;
+        }
+        else
+        {
+            SelectedAutoPublishStatusFilter = AutoPublishStatusFilter.All;
+        }
+
+        ApplyAutoPublishStatusFilter();
+        NotifyAutoPublishFilterPropertiesChanged();
+    }
+
+    private void ApplyAutoPublishStatusFilter()
+    {
+        SelectedTab?.ApplyAutoPublishStatusFilter(SelectedAutoPublishStatusFilter);
+    }
+
+    private int CountAutoPublishStatusFilter(AutoPublishStatusFilter filter)
+    {
+        return SelectedTab?.CountByAutoPublishStatusFilter(filter) ?? 0;
+    }
+
+    private void NotifyAutoPublishFilterPropertiesChanged()
+    {
+        OnPropertyChanged(nameof(AllStatusFilterText));
+        OnPropertyChanged(nameof(NotPublishedStatusFilterText));
+        OnPropertyChanged(nameof(PublishingStatusFilterText));
+        OnPropertyChanged(nameof(SuccessStatusFilterText));
+        OnPropertyChanged(nameof(FailedStatusFilterText));
+        OnPropertyChanged(nameof(IsAutoPublishFilterEmpty));
+        OnPropertyChanged(nameof(AutoPublishFilterEmptyText));
+    }
+
+    private bool CanExecuteBatchAutoPublish()
+    {
+        return CanRunBatchAutoPublish;
+    }
+
+    private bool CanModifyBatchSelection()
     {
         return !IsBusy
             && !_isAutoPublishRunning
-            && SelectedTab?.GetBatchSelectedCards().Count > 0;
+            && (SelectedTab?.HasBatchSelectableCards() ?? false);
+    }
+
+    private void SelectAllBatchCards()
+    {
+        SelectedTab?.SetBatchSelectionForAll(true);
+        StatusMessage = "已选中当前页全部可批量上架的小卡片。";
+    }
+
+    private void ClearAllBatchCards()
+    {
+        SelectedTab?.SetBatchSelectionForAll(false);
+        StatusMessage = "已取消当前页全部小卡片的批量选中。";
     }
 
     private void NotifyAutoPublishStateChanged()
     {
+        OnPropertyChanged(nameof(CanRunBatchAutoPublish));
         foreach (var tab in WorkspaceTabs)
         {
             tab.NotifyAutoPublishStateChanged();
@@ -814,6 +945,9 @@ public sealed class MainWindowViewModel : ViewModelBase
             ScanProgressText = "正在生成界面";
 
             tab.SetRootNodes(nodes);
+            await tab.RefreshAutoPublishRecordsAsync(_autoPublishStateService);
+            ApplyAutoPublishStatusFilter();
+            NotifyAutoPublishFilterPropertiesChanged();
             tab.RestoreDefaultSelection();
             UpdateSummaryForTab(tab);
             OnPropertyChanged(nameof(SelectedTab));
@@ -1204,7 +1338,7 @@ public sealed class MainWindowViewModel : ViewModelBase
         }
 
         IsBusy = true;
-        LoadingTitle = "正在生成商品信息表";
+        LoadingTitle = "正在生成上架 JSON";
         LoadingDetail = $"正在处理：{firstCard.RootFolderPath}";
         ScanProgressValue = 0;
         IsScanProgressIndeterminate = true;
@@ -1213,14 +1347,14 @@ public sealed class MainWindowViewModel : ViewModelBase
         try
         {
             var result = await _productSheetService.GenerateAsync(firstCard.RootFolderPath);
-            StatusMessage = $"商品信息表任务状态：{result.Status}";
-            LoadingDetail = string.IsNullOrWhiteSpace(result.OutputPath)
+            StatusMessage = $"上架 JSON 任务状态：{result.Status}";
+            LoadingDetail = string.IsNullOrWhiteSpace(result.ProductsJsonPath)
                 ? StatusMessage
-                : $"{StatusMessage}，{result.OutputPath}";
+                : $"{StatusMessage}，{result.ProductsJsonPath}";
         }
         catch (Exception ex)
         {
-            StatusMessage = $"生成商品信息表失败：{ex.Message}";
+            StatusMessage = $"生成上架 JSON 失败：{ex.Message}";
             LoadingDetail = StatusMessage;
         }
         finally
@@ -1244,24 +1378,36 @@ public sealed class MainWindowViewModel : ViewModelBase
             LoadingTitle = "正在批量上架";
             IsScanProgressIndeterminate = true;
             ScanProgressValue = 0;
+            var publishingCards = new List<RootCardViewModel>();
 
             try
             {
+                var productItems = new List<JsonElement>();
                 for (var index = 0; index < selectedCards.Count; index++)
                 {
                     var card = selectedCards[index];
                     var summary = card.CollapsedSummaryText;
-                    LoadingDetail = $"正在处理第 {index + 1}/{selectedCards.Count} 个：{summary}";
-                    StatusMessage = $"批量上架进行中：{index + 1}/{selectedCards.Count}";
-                    await card.RunAutoPublishInternalAsync();
+                    LoadingDetail = $"正在准备第 {index + 1}/{selectedCards.Count} 个：{summary}";
+                    StatusMessage = $"正在准备妙手上架数据：{index + 1}/{selectedCards.Count}";
+                    await SetCardAutoPublishStatusAsync(card, AutoPublishStatus.Publishing);
+                    publishingCards.Add(card);
+                    productItems.AddRange(await PrepareAutoPublishProductItemsAsync(card));
+                }
+
+                var result = await RunMiaoshouPublishAsync(productItems, selectedCards);
+                await ApplyBatchPublishResultAsync(selectedCards, result);
+
+                foreach (var card in selectedCards)
+                {
                     card.IsBatchSelected = false;
                 }
 
-                LoadingDetail = $"已完成 {selectedCards.Count} 个卡片的批量上架。";
-                StatusMessage = $"批量上架完成：共处理 {selectedCards.Count} 个卡片。";
+                LoadingDetail = $"妙手批量上架完成：成功 {result.SuccessCount}，失败 {result.FailedCount}。";
+                StatusMessage = LoadingDetail;
             }
             catch (Exception ex)
             {
+                await MarkPublishingCardsFailedAsync(publishingCards, ex.Message);
                 LoadingDetail = ex.Message;
                 StatusMessage = $"批量上架失败：{ex.Message}";
                 throw;
@@ -1272,6 +1418,223 @@ public sealed class MainWindowViewModel : ViewModelBase
                 OnBatchSelectionChanged();
             }
         });
+    }
+
+    private async Task RunSingleAutoPublishAsync(RootCardViewModel card)
+    {
+        await RunAutoPublishExclusiveAsync(async () =>
+        {
+            IsBusy = true;
+            LoadingTitle = "正在自动上架";
+            IsScanProgressIndeterminate = true;
+            ScanProgressValue = 0;
+
+            try
+            {
+                LoadingDetail = $"正在准备：{card.CollapsedSummaryText}";
+                StatusMessage = $"正在准备妙手上架数据：{card.DisplayName}";
+                await SetCardAutoPublishStatusAsync(card, AutoPublishStatus.Publishing);
+
+                var productItems = await PrepareAutoPublishProductItemsAsync(card);
+                var result = await RunMiaoshouPublishAsync(productItems, [card]);
+                await ApplyBatchPublishResultAsync([card], result);
+
+                LoadingDetail = $"自动上架完成：成功 {result.SuccessCount}，失败 {result.FailedCount}。";
+                StatusMessage = LoadingDetail;
+            }
+            catch (Exception ex)
+            {
+                await SetCardAutoPublishStatusAsync(card, AutoPublishStatus.Failed, ex.Message);
+                LoadingDetail = ex.Message;
+                StatusMessage = $"自动上架失败：{ex.Message}";
+                throw;
+            }
+            finally
+            {
+                IsBusy = false;
+                OnBatchSelectionChanged();
+            }
+        });
+    }
+
+    private async Task<List<JsonElement>> PrepareAutoPublishProductItemsAsync(RootCardViewModel card)
+    {
+        var task = await card.PrepareAutoPublishDataAsync();
+        if (!File.Exists(task.ProductsJsonPath))
+        {
+            throw new FileNotFoundException("商品 JSON 未生成。", task.ProductsJsonPath);
+        }
+
+        var productItems = new List<JsonElement>();
+        using var document = JsonDocument.Parse(await File.ReadAllTextAsync(task.ProductsJsonPath));
+        foreach (var item in document.RootElement.EnumerateArray())
+        {
+            productItems.Add(item.Clone());
+        }
+
+        return productItems;
+    }
+
+    private async Task<MiaoshouPublishResult> RunMiaoshouPublishAsync(
+        List<JsonElement> productItems,
+        IReadOnlyList<RootCardViewModel> cards)
+    {
+        var cardsByPath = cards.ToDictionary(
+            card => NormalizeCardPath(card.AutoPublishKeyPath),
+            StringComparer.OrdinalIgnoreCase);
+        var request = CreateMiaoshouPublishRequest(progressEvent => ApplyMiaoshouProgressEventAsync(cardsByPath, progressEvent));
+
+        Directory.CreateDirectory(Path.GetDirectoryName(request.ManifestPath)!);
+        await File.WriteAllTextAsync(
+            request.ManifestPath,
+            JsonSerializer.Serialize(productItems, new JsonSerializerOptions { WriteIndented = true }),
+            new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+
+        LoadingDetail = $"已生成 {productItems.Count} 条商品数据，正在启动妙手自动上架。";
+        StatusMessage = "正在运行妙手 Playwright 自动上架。";
+        return await _miaoshouPublishService.PublishAsync(request);
+    }
+
+    private async Task ApplyMiaoshouProgressEventAsync(
+        IReadOnlyDictionary<string, RootCardViewModel> cardsByPath,
+        MiaoshouPublishProgressEvent progressEvent)
+    {
+        var normalizedPath = NormalizeCardPath(progressEvent.CardPath);
+        if (!cardsByPath.TryGetValue(normalizedPath, out var card))
+        {
+            return;
+        }
+
+        var status = string.Equals(progressEvent.Type, "product_success", StringComparison.OrdinalIgnoreCase)
+            ? AutoPublishStatus.Success
+            : AutoPublishStatus.Failed;
+        var error = status == AutoPublishStatus.Failed ? progressEvent.Error : string.Empty;
+
+        await System.Windows.Application.Current.Dispatcher.InvokeAsync(async () =>
+        {
+            await SetCardAutoPublishStatusAsync(card, status, error);
+            StatusMessage = status == AutoPublishStatus.Success
+                ? $"已上架成功：{card.DisplayName}"
+                : $"上架失败：{card.DisplayName}";
+        });
+    }
+
+    private async Task SetCardAutoPublishStatusAsync(
+        RootCardViewModel card,
+        AutoPublishStatus status,
+        string lastError = "")
+    {
+        card.SetAutoPublishStatus(status, lastError);
+        await _autoPublishStateService.UpsertStatusAsync(
+            card.AutoPublishKeyPath,
+            card.DisplayName,
+            status,
+            lastError);
+        ApplyAutoPublishStatusFilter();
+        NotifyAutoPublishFilterPropertiesChanged();
+    }
+
+    private async Task ApplyBatchPublishResultAsync(
+        IReadOnlyList<RootCardViewModel> selectedCards,
+        MiaoshouPublishResult result)
+    {
+        if (IsWholeBatchSuccessful(selectedCards, result))
+        {
+            foreach (var card in selectedCards)
+            {
+                await SetCardAutoPublishStatusAsync(card, AutoPublishStatus.Success);
+            }
+
+            return;
+        }
+
+        var cardsByPath = selectedCards.ToDictionary(
+            card => NormalizeCardPath(card.AutoPublishKeyPath),
+            StringComparer.OrdinalIgnoreCase);
+        var handledPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var item in result.Results)
+        {
+            var normalizedPath = NormalizeCardPath(item.CardPath);
+            if (!cardsByPath.TryGetValue(normalizedPath, out var card))
+            {
+                continue;
+            }
+
+            handledPaths.Add(normalizedPath);
+            var status = string.Equals(item.Status, "success", StringComparison.OrdinalIgnoreCase)
+                ? AutoPublishStatus.Success
+                : AutoPublishStatus.Failed;
+            await SetCardAutoPublishStatusAsync(card, status, item.Error);
+        }
+
+        if (result.Results.Count == 0)
+        {
+            var fallbackStatus = result.FailedCount > 0 || string.Equals(result.Status, "failed", StringComparison.OrdinalIgnoreCase)
+                ? AutoPublishStatus.Failed
+                : AutoPublishStatus.Success;
+
+            foreach (var card in selectedCards)
+            {
+                await SetCardAutoPublishStatusAsync(card, fallbackStatus, result.Error);
+            }
+
+            return;
+        }
+
+        foreach (var card in selectedCards)
+        {
+            if (!handledPaths.Contains(NormalizeCardPath(card.AutoPublishKeyPath)))
+            {
+                await SetCardAutoPublishStatusAsync(card, AutoPublishStatus.Failed, "未收到该卡片的上架结果。");
+            }
+        }
+    }
+
+    private static bool IsWholeBatchSuccessful(
+        IReadOnlyList<RootCardViewModel> selectedCards,
+        MiaoshouPublishResult result)
+    {
+        return selectedCards.Count > 0
+            && result.FailedCount == 0
+            && result.SuccessCount == selectedCards.Count
+            && string.Equals(result.Status, "success", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private async Task MarkPublishingCardsFailedAsync(
+        IEnumerable<RootCardViewModel> cards,
+        string error)
+    {
+        foreach (var card in cards.Where(card => card.AutoPublishStatus == AutoPublishStatus.Publishing))
+        {
+            await SetCardAutoPublishStatusAsync(card, AutoPublishStatus.Failed, error);
+        }
+    }
+
+    private static string NormalizeCardPath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return string.Empty;
+        }
+
+        return Path.GetFullPath(path.Trim()).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+    }
+
+    private static MiaoshouPublishRequest CreateMiaoshouPublishRequest(
+        Func<MiaoshouPublishProgressEvent, Task>? progressHandler = null)
+    {
+        var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+        var outputRoot = Path.Combine(AppContext.BaseDirectory, "output", "miaoshou", timestamp);
+        return new MiaoshouPublishRequest
+        {
+            ManifestPath = Path.Combine(outputRoot, "batch-manifest.json"),
+            ResultPath = Path.Combine(outputRoot, "batch-result.json"),
+            EventsPath = Path.Combine(outputRoot, "events.jsonl"),
+            LogPath = Path.Combine(outputRoot, "publish.log"),
+            ConfigPath = Path.Combine(AppContext.BaseDirectory, "config", "miaoshou.json"),
+            ProgressHandler = progressHandler
+        };
     }
 
     private void OnFolderScanProgress(FolderScanProgress progress)
@@ -1308,6 +1671,7 @@ public sealed class MainWindowViewModel : ViewModelBase
             return;
         }
 
+        _previewImagePath = request.FilePath;
         PreviewMeta = $"大小：{FormatFileSize(request.FileSize)}{Environment.NewLine}完整路径：{request.FilePath}";
         PreviewImageSource = null;
 
@@ -1329,12 +1693,14 @@ public sealed class MainWindowViewModel : ViewModelBase
             }
 
             PreviewMeta = $"预览失败：{ex.Message}";
+            _previewImagePath = string.Empty;
             PreviewImageSource = null;
         }
     }
 
     private void ClearPreview()
     {
+        _previewImagePath = string.Empty;
         PreviewImageSource = null;
         PreviewMeta = "大小：-\r\n完整路径：-";
     }
@@ -1778,7 +2144,9 @@ public sealed class MainWindowViewModel : ViewModelBase
                 item.ImagePath,
                 item.FileName,
                 canToggleSelection: true,
-                selectionChanged: OnGeneratedImageSelectionChanged));
+                showRemoveAction: true,
+                selectionChanged: OnGeneratedImageSelectionChanged,
+                removeRequested: OnGeneratedImageRemoved));
         }
 
         OnPropertyChanged(nameof(HasGenerationPromptCards));
@@ -1824,6 +2192,21 @@ public sealed class MainWindowViewModel : ViewModelBase
 
     private void OnGeneratedImageSelectionChanged(GeneratedImageResultCardViewModel _)
     {
+        OnPropertyChanged(nameof(HasSelectedGeneratedImages));
+        OnPropertyChanged(nameof(CanGenerateSkuFromTemplate));
+        _sendSelectedImagesToSpBatchCommand.RaiseCanExecuteChanged();
+    }
+
+    private void OnGeneratedImageRemoved(GeneratedImageResultCardViewModel card)
+    {
+        if (!GeneratedImageResultCards.Contains(card))
+        {
+            return;
+        }
+
+        GeneratedImageResultCards.Remove(card);
+        OnPropertyChanged(nameof(HasGeneratedImageResultCards));
+        OnPropertyChanged(nameof(HasAnyGenerationResultCards));
         OnPropertyChanged(nameof(HasSelectedGeneratedImages));
         OnPropertyChanged(nameof(CanGenerateSkuFromTemplate));
         _sendSelectedImagesToSpBatchCommand.RaiseCanExecuteChanged();
@@ -1878,7 +2261,9 @@ public sealed class MainWindowViewModel : ViewModelBase
                 filePath,
                 Path.GetFileName(filePath),
                 canToggleSelection: true,
-                selectionChanged: OnGeneratedImageSelectionChanged));
+                showRemoveAction: true,
+                selectionChanged: OnGeneratedImageSelectionChanged,
+                removeRequested: OnGeneratedImageRemoved));
             GeneratedImageResultCards[^1].SetSelected(true);
             added = true;
         }
@@ -2037,6 +2422,21 @@ public sealed class MainWindowViewModel : ViewModelBase
     public void HandleSpBatchSourceImageCardClick(GeneratedImageResultCardViewModel? card, int clickCount)
     {
         card?.HandlePrimaryClick(clickCount);
+    }
+
+    public bool OpenCurrentPreviewImage()
+    {
+        if (string.IsNullOrWhiteSpace(_previewImagePath) || !File.Exists(_previewImagePath))
+        {
+            return false;
+        }
+
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = _previewImagePath,
+            UseShellExecute = true
+        });
+        return true;
     }
 
     private static bool IsSupportedImageFile(string filePath)

@@ -1,11 +1,12 @@
-<Window x:Class="ImageKeeper.App.MainWindow"
+﻿<Window x:Class="ImageKeeper.App.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:models="clr-namespace:ImageKeeper.Core.Models;assembly=ImageKeeper.Core"
         xmlns:viewModels="clr-namespace:ImageKeeper.App.ViewModels"
         mc:Ignorable="d"
-        Title="TEMU 工具箱"
+        Title="EcomTool Studio"
         Icon="pack://application:,,,/Assets/new_logo.ico"
         Width="1660"
         Height="960"
@@ -141,6 +142,28 @@
             <Setter Property="Foreground" Value="#1F2A37" />
             <Setter Property="Background" Value="White" />
             <Setter Property="BorderBrush" Value="#D6DCE8" />
+        </Style>
+
+        <Style x:Key="StatusFilterButtonStyle" TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+            <Setter Property="Margin" Value="0,0,6,0" />
+            <Setter Property="MinHeight" Value="26" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="Padding" Value="10,2" />
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+
+        <Style x:Key="CollapsedCardPrimaryButtonStyle" TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+            <Setter Property="MinWidth" Value="72" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+
+        <Style x:Key="CollapsedCardSecondaryButtonStyle" TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+            <Setter Property="MinWidth" Value="62" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="FontSize" Value="12" />
         </Style>
 
         <Style x:Key="InputTextBoxStyle" TargetType="TextBox">
@@ -352,7 +375,7 @@
 
                     <Border Grid.Row="0"
                             Grid.ColumnSpan="3"
-                            Margin="0,0,0,10"
+                            Margin="0,0,0,0"
                             Padding="0,0,0,0"
                             Background="Transparent"
                             BorderBrush="Transparent"
@@ -429,8 +452,8 @@
 
                     <Border Grid.Row="1"
                             Grid.ColumnSpan="3"
-                            Margin="0,0,0,12"
-                            Padding="14,10"
+                            Margin="0,0,0,6"
+                            Padding="14,8"
                             Background="{StaticResource PanelBrush}"
                             BorderBrush="{StaticResource BorderBrush}"
                             BorderThickness="1"
@@ -439,69 +462,52 @@
                             <TextBlock FontSize="14"
                                        FontWeight="SemiBold"
                                        Text="{Binding LoadedFolderText}" />
-                            <TextBlock Margin="0,4,0,4"
+                            <TextBlock Margin="0,2,0,2"
                                        Foreground="{StaticResource MutedTextBrush}"
                                        Text="{Binding SelectionSummaryText}" />
                             <TextBlock Foreground="{StaticResource MutedTextBrush}"
                                        Text="{Binding BackupFolderText}" />
-
-                            <Border Margin="0,10,0,0"
-                                    Padding="12,10"
-                                    Background="#F7F9FC"
-                                    CornerRadius="8"
-                                    Visibility="{Binding IsLoadingVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                <StackPanel>
-                                    <TextBlock FontWeight="SemiBold"
-                                               Text="{Binding LoadingTitle}" />
-                                    <TextBlock Margin="0,4,0,8"
-                                               Foreground="{StaticResource MutedTextBrush}"
-                                               Text="{Binding LoadingDetail}"
-                                               TextWrapping="Wrap" />
-                                    <ProgressBar Height="8"
-                                                 IsIndeterminate="{Binding IsScanProgressIndeterminate, Mode=OneWay}"
-                                                 Maximum="100"
-                                                 Value="{Binding ScanProgressValue, Mode=OneWay}" />
-                                    <TextBlock Margin="0,8,0,0"
-                                               Foreground="{StaticResource MutedTextBrush}"
-                                               Text="{Binding ScanProgressText}" />
-                                </StackPanel>
-                            </Border>
                         </StackPanel>
                     </Border>
 
                     <Border Grid.Row="2"
                             Grid.ColumnSpan="3"
-                            Margin="0,0,0,12"
-                            Padding="14,10"
+                            Margin="0,0,0,4"
+                            Padding="14,8"
                             Background="{StaticResource PanelBrush}"
                             BorderBrush="{StaticResource BorderBrush}"
                             BorderThickness="1"
                             CornerRadius="10">
-                        <WrapPanel Orientation="Horizontal">
-                            <Button Command="{Binding ChooseFolderCommand}"
-                                    Margin="0,0,8,0"
-                                    Content="选择文件夹" />
-                            <Button Command="{Binding SelectBackupFolderCommand}"
-                                    Margin="0,0,8,0"
-                                    Style="{StaticResource SecondaryButtonStyle}"
-                                    Content="备份位置" />
-                            <Button Margin="0,0,8,0"
-                                    Command="{Binding RunBatchAutoPublishCommand}"
-                                    Background="#409EFF"
-                                    BorderBrush="#409EFF"
-                                    Content="批量上架">
-                                <Button.Style>
-                                    <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
-                                        <Setter Property="IsEnabled" Value="False" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding HasBatchSelectedCards}" Value="True">
-                                                <Setter Property="IsEnabled" Value="True" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Button.Style>
-                            </Button>
-                        </WrapPanel>
+                        <StackPanel>
+                            <WrapPanel Orientation="Horizontal">
+                                <Button Command="{Binding ChooseFolderCommand}"
+                                        Margin="0,0,8,0"
+                                        Content="选择文件夹" />
+                                <Button Command="{Binding SelectBackupFolderCommand}"
+                                        Margin="0,0,8,0"
+                                        Style="{StaticResource SecondaryButtonStyle}"
+                                        Content="备份位置" />
+                                <Button Command="{Binding SelectAllBatchCardsCommand}"
+                                        Margin="0,0,8,0"
+                                        Style="{StaticResource SecondaryButtonStyle}"
+                                        Content="全部选中" />
+                                <Button Command="{Binding ClearAllBatchCardsCommand}"
+                                        Margin="0,0,8,0"
+                                        Style="{StaticResource SecondaryButtonStyle}"
+                                        Content="全部取消" />
+                                <Button Margin="0,0,8,0"
+                                        Command="{Binding RunBatchAutoPublishCommand}"
+                                        Background="#409EFF"
+                                        BorderBrush="#409EFF"
+                                        IsEnabled="{Binding CanRunBatchAutoPublish}"
+                                        Content="批量上架">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}" />
+                                    </Button.Style>
+                                </Button>
+                            </WrapPanel>
+
+                        </StackPanel>
                     </Border>
 
                     <Border Grid.Row="3"
@@ -511,20 +517,103 @@
                             BorderThickness="1"
                             CornerRadius="10">
                         <Grid>
-                            <Grid Visibility="{Binding HasTabs, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <WrapPanel Grid.Row="0"
+                                       Margin="12,4,12,0"
+                                       Orientation="Horizontal">
+                                <TextBlock Margin="0,0,8,0"
+                                           VerticalAlignment="Center"
+                                           Foreground="{StaticResource MutedTextBrush}"
+                                           Text="状态筛选" />
+                                <Button Command="{Binding SetAutoPublishStatusFilterCommand}"
+                                        CommandParameter="{x:Static models:AutoPublishStatusFilter.All}"
+                                        Content="{Binding AllStatusFilterText}">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource StatusFilterButtonStyle}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsAllStatusFilterSelected}" Value="True">
+                                                    <Setter Property="Background" Value="#EEEEEE" />
+                                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                                <Button Command="{Binding SetAutoPublishStatusFilterCommand}"
+                                        CommandParameter="{x:Static models:AutoPublishStatusFilter.NotPublished}"
+                                        Content="{Binding NotPublishedStatusFilterText}">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource StatusFilterButtonStyle}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsNotPublishedStatusFilterSelected}" Value="True">
+                                                    <Setter Property="Background" Value="#EEEEEE" />
+                                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                                <Button Command="{Binding SetAutoPublishStatusFilterCommand}"
+                                        CommandParameter="{x:Static models:AutoPublishStatusFilter.Publishing}"
+                                        Content="{Binding PublishingStatusFilterText}">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource StatusFilterButtonStyle}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsPublishingStatusFilterSelected}" Value="True">
+                                                    <Setter Property="Background" Value="#EEEEEE" />
+                                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                                <Button Command="{Binding SetAutoPublishStatusFilterCommand}"
+                                        CommandParameter="{x:Static models:AutoPublishStatusFilter.Success}"
+                                        Content="{Binding SuccessStatusFilterText}">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource StatusFilterButtonStyle}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsSuccessStatusFilterSelected}" Value="True">
+                                                    <Setter Property="Background" Value="#EEEEEE" />
+                                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                                <Button Command="{Binding SetAutoPublishStatusFilterCommand}"
+                                        CommandParameter="{x:Static models:AutoPublishStatusFilter.Failed}"
+                                        Content="{Binding FailedStatusFilterText}">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource StatusFilterButtonStyle}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsFailedStatusFilterSelected}" Value="True">
+                                                    <Setter Property="Background" Value="#EEEEEE" />
+                                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                            </WrapPanel>
+                            <Grid Grid.Row="1"
+                                  Visibility="{Binding HasTabs, Converter={StaticResource BooleanToVisibilityConverter}}">
                                 <ScrollViewer VerticalScrollBarVisibility="Auto"
                                               HorizontalScrollBarVisibility="Disabled"
-                                              Padding="12">
-                                    <ItemsControl ItemsSource="{Binding SelectedTab.RootCards}">
+                                              Padding="12,8,12,12">
+                                    <ItemsControl ItemsSource="{Binding SelectedTab.FilteredRootCards}">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate DataType="{x:Type viewModels:RootCardViewModel}">
-                                                <Grid Margin="0,0,0,10">
+                                                <Grid Margin="0,0,0,8">
                                                     <Grid Visibility="{Binding IsCollapsed, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                        <Border Background="#F0F9EB"
-                                                                BorderBrush="#CDE7B0"
+                                                        <Border Background="{Binding AutoPublishStatusBackground}"
+                                                                BorderBrush="{Binding AutoPublishStatusBorderBrush}"
                                                                 BorderThickness="1"
                                                                 CornerRadius="10"
-                                                                Padding="14,12">
+                                                                Padding="14,9">
                                                             <Grid>
                                                                 <Grid.ColumnDefinitions>
                                                                     <ColumnDefinition Width="Auto" />
@@ -540,18 +629,34 @@
                                                                         HorizontalContentAlignment="Left"
                                                                         Style="{StaticResource FlatButtonStyle}"
                                                                         Command="{Binding ExpandCommand}">
-                                                                    <TextBlock FontSize="13"
-                                                                               FontWeight="SemiBold"
-                                                                               Text="{Binding CollapsedSummaryText}" />
+                                                                    <StackPanel Orientation="Horizontal">
+                                                                        <TextBlock VerticalAlignment="Center"
+                                                                                   FontSize="13"
+                                                                                   FontWeight="SemiBold"
+                                                                                   Text="{Binding CollapsedSummaryText}" />
+                                                                        <Border Margin="12,0,0,0"
+                                                                                Padding="7,2"
+                                                                                VerticalAlignment="Center"
+                                                                                Background="{Binding AutoPublishStatusBackground}"
+                                                                                BorderBrush="{Binding AutoPublishStatusBorderBrush}"
+                                                                                BorderThickness="1"
+                                                                                CornerRadius="9">
+                                                                            <TextBlock FontSize="12"
+                                                                                       FontWeight="SemiBold"
+                                                                                       Foreground="{Binding AutoPublishStatusForeground}"
+                                                                                       Text="{Binding AutoPublishStatusText}" />
+                                                                        </Border>
+                                                                    </StackPanel>
                                                                 </Button>
                                                                 <StackPanel Grid.Column="2"
                                                                             Orientation="Horizontal">
                                                                     <Button Margin="0,0,8,0"
-                                                                            Content="编辑"
-                                                                            Style="{StaticResource SecondaryButtonStyle}"
-                                                                            Command="{Binding ExpandCommand}" />
-                                                                    <Button Content="自动上架"
+                                                                            Content="自动上架"
+                                                                            Style="{StaticResource CollapsedCardPrimaryButtonStyle}"
                                                                             Command="{Binding AutoPublishCommand}" />
+                                                                    <Button Content="编辑"
+                                                                            Style="{StaticResource CollapsedCardSecondaryButtonStyle}"
+                                                                            Command="{Binding ExpandCommand}" />
                                                                 </StackPanel>
                                                             </Grid>
                                                         </Border>
@@ -661,6 +766,10 @@
                                                                                     HorizontalAlignment="Right">
                                                                             <Button Margin="0,0,8,8"
                                                                                     Style="{StaticResource SecondaryButtonStyle}"
+                                                                                    Command="{Binding CopyMainToDetailCommand}"
+                                                                                    Content="复制main到detail" />
+                                                                            <Button Margin="0,0,8,8"
+                                                                                    Style="{StaticResource SecondaryButtonStyle}"
                                                                                     Command="{Binding AddImagesCommand}"
                                                                                     Content="添加图片" />
                                                                             <Button Margin="0,0,8,8"
@@ -722,7 +831,8 @@
                                                                                                 Background="{Binding CardBackground}"
                                                                                                 BorderBrush="{Binding CardBorderBrush}"
                                                                                                 BorderThickness="1"
-                                                                                                CornerRadius="8">
+                                                                                                CornerRadius="8"
+                                                                                                PreviewMouseLeftButtonDown="ReviewImageCard_PreviewMouseLeftButtonDown">
                                                                                             <Border.ContextMenu>
                                                                                                 <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
                                                                                                     <MenuItem Header="打开图片"
@@ -818,6 +928,48 @@
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
                                 </ScrollViewer>
+
+                                <StackPanel HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            Visibility="{Binding SelectedTab.IsPlaceholder, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <TextBlock HorizontalAlignment="Center"
+                                               FontSize="16"
+                                               FontWeight="SemiBold"
+                                               Foreground="{StaticResource TitleTextBrush}"
+                                               Text="请先点击上方「选择文件夹」" />
+                                    <TextBlock Margin="0,8,0,0"
+                                               HorizontalAlignment="Center"
+                                               FontSize="13"
+                                               Foreground="{StaticResource MutedTextBrush}"
+                                               Text="选择需要筛图的父目录后，这里会显示每个子文件夹的图片卡片。"
+                                               TextAlignment="Center" />
+                                </StackPanel>
+                                <StackPanel HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            Visibility="{Binding IsAutoPublishFilterEmpty, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <Border Width="52"
+                                            Height="52"
+                                            HorizontalAlignment="Center"
+                                            Background="#F6F8FC"
+                                            CornerRadius="18">
+                                        <TextBlock HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   FontSize="24"
+                                                   Foreground="#B8C2D6"
+                                                   Text="∅" />
+                                    </Border>
+                                    <TextBlock Margin="0,12,0,0"
+                                               HorizontalAlignment="Center"
+                                               FontSize="14"
+                                               FontWeight="SemiBold"
+                                               Foreground="{StaticResource TitleTextBrush}"
+                                               Text="{Binding AutoPublishFilterEmptyText}" />
+                                    <TextBlock Margin="0,6,0,0"
+                                               HorizontalAlignment="Center"
+                                               FontSize="12"
+                                               Foreground="{StaticResource MutedTextBrush}"
+                                               Text="可以切换其他状态筛选查看卡片。" />
+                                </StackPanel>
                             </Grid>
 
                             <Grid Visibility="{Binding HasTabs, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
@@ -848,7 +1000,8 @@
                                 <Border Background="{StaticResource PanelAltBrush}"
                                         CornerRadius="8"
                                         MinHeight="320"
-                                        Margin="0,2,0,0">
+                                        Margin="0,2,0,0"
+                                        PreviewMouseLeftButtonDown="PreviewImageArea_PreviewMouseLeftButtonDown">
                                     <Grid>
                                         <TextBlock HorizontalAlignment="Center"
                                                    VerticalAlignment="Center"
@@ -1026,7 +1179,7 @@
                                                     Command="{Binding ChooseGenerationOutputFolderCommand}" />
                                             <Button Grid.Column="2"
                                                     Margin="6,0,0,0"
-                                                    Content="打开目录"
+                                                    Content="生成数量"
                                                     Style="{StaticResource ElementSecondaryButtonStyle}"
                                                     Command="{Binding OpenGenerationOutputFolderCommand}" />
                                         </Grid>
@@ -1041,14 +1194,14 @@
                                             <StackPanel Grid.Column="0"
                                                         Margin="0,0,8,0">
                                                 <TextBlock Margin="0,0,0,6"
-                                                           Text="生成数量" />
+                                                           Text="并发数量" />
                                                 <TextBox Style="{StaticResource ElementInputTextBoxStyle}"
                                                          Text="{Binding GenerationCountText, UpdateSourceTrigger=PropertyChanged}" />
                                             </StackPanel>
 
                                             <StackPanel Grid.Column="1">
                                                 <TextBlock Margin="0,0,0,6"
-                                                           Text="并发数量" />
+                                                           Text="骞跺彂鏁伴噺" />
                                                 <TextBox Style="{StaticResource ElementInputTextBoxStyle}"
                                                          Text="{Binding GenerationConcurrencyText, UpdateSourceTrigger=PropertyChanged}" />
                                             </StackPanel>
@@ -1496,24 +1649,44 @@
                                                                         </Style.Triggers>
                                                                     </Style>
                                                                 </Border.Style>
-                                                                <StackPanel>
-                                                                    <Border CornerRadius="8"
-                                                                            ClipToBounds="True">
-                                                                        <Grid Width="98"
-                                                                              Height="98"
-                                                                              Background="{StaticResource PanelAltBrush}">
-                                                                            <Image Stretch="UniformToFill"
-                                                                                   Source="{Binding ThumbnailSource}" />
-                                                                        </Grid>
-                                                                    </Border>
-                                                                    <TextBlock Margin="0,8,0,0"
-                                                                               FontSize="12"
-                                                                               LineHeight="16"
-                                                                               MaxHeight="32"
-                                                                               Text="{Binding FileName}"
-                                                                               TextTrimming="CharacterEllipsis"
-                                                                               TextWrapping="Wrap" />
-                                                                </StackPanel>
+                                                                <Grid>
+                                                                    <Grid.RowDefinitions>
+                                                                        <RowDefinition Height="Auto" />
+                                                                        <RowDefinition Height="Auto" />
+                                                                    </Grid.RowDefinitions>
+                                                                    <Button HorizontalAlignment="Right"
+                                                                            VerticalAlignment="Top"
+                                                                            Margin="0,-4,-4,0"
+                                                                            Width="20"
+                                                                            Height="20"
+                                                                            MinWidth="20"
+                                                                            Padding="0"
+                                                                            Style="{StaticResource GhostIconButtonStyle}"
+                                                                            Command="{Binding RemoveCommand}">
+                                                                        <TextBlock FontFamily="Segoe MDL2 Assets"
+                                                                                   FontSize="11"
+                                                                                   Foreground="#909399"
+                                                                                   Text="&#xE711;" />
+                                                                    </Button>
+                                                                    <StackPanel Grid.Row="1">
+                                                                        <Border CornerRadius="8"
+                                                                                ClipToBounds="True">
+                                                                            <Grid Width="98"
+                                                                                  Height="98"
+                                                                                  Background="{StaticResource PanelAltBrush}">
+                                                                                <Image Stretch="UniformToFill"
+                                                                                       Source="{Binding ThumbnailSource}" />
+                                                                            </Grid>
+                                                                        </Border>
+                                                                        <TextBlock Margin="0,8,0,0"
+                                                                                   FontSize="12"
+                                                                                   LineHeight="16"
+                                                                                   MaxHeight="32"
+                                                                                   Text="{Binding FileName}"
+                                                                                   TextTrimming="CharacterEllipsis"
+                                                                                   TextWrapping="Wrap" />
+                                                                    </StackPanel>
+                                                                </Grid>
                                                             </Border>
                                                         </DataTemplate>
                                                     </ItemsControl.ItemTemplate>
@@ -1649,3 +1822,4 @@
         </Grid>
     </Grid>
 </Window>
+

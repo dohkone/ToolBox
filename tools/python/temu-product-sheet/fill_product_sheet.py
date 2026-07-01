@@ -1,5 +1,4 @@
 import argparse
-from copy import copy
 import json
 import os
 import random
@@ -9,14 +8,11 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from openpyxl import load_workbook
-
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DATA_DIR = SCRIPT_DIR / "data"
 DEFAULT_INDEX = DATA_DIR / "size_specs_index.json"
 DEFAULT_SOURCE = DATA_DIR / "size_specs.xlsx"
-DEFAULT_TEMPLATE = DATA_DIR / "product_sheet_template.xlsx"
 DEFAULT_OUTPUT_DIR = Path("D:/temu_auto/excel")
 DEFAULT_ASSERT_DIR = Path("D:/temu_auto/assert")
 DEFAULT_TITLE_JSON = DATA_DIR / "title.json"
@@ -24,7 +20,7 @@ DEFAULT_TITLE_JSON = DATA_DIR / "title.json"
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Generate a dated Temu product sheet workbook from SKU sizes."
+        description="Generate Miaoshou product JSON from SP folders and SKU sizes."
     )
     parser.add_argument(
         "--sizes",
@@ -48,8 +44,8 @@ def parse_args():
     )
     parser.add_argument(
         "--template",
-        default=str(DEFAULT_TEMPLATE),
-        help="Path to the product sheet template workbook.",
+        default=None,
+        help="Deprecated. Kept for compatibility; workbook output is no longer generated.",
     )
     parser.add_argument(
         "--index",
@@ -69,7 +65,7 @@ def parse_args():
     parser.add_argument(
         "--output-dir",
         default=str(DEFAULT_OUTPUT_DIR),
-        help="Directory for the dated output workbook.",
+        help="Directory for generated product JSON when --products-json is not provided.",
     )
     parser.add_argument(
         "--date",
@@ -79,7 +75,12 @@ def parse_args():
     parser.add_argument(
         "--output-name",
         default=None,
-        help="Optional explicit output filename.",
+        help="Deprecated. Kept for compatibility; workbook output is no longer generated.",
+    )
+    parser.add_argument(
+        "--products-json",
+        default=None,
+        help="Optional path for the generated Miaoshou product JSON.",
     )
     parser.add_argument(
         "--seed",
@@ -360,7 +361,7 @@ def collect_sp_directories(assert_dir):
     return sp_dirs
 
 
-def build_main_row(sp_dir, workbook, titles, english_titles):
+def build_main_row(sp_dir, titles, english_titles):
     title = random.choice(titles)
     english_title = random.choice(english_titles)
     return {
@@ -412,7 +413,57 @@ def output_path_for(args):
     output_dir.mkdir(parents=True, exist_ok=True)
     if args.output_name:
         return output_dir / args.output_name
-    return output_dir / "\u5546\u54c1\u4fe1\u606f\u8868.xlsx"
+    return output_dir / "products_new.json"
+
+
+def products_json_path_for(args, output_path):
+    if args.products_json:
+        target = Path(args.products_json)
+    else:
+        target = output_path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    return target
+
+
+def build_products_json(main_rows, matched_rows):
+    by_product = {}
+    for row in main_rows:
+        by_product[row["product_id"]] = {
+            "card_folder_path": str(Path(row["main_path"]).parent.resolve()),
+            "title": row["title"],
+            "english_title": row["english_title"],
+            "main_file_folder": row["main_path"],
+            "detail_file_folder": row["detail_path"],
+            "preview_image_folder": row["sku_path"],
+            "sku_size_list": [],
+        }
+
+    for item in matched_rows:
+        product = by_product.setdefault(
+            item["product_id"],
+            {
+                "card_folder_path": "",
+                "title": "",
+                "english_title": "",
+                "main_file_folder": "",
+                "detail_file_folder": "",
+                "preview_image_folder": "",
+                "sku_size_list": [],
+            },
+        )
+        record = item["record"]
+        product["sku_size_list"].append(
+            {
+                "size": item["display_size_text"],
+                "supply_price": "" if item["price"] is None else f"{item['price']:.2f}",
+                "length": str(record["longest_edge_cm"]),
+                "width": str(record["second_longest_edge_cm"]),
+                "height": str(record["shortest_edge_cm"]),
+                "weight": str(record["weight_g"]),
+            }
+        )
+
+    return list(by_product.values())
 
 
 def main():
@@ -420,17 +471,12 @@ def main():
     if args.seed is not None:
         random.seed(args.seed)
 
-    template_path = Path(args.template)
     index_path = Path(args.index)
     source_path = Path(args.source)
     title_json_path = Path(args.title_json)
     ensure_index(index_path, source_path)
     records = load_records(index_path)
     titles, english_titles = load_titles(title_json_path)
-
-    workbook = load_workbook(template_path)
-    main_sheet = workbook.worksheets[0]
-    sku_sheet = workbook.worksheets[1]
 
     main_rows = []
     matched_rows = []
@@ -466,27 +512,23 @@ def main():
         )
     elif args.sp_dir:
         sp_path = Path(args.sp_dir)
-        main_rows.append(build_main_row(sp_path, workbook, titles, english_titles))
+        main_rows.append(build_main_row(sp_path, titles, english_titles))
         summary = process_sp_dir(sp_path, records)
         matched_rows.extend(summary["matched_rows"])
         summaries.append(summary)
     else:
         for sp_path in collect_sp_directories(args.assert_dir):
-            main_rows.append(build_main_row(sp_path, workbook, titles, english_titles))
+            main_rows.append(build_main_row(sp_path, titles, english_titles))
             summaries.append(process_sp_dir(sp_path, records))
         for summary in summaries:
             matched_rows.extend(summary["matched_rows"])
 
-    clear_sheet_rows(main_sheet, start_row=2, end_col=6)
-    clear_sheet_rows(sku_sheet, start_row=2, end_col=7)
-    if main_rows:
-        write_main_rows(main_sheet, main_rows)
-    write_rows(sku_sheet, matched_rows)
-
     output_path = output_path_for(args)
-    workbook.save(output_path)
+    products_json_path = products_json_path_for(args, output_path)
+    products_json = build_products_json(main_rows, matched_rows)
+    products_json_path.write_text(json.dumps(products_json, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    print(output_path)
+    print(f"products_json={products_json_path}")
     print(f"products={len(main_rows) if main_rows else (1 if summaries else 0)}")
     print(f"matched={len(matched_rows)}")
     skipped_total = 0

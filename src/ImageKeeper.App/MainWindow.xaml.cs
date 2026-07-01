@@ -30,7 +30,9 @@ public partial class MainWindow : Window
             CreateAppSettingsService(),
             CreateProductSheetService(),
             CreateTemplateGenerationService(),
-            CreateSpBatchService());
+            CreateSpBatchService(),
+            CreateMiaoshouPublishService(),
+            CreateAutoPublishStateService());
         DataContext = _viewModel;
         Loaded += OnLoadedAsync;
         SourceInitialized += OnSourceInitialized;
@@ -88,8 +90,7 @@ public partial class MainWindow : Window
         var pythonRunner = new PythonScriptRunner(pythonExePath);
         var fillProductSheetScript = ResolveToolPath("temu-product-sheet", "fill_product_sheet.py");
         var buildSizeIndexScript = ResolveToolPath("temu-product-sheet", "build_size_index.py");
-        var yingdaoLauncher = CreateYingdaoLauncher();
-        return new ProductSheetService(pythonRunner, fillProductSheetScript, buildSizeIndexScript, yingdaoLauncher);
+        return new ProductSheetService(pythonRunner, fillProductSheetScript, buildSizeIndexScript);
     }
 
     private static ITemplateGenerationService CreateTemplateGenerationService()
@@ -104,12 +105,46 @@ public partial class MainWindow : Window
         return new SpBatchService(ResolvePythonExecutable(), scriptPath);
     }
 
-    private static IYingdaoLauncher CreateYingdaoLauncher()
+    private static IMiaoshouPublishService CreateMiaoshouPublishService()
     {
         var appBase = AppContext.BaseDirectory;
-        var scriptPath = Path.Combine(appBase, "tools", "node", "yingdao", "start_miaoshou.js");
-        var configPath = Path.Combine(appBase, "config", "yingdao.json");
-        return new YingdaoLauncher(ResolveNodeExecutable(), scriptPath, configPath);
+        var candidates = new[]
+        {
+            Path.Combine(appBase, "tools", "node", "miaoshou-playwright"),
+            Path.Combine(@"D:\new_project\tools\node\miaoshou-playwright")
+        };
+        var workingDirectory = candidates.FirstOrDefault(Directory.Exists) ?? candidates[0];
+        return new MiaoshouPublishService(ResolveNodeExecutable(), workingDirectory);
+    }
+
+    private static IAutoPublishStateService CreateAutoPublishStateService()
+    {
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        var databasePath = Path.Combine(localAppData, "ToolBox", "toolbox.db");
+        MigrateLegacyDatabaseIfNeeded(databasePath);
+        return new AutoPublishStateService(databasePath);
+    }
+
+    private static void MigrateLegacyDatabaseIfNeeded(string databasePath)
+    {
+        if (File.Exists(databasePath))
+        {
+            return;
+        }
+
+        var legacyDatabasePath = Path.Combine(AppContext.BaseDirectory, "data", "toolbox.db");
+        if (!File.Exists(legacyDatabasePath))
+        {
+            return;
+        }
+
+        var targetDirectory = Path.GetDirectoryName(databasePath);
+        if (!string.IsNullOrWhiteSpace(targetDirectory))
+        {
+            Directory.CreateDirectory(targetDirectory);
+        }
+
+        File.Copy(legacyDatabasePath, databasePath, overwrite: false);
     }
 
     private static string ResolveToolPath(string toolFolder, string fileName)
@@ -306,6 +341,34 @@ public partial class MainWindow : Window
         if (sender is FrameworkElement { DataContext: GeneratedImageResultCardViewModel card })
         {
             _viewModel.HandleSpBatchSourceImageCardClick(card, e.ClickCount);
+            e.Handled = true;
+        }
+    }
+
+    private void ReviewImageCard_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount < 2 || IsFromButton(e.OriginalSource))
+        {
+            return;
+        }
+
+        if (sender is FrameworkElement { DataContext: ImageItemViewModel card }
+            && card.OpenFileCommand.CanExecute(null))
+        {
+            card.OpenFileCommand.Execute(null);
+            e.Handled = true;
+        }
+    }
+
+    private void PreviewImageArea_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount < 2 || IsFromButton(e.OriginalSource))
+        {
+            return;
+        }
+
+        if (_viewModel.OpenCurrentPreviewImage())
+        {
             e.Handled = true;
         }
     }

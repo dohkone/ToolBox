@@ -12,6 +12,8 @@ public sealed class WorkspaceTabViewModel : ViewModelBase
     private readonly IProductSheetService? _productSheetService;
     private readonly Func<bool>? _isAutoPublishBusyProvider;
     private readonly Func<Func<Task>, Task>? _runExclusiveAsync;
+    private readonly Func<RootCardViewModel, AutoPublishStatus, string, Task>? _setAutoPublishStatusAsync;
+    private readonly Func<RootCardViewModel, Task>? _runAutoPublishCardAsync;
     private readonly Action? _batchSelectionChanged;
     private readonly RelayCommand _activateCommand;
     private readonly RelayCommand _closeCommand;
@@ -28,6 +30,8 @@ public sealed class WorkspaceTabViewModel : ViewModelBase
         IProductSheetService? productSheetService = null,
         Func<bool>? isAutoPublishBusyProvider = null,
         Func<Func<Task>, Task>? runExclusiveAsync = null,
+        Func<RootCardViewModel, AutoPublishStatus, string, Task>? setAutoPublishStatusAsync = null,
+        Func<RootCardViewModel, Task>? runAutoPublishCardAsync = null,
         Action? batchSelectionChanged = null)
     {
         _rootFolder = rootFolder;
@@ -37,6 +41,8 @@ public sealed class WorkspaceTabViewModel : ViewModelBase
         _productSheetService = productSheetService;
         _isAutoPublishBusyProvider = isAutoPublishBusyProvider;
         _runExclusiveAsync = runExclusiveAsync;
+        _setAutoPublishStatusAsync = setAutoPublishStatusAsync;
+        _runAutoPublishCardAsync = runAutoPublishCardAsync;
         _batchSelectionChanged = batchSelectionChanged;
         _title = BuildTitle(rootFolder);
         _activateCommand = new RelayCommand(_ => RequestedActivate?.Invoke(this));
@@ -54,6 +60,8 @@ public sealed class WorkspaceTabViewModel : ViewModelBase
     public event Action<WorkspaceTabViewModel>? SelectionContextChanged;
 
     public ObservableCollection<RootCardViewModel> RootCards { get; } = [];
+
+    public ObservableCollection<RootCardViewModel> FilteredRootCards { get; } = [];
 
     public RelayCommand ActivateCommand => _activateCommand;
 
@@ -135,6 +143,7 @@ public sealed class WorkspaceTabViewModel : ViewModelBase
         }
 
         RootCards.Clear();
+        FilteredRootCards.Clear();
         ActiveCard = null;
 
         foreach (var node in nodes)
@@ -147,6 +156,8 @@ public sealed class WorkspaceTabViewModel : ViewModelBase
                 _productSheetService,
                 _isAutoPublishBusyProvider,
                 _runExclusiveAsync,
+                _setAutoPublishStatusAsync,
+                _runAutoPublishCardAsync,
                 _batchSelectionChanged);
             card.PreviewRequested += OnCardPreviewRequested;
             card.StatusChanged += OnCardStatusChanged;
@@ -155,12 +166,29 @@ public sealed class WorkspaceTabViewModel : ViewModelBase
             RootCards.Add(card);
         }
 
+        ApplyAutoPublishStatusFilter(AutoPublishStatusFilter.All);
+
         if (RootCards.Count > 0)
         {
             SetActiveCard(RootCards[0]);
         }
 
         OnPropertyChanged(nameof(HasRootCards));
+    }
+
+    public void ApplyAutoPublishStatusFilter(AutoPublishStatusFilter filter)
+    {
+        FilteredRootCards.Clear();
+
+        foreach (var card in RootCards.Where(card => MatchesAutoPublishStatusFilter(card, filter)))
+        {
+            FilteredRootCards.Add(card);
+        }
+    }
+
+    public int CountByAutoPublishStatusFilter(AutoPublishStatusFilter filter)
+    {
+        return RootCards.Count(card => MatchesAutoPublishStatusFilter(card, filter));
     }
 
     public void SetBackupFolder(string backupFolder)
@@ -224,11 +252,52 @@ public sealed class WorkspaceTabViewModel : ViewModelBase
         _batchSelectionChanged?.Invoke();
     }
 
+    public async Task RefreshAutoPublishRecordsAsync(
+        IAutoPublishStateService autoPublishStateService,
+        CancellationToken cancellationToken = default)
+    {
+        var cards = RootCards
+            .Where(card => !string.IsNullOrWhiteSpace(card.AutoPublishKeyPath))
+            .ToArray();
+        var records = await autoPublishStateService.GetByCardPathsAsync(
+            cards.Select(card => card.AutoPublishKeyPath),
+            cancellationToken);
+
+        foreach (var card in cards)
+        {
+            records.TryGetValue(card.AutoPublishKeyPath, out var record);
+            card.ApplyAutoPublishRecord(record);
+        }
+    }
+
+    private static bool MatchesAutoPublishStatusFilter(
+        RootCardViewModel card,
+        AutoPublishStatusFilter filter)
+    {
+        return filter == AutoPublishStatusFilter.All
+            || (int)card.AutoPublishStatus == (int)filter;
+    }
+
     public IReadOnlyList<RootCardViewModel> GetBatchSelectedCards()
     {
         return RootCards
             .Where(card => card.IsCollapsed && card.IsBatchSelected && card.CanBatchSelect)
             .ToArray();
+    }
+
+    public bool HasBatchSelectableCards()
+    {
+        return RootCards.Any(card => card.CanBatchSelect);
+    }
+
+    public void SetBatchSelectionForAll(bool isSelected)
+    {
+        foreach (var card in RootCards.Where(card => card.CanBatchSelect))
+        {
+            card.IsBatchSelected = isSelected;
+        }
+
+        _batchSelectionChanged?.Invoke();
     }
 
     private void OnCardPreviewRequested(PreviewRequest? request)

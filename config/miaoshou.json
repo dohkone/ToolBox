@@ -1,0 +1,9 @@
+{
+  "baseUrl": "https://erp.91miaoshou.com/welcome",
+  "browserChannel": "chromium",
+  "profileName": "miaoshou-edge-main",
+  "profilesDir": "%LOCALAPPDATA%\\EcomToolStudio\\miaoshou-playwright\\profiles",
+  "killEdgeBeforeLaunch": false,
+  "killEdgeOnBusy": true,
+  "keepBrowserOpen": false
+}

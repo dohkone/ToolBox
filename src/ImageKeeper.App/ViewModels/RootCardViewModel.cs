@@ -21,6 +21,7 @@ public sealed class RootCardViewModel : ViewModelBase
     private readonly RelayCommand _collapseCommand;
     private readonly RelayCommand _expandCommand;
     private readonly AsyncRelayCommand _addImagesCommand;
+    private readonly AsyncRelayCommand _copyMainToDetailCommand;
     private readonly AsyncRelayCommand _moveSelectedCommand;
     private readonly AsyncRelayCommand _autoPublishCommand;
     private readonly RelayCommand _toggleExpandCommand;
@@ -29,6 +30,8 @@ public sealed class RootCardViewModel : ViewModelBase
     private readonly IProductSheetService? _productSheetService;
     private readonly Func<bool>? _isAutoPublishBusyProvider;
     private readonly Func<Func<Task>, Task>? _runExclusiveAsync;
+    private readonly Func<RootCardViewModel, AutoPublishStatus, string, Task>? _setAutoPublishStatusAsync;
+    private readonly Func<RootCardViewModel, Task>? _runAutoPublishCardAsync;
     private readonly Action? _batchSelectionChanged;
     private FolderNodeViewModel? _selectedNode;
     private bool _isCollapsed;
@@ -39,6 +42,8 @@ public sealed class RootCardViewModel : ViewModelBase
     private int _selectedCount;
     private int _loadedImageCount;
     private string _backupFolder;
+    private AutoPublishStatus _autoPublishStatus = AutoPublishStatus.NotPublished;
+    private string _autoPublishLastError = string.Empty;
 
     public RootCardViewModel(
         FolderNode rootNode,
@@ -48,6 +53,8 @@ public sealed class RootCardViewModel : ViewModelBase
         IProductSheetService? productSheetService = null,
         Func<bool>? isAutoPublishBusyProvider = null,
         Func<Func<Task>, Task>? runExclusiveAsync = null,
+        Func<RootCardViewModel, AutoPublishStatus, string, Task>? setAutoPublishStatusAsync = null,
+        Func<RootCardViewModel, Task>? runAutoPublishCardAsync = null,
         Action? batchSelectionChanged = null)
     {
         _workspaceService = workspaceService;
@@ -56,6 +63,8 @@ public sealed class RootCardViewModel : ViewModelBase
         _productSheetService = productSheetService;
         _isAutoPublishBusyProvider = isAutoPublishBusyProvider;
         _runExclusiveAsync = runExclusiveAsync;
+        _setAutoPublishStatusAsync = setAutoPublishStatusAsync;
+        _runAutoPublishCardAsync = runAutoPublishCardAsync;
         _batchSelectionChanged = batchSelectionChanged;
         _rootNode = new FolderNodeViewModel(rootNode);
         _cardState = _workspaceStateService.GetOrCreateCardState(rootNode.Id);
@@ -71,6 +80,7 @@ public sealed class RootCardViewModel : ViewModelBase
             Activate();
         });
         _addImagesCommand = new AsyncRelayCommand(_ => AddImagesAsync(), _ => SelectedNode is not null);
+        _copyMainToDetailCommand = new AsyncRelayCommand(_ => CopyMainToDetailAsync(), _ => CanCopyMainToDetail());
         _moveSelectedCommand = new AsyncRelayCommand(_ => MoveSelectedAsync(), _ => SelectedNode is not null && SelectedCount > 0);
         _autoPublishCommand = new AsyncRelayCommand(_ => AutoPublishAsync(), _ => CanAutoPublish());
         _toggleExpandCommand = new RelayCommand(node => ToggleExpand(node as FolderNodeViewModel), node => node is FolderNodeViewModel folderNode && folderNode.HasChildren);
@@ -93,6 +103,8 @@ public sealed class RootCardViewModel : ViewModelBase
 
     public string RootFolderPath => _rootNode.FolderPath;
 
+    public string AutoPublishKeyPath => GetSpRootFolder() ?? RootFolderPath;
+
     public ObservableCollection<FolderNodeViewModel> VisibleNodes { get; } = [];
 
     public ObservableCollection<ImageItemViewModel> CurrentImages { get; } = [];
@@ -108,6 +120,8 @@ public sealed class RootCardViewModel : ViewModelBase
     public RelayCommand ExpandCommand => _expandCommand;
 
     public AsyncRelayCommand AddImagesCommand => _addImagesCommand;
+
+    public AsyncRelayCommand CopyMainToDetailCommand => _copyMainToDetailCommand;
 
     public AsyncRelayCommand MoveSelectedCommand => _moveSelectedCommand;
 
@@ -138,6 +152,7 @@ public sealed class RootCardViewModel : ViewModelBase
             OnPropertyChanged(nameof(CurrentFolderMetaText));
             OnPropertyChanged(nameof(HasImages));
             OnPropertyChanged(nameof(ContentEmptyText));
+            OnPropertyChanged(nameof(AutoPublishKeyPath));
             OnPropertyChanged(nameof(CollapsedSummaryText));
             RefreshCurrentImages();
         }
@@ -293,11 +308,66 @@ public sealed class RootCardViewModel : ViewModelBase
         ? "从左侧目录选择一个文件夹后，这里会显示该目录下的图片。"
         : "当前文件夹没有图片。可以点击“添加图片”，或直接拖拽图片到这里。";
 
-    public string CollapsedSummaryText => $"{DisplayName}    {CurrentFolderPath}";
+    public string CollapsedSummaryText => $"{DisplayName}    {AutoPublishKeyPath}";
 
     public bool IsAutoPublishBusy => _isAutoPublishBusyProvider?.Invoke() ?? false;
 
     public bool CanBatchSelect => IsCollapsed && !string.IsNullOrWhiteSpace(GetSpRootFolder());
+
+    public AutoPublishStatus AutoPublishStatus
+    {
+        get => _autoPublishStatus;
+        private set
+        {
+            if (!SetProperty(ref _autoPublishStatus, value))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(AutoPublishStatusText));
+            OnPropertyChanged(nameof(AutoPublishStatusForeground));
+            OnPropertyChanged(nameof(AutoPublishStatusBackground));
+            OnPropertyChanged(nameof(AutoPublishStatusBorderBrush));
+        }
+    }
+
+    public string AutoPublishLastError
+    {
+        get => _autoPublishLastError;
+        private set => SetProperty(ref _autoPublishLastError, value);
+    }
+
+    public string AutoPublishStatusText => AutoPublishStatus switch
+    {
+        AutoPublishStatus.Publishing => "上架中",
+        AutoPublishStatus.Success => "上架成功",
+        AutoPublishStatus.Failed => "上架失败",
+        _ => "未上架"
+    };
+
+    public Media.Brush AutoPublishStatusForeground => AutoPublishStatus switch
+    {
+        AutoPublishStatus.Publishing => new Media.SolidColorBrush(Media.Color.FromRgb(45, 106, 227)),
+        AutoPublishStatus.Success => new Media.SolidColorBrush(Media.Color.FromRgb(103, 194, 58)),
+        AutoPublishStatus.Failed => new Media.SolidColorBrush(Media.Color.FromRgb(245, 108, 108)),
+        _ => new Media.SolidColorBrush(Media.Color.FromRgb(124, 138, 165))
+    };
+
+    public Media.Brush AutoPublishStatusBackground => AutoPublishStatus switch
+    {
+        AutoPublishStatus.Publishing => new Media.SolidColorBrush(Media.Color.FromRgb(234, 241, 255)),
+        AutoPublishStatus.Success => new Media.SolidColorBrush(Media.Color.FromRgb(240, 249, 235)),
+        AutoPublishStatus.Failed => new Media.SolidColorBrush(Media.Color.FromRgb(254, 240, 240)),
+        _ => new Media.SolidColorBrush(Media.Color.FromRgb(246, 248, 252))
+    };
+
+    public Media.Brush AutoPublishStatusBorderBrush => AutoPublishStatus switch
+    {
+        AutoPublishStatus.Publishing => new Media.SolidColorBrush(Media.Color.FromRgb(159, 190, 255)),
+        AutoPublishStatus.Success => new Media.SolidColorBrush(Media.Color.FromRgb(205, 231, 176)),
+        AutoPublishStatus.Failed => new Media.SolidColorBrush(Media.Color.FromRgb(252, 196, 196)),
+        _ => new Media.SolidColorBrush(Media.Color.FromRgb(217, 225, 236))
+    };
 
     public Media.Brush CardBorderBrush => IsActive
         ? new Media.SolidColorBrush(Media.Color.FromRgb(159, 190, 255))
@@ -321,6 +391,18 @@ public sealed class RootCardViewModel : ViewModelBase
         OnPropertyChanged(nameof(IsAutoPublishBusy));
         _autoPublishCommand.RaiseCanExecuteChanged();
         _batchSelectionChanged?.Invoke();
+    }
+
+    public void ApplyAutoPublishRecord(AutoPublishCardRecord? record)
+    {
+        AutoPublishStatus = record?.Status ?? AutoPublishStatus.NotPublished;
+        AutoPublishLastError = record?.LastError ?? string.Empty;
+    }
+
+    public void SetAutoPublishStatus(AutoPublishStatus status, string lastError = "")
+    {
+        AutoPublishStatus = status;
+        AutoPublishLastError = lastError;
     }
 
     public void InvertSelectionFromToolbar()
@@ -365,11 +447,33 @@ public sealed class RootCardViewModel : ViewModelBase
     {
         return _productSheetService is not null
             && _runExclusiveAsync is not null
+            && _runAutoPublishCardAsync is not null
             && !IsAutoPublishBusy
             && !string.IsNullOrWhiteSpace(GetSpRootFolder());
     }
 
+    private bool CanCopyMainToDetail()
+    {
+        var spRootFolder = GetSpRootFolder();
+        if (string.IsNullOrWhiteSpace(spRootFolder))
+        {
+            return false;
+        }
+
+        return Directory.Exists(Path.Combine(spRootFolder, "main"));
+    }
+
     public async Task<string> RunAutoPublishInternalAsync()
+    {
+        var task = await PrepareAutoPublishDataAsync();
+        var message = string.IsNullOrWhiteSpace(task.ProductsJsonPath)
+            ? "上架 JSON 已生成。"
+            : task.ProductsJsonPath;
+        StatusChanged?.Invoke($"自动上架准备完成：{Path.GetFileName(task.SpRootFolder)}。{message}");
+        return message;
+    }
+
+    public async Task<ProductSheetTask> PrepareAutoPublishDataAsync()
     {
         var spRootFolder = GetSpRootFolder();
         if (string.IsNullOrWhiteSpace(spRootFolder) || _productSheetService is null)
@@ -388,15 +492,12 @@ public sealed class RootCardViewModel : ViewModelBase
 
         try
         {
-            StatusChanged?.Invoke($"开始自动上架：{Path.GetFileName(spRootFolder)}");
+            StatusChanged?.Invoke($"开始准备上架数据：{Path.GetFileName(spRootFolder)}");
             var task = await _productSheetService.GenerateAsync(spRootFolder);
             if (task.Status == "Completed")
             {
-                var launchMessage = string.IsNullOrWhiteSpace(task.OutputPath)
-                    ? "妙手自动上架已启动。"
-                    : task.OutputPath;
-                StatusChanged?.Invoke($"自动上架完成：{Path.GetFileName(spRootFolder)}。{launchMessage}");
-                return launchMessage;
+                StatusChanged?.Invoke($"上架数据准备完成：{Path.GetFileName(spRootFolder)}");
+                return task;
             }
 
             throw new InvalidOperationException($"自动上架失败：{Path.GetFileName(spRootFolder)}");
@@ -414,16 +515,14 @@ public sealed class RootCardViewModel : ViewModelBase
 
     private async Task AutoPublishAsync()
     {
-        if (_productSheetService is null || _runExclusiveAsync is null)
+        var runAutoPublishCardAsync = _runAutoPublishCardAsync;
+        if (_productSheetService is null || _runExclusiveAsync is null || runAutoPublishCardAsync is null)
         {
             StatusChanged?.Invoke("当前卡片未解析到 SP 根目录，无法自动上架。");
             return;
         }
 
-        await _runExclusiveAsync(async () =>
-        {
-            await RunAutoPublishInternalAsync();
-        });
+        await runAutoPublishCardAsync(this);
     }
 
     private string? GetSpRootFolder()
@@ -599,6 +698,56 @@ public sealed class RootCardViewModel : ViewModelBase
         await AddImageFilesAsync(dialog.FileNames, showStatusMessage: true);
     }
 
+    private async Task CopyMainToDetailAsync()
+    {
+        var spRootFolder = GetSpRootFolder();
+        if (string.IsNullOrWhiteSpace(spRootFolder))
+        {
+            StatusChanged?.Invoke("当前卡片未解析到 SP 根目录，无法复制 main 到 detail。");
+            return;
+        }
+
+        Activate();
+
+        var mainFolder = Path.Combine(spRootFolder, "main");
+        var detailFolder = Path.Combine(spRootFolder, "detail");
+        if (!Directory.Exists(mainFolder))
+        {
+            StatusChanged?.Invoke($"复制失败：{mainFolder} 不存在。");
+            return;
+        }
+
+        Directory.CreateDirectory(detailFolder);
+
+        var copiedFiles = await Task.Run(() =>
+        {
+            var result = new List<string>();
+            foreach (var sourcePath in Directory.EnumerateFiles(mainFolder, "*", SearchOption.TopDirectoryOnly)
+                         .Where(IsSupportedImageFile))
+            {
+                var destinationPath = Path.Combine(detailFolder, Path.GetFileName(sourcePath));
+                File.Copy(sourcePath, destinationPath, overwrite: true);
+                result.Add(destinationPath);
+            }
+
+            return result;
+        });
+
+        RefreshNodeImages(detailFolder);
+        UpdateCounts();
+
+        if (SelectedNode is not null
+            && string.Equals(
+                Path.GetFullPath(SelectedNode.FolderPath),
+                Path.GetFullPath(detailFolder),
+                StringComparison.OrdinalIgnoreCase))
+        {
+            RefreshCurrentImages(loadAll: true);
+        }
+
+        StatusChanged?.Invoke($"已复制 main 到 detail，共 {copiedFiles.Count} 张图片，同名文件已覆盖。");
+    }
+
     private async Task MoveSelectedAsync()
     {
         if (SelectedNode is null)
@@ -706,6 +855,50 @@ public sealed class RootCardViewModel : ViewModelBase
         foreach (var child in current.Children)
         {
             var match = FindNode(child, targetId);
+            if (match is not null)
+            {
+                return match;
+            }
+        }
+
+        return null;
+    }
+
+    private void RefreshNodeImages(string folderPath)
+    {
+        var targetNode = FindNodeByFolderPath(_rootNode, folderPath);
+        if (targetNode is null || !Directory.Exists(folderPath))
+        {
+            return;
+        }
+
+        targetNode.Model.Images.Clear();
+        foreach (var fileInfo in new DirectoryInfo(folderPath)
+                     .EnumerateFiles()
+                     .Where(file => IsSupportedImageFile(file.FullName))
+                     .OrderBy(file => file.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            targetNode.Model.Images.Add(new ImageItem
+            {
+                FilePath = fileInfo.FullName,
+                FileName = fileInfo.Name,
+                FileSize = fileInfo.Length,
+                LastWriteTime = fileInfo.LastWriteTime
+            });
+        }
+    }
+
+    private static FolderNodeViewModel? FindNodeByFolderPath(FolderNodeViewModel current, string folderPath)
+    {
+        var normalizedTarget = Path.GetFullPath(folderPath);
+        if (string.Equals(Path.GetFullPath(current.FolderPath), normalizedTarget, StringComparison.OrdinalIgnoreCase))
+        {
+            return current;
+        }
+
+        foreach (var child in current.Children)
+        {
+            var match = FindNodeByFolderPath(child, folderPath);
             if (match is not null)
             {
                 return match;
@@ -837,6 +1030,7 @@ public sealed class RootCardViewModel : ViewModelBase
         _selectAllCommand.RaiseCanExecuteChanged();
         _clearSelectionCommand.RaiseCanExecuteChanged();
         _addImagesCommand.RaiseCanExecuteChanged();
+        _copyMainToDetailCommand.RaiseCanExecuteChanged();
         _loadMoreImagesCommand.RaiseCanExecuteChanged();
         SelectionContextChanged?.Invoke(this);
     }
@@ -855,6 +1049,12 @@ public sealed class RootCardViewModel : ViewModelBase
         }
 
         return candidate;
+    }
+
+    private static bool IsSupportedImageFile(string filePath)
+    {
+        var extension = Path.GetExtension(filePath).ToLowerInvariant();
+        return extension is ".jpg" or ".jpeg" or ".png" or ".bmp" or ".gif" or ".tif" or ".tiff" or ".webp" or ".jfif";
     }
 }
 

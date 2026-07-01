@@ -1,0 +1,31 @@
+{
+  "name": "playwright-ts-miaoshou",
+  "version": "1.0.0",
+  "private": true,
+  "main": "index.js",
+  "scripts": {
+    "open:miaoshou": "npx ts-node src/open-miaoshou.ts",
+    "run:batch": "npx ts-node src/open-miaoshou.ts",
+    "open:miaoshou:clean": "set KILL_EDGE_ON_BUSY=1&& npx ts-node src/open-miaoshou.ts",
+    "login": "npx ts-node src/open-miaoshou.ts",
+    "test": "npx playwright test --project=chrome",
+    "test:edge": "npx playwright test --project=edge",
+    "test:chrome": "npx playwright test --project=chrome",
+    "codegen": "npx playwright codegen --channel=chrome",
+    "codegen:edge": "npx playwright codegen --channel=msedge",
+    "codegen:chrome": "npx playwright codegen --channel=chrome"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "@playwright/test": "^1.61.1",
+    "@types/node": "^26.0.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^6.0.3"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2"
+  }
+}

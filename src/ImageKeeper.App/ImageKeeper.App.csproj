@@ -8,6 +8,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
+    <AssemblyName>EcomTool Studio</AssemblyName>
+    <Product>EcomTool Studio</Product>
+    <Description>E-commerce image, generation, product sheet, and listing automation studio.</Description>
     <ApplicationIcon>..\..\logo\new_logo.ico</ApplicationIcon>
   </PropertyGroup>
 
@@ -58,13 +61,13 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </None>
-    <None Include="..\..\tools\node\yingdao\**\*.js">
-      <Link>tools\node\yingdao\%(RecursiveDir)%(Filename)%(Extension)</Link>
+    <None Include="..\..\tools\node\miaoshou-playwright\**\*">
+      <Link>tools\node\miaoshou-playwright\%(RecursiveDir)%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </None>
-    <None Include="..\..\config\yingdao.json">
-      <Link>config\yingdao.json</Link>
+    <None Include="..\..\config\miaoshou.json">
+      <Link>config\miaoshou.json</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </None>

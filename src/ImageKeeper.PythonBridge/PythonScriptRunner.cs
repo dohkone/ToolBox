@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text;
 using ImageKeeper.Core.Services;
 
 namespace ImageKeeper.PythonBridge;
@@ -19,8 +20,13 @@ public sealed class PythonScriptRunner : IPythonScriptRunner
             FileName = _pythonExePath,
             UseShellExecute = false,
             RedirectStandardOutput = true,
-            RedirectStandardError = true
+            RedirectStandardError = true,
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8,
+            CreateNoWindow = true
         };
+        psi.Environment["PYTHONIOENCODING"] = "utf-8";
+        psi.Environment["PYTHONUTF8"] = "1";
 
         psi.ArgumentList.Add(scriptPath);
         foreach (var arg in arguments)

@@ -35,6 +35,7 @@
             <Setter Property="MinWidth" Value="72" />
             <Setter Property="FontSize" Value="14" />
             <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="ForceCursor" Value="True" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -49,6 +50,12 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Cursor" Value="No" />
+                    <Setter Property="Opacity" Value="0.55" />
+                </Trigger>
+            </Style.Triggers>
         </Style>
 
         <Style x:Key="FlatButtonStyle" TargetType="Button">
@@ -58,6 +65,7 @@
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="Padding" Value="4,2" />
             <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="ForceCursor" Value="True" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -72,6 +80,12 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Cursor" Value="No" />
+                    <Setter Property="Opacity" Value="0.55" />
+                </Trigger>
+            </Style.Triggers>
         </Style>
 
         <Style x:Key="SmallIconButtonStyle" TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">

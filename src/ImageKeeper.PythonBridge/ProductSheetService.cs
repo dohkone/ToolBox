@@ -8,18 +8,15 @@ public sealed class ProductSheetService : IProductSheetService
     private readonly IPythonScriptRunner _scriptRunner;
     private readonly string _fillProductSheetScriptPath;
     private readonly string _buildSizeIndexScriptPath;
-    private readonly IYingdaoLauncher? _yingdaoLauncher;
 
     public ProductSheetService(
         IPythonScriptRunner scriptRunner,
         string fillProductSheetScriptPath,
-        string buildSizeIndexScriptPath,
-        IYingdaoLauncher? yingdaoLauncher = null)
+        string buildSizeIndexScriptPath)
     {
         _scriptRunner = scriptRunner;
         _fillProductSheetScriptPath = fillProductSheetScriptPath;
         _buildSizeIndexScriptPath = buildSizeIndexScriptPath;
-        _yingdaoLauncher = yingdaoLauncher;
     }
 
     public async Task<ProductSheetTask> GenerateAsync(string spRootFolder, CancellationToken cancellationToken = default)
@@ -33,17 +30,23 @@ public sealed class ProductSheetService : IProductSheetService
 
         try
         {
-            var exitCode = await _scriptRunner.RunAsync(_fillProductSheetScriptPath, ["--sp-dir", spRootFolder], cancellationToken);
+            var outputDir = Path.Combine(AppContext.BaseDirectory, "output", "products");
+            Directory.CreateDirectory(outputDir);
+            var productsJsonPath = Path.Combine(outputDir, $"{Path.GetFileName(spRootFolder)}.product.json");
+            var exitCode = await _scriptRunner.RunAsync(
+                _fillProductSheetScriptPath,
+                ["--sp-dir", spRootFolder, "--output-dir", outputDir, "--products-json", productsJsonPath],
+                cancellationToken);
             task.Status = exitCode == 0 ? "Completed" : "Failed";
-            if (task.Status == "Completed" && _yingdaoLauncher is not null)
+            if (task.Status == "Completed")
             {
-                task.OutputPath = await _yingdaoLauncher.LaunchMiaoshouAsync(cancellationToken);
+                task.ProductsJsonPath = productsJsonPath;
             }
         }
         catch (Exception ex)
         {
             task.Status = "Failed";
-            task.OutputPath = ex.Message;
+            task.ErrorMessage = ex.Message;
             throw;
         }
 
