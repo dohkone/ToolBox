@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+﻿import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import "dotenv/config";
@@ -38,7 +38,7 @@ const productsJsonPath = cliOptions.manifestPath;
 
 fs.mkdirSync(path.dirname(cliOptions.eventsPath), { recursive: true });
 fs.mkdirSync(path.dirname(cliOptions.logPath), { recursive: true });
-fs.writeFileSync(cliOptions.eventsPath, "", "utf8");
+safeWriteTextFile(cliOptions.eventsPath, "", "events log init");
 fs.writeFileSync(cliOptions.logPath, "", "utf8");
 
 const immediateLoginText = "\u7acb\u5373\u767b\u5f55";
@@ -145,8 +145,26 @@ function emitEvent(type: string, payload: Record<string, unknown> = {}) {
     ...payload,
   };
   const line = JSON.stringify(event);
-  fs.appendFileSync(cliOptions.eventsPath, `${line}\n`, "utf8");
+  safeAppendTextFile(cliOptions.eventsPath, `${line}\n`, "events log append");
   console.log(line);
+}
+
+function safeWriteTextFile(filePath: string, content: string, action: string) {
+  try {
+    fs.writeFileSync(filePath, content, "utf8");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`Skipped ${action}: ${message}`);
+  }
+}
+
+function safeAppendTextFile(filePath: string, content: string, action: string) {
+  try {
+    fs.appendFileSync(filePath, content, "utf8");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`Skipped ${action}: ${message}`);
+  }
 }
 
 function logMessage(message: string, payload: Record<string, unknown> = {}) {
@@ -573,7 +591,7 @@ async function waitForManualLoginToComplete(page: Page, timeoutMs = 10 * 60_000)
   const startedAt = Date.now();
   let lastHeartbeatAt = 0;
 
-  logMessage("等待手动登录完成，请在已打开的浏览器窗口完成验证码/登录。", {
+  logMessage("等待手动登录完成，请在已打开的浏览器窗口完成验证码/登录", {
     currentUrl: page.url(),
   });
   emitEvent("login_waiting", { currentUrl: page.url() });
@@ -1662,7 +1680,7 @@ async function closeTopVisibleDialogByHeaderButton(page: Page) {
       return false;
     }
 
-    const closeButton = topDialog.querySelector('button.jx-dialog__headerbtn[aria-label="关闭此对话框"]') as
+    const closeButton = topDialog.querySelector('button.jx-dialog__headerbtn[aria-label="鍏抽棴姝ゅ璇濇"]') as
       | HTMLButtonElement
       | null;
     if (!closeButton) {
@@ -3076,11 +3094,22 @@ async function configureSkuClassificationBatchDialog(page: Page) {
   console.log(`Selected ${skuClassificationText}: ${singleItemText}`);
   await page.waitForTimeout(300);
 
-  const quantityInput = batchDialog.locator(".sku-classification-input-group .number-of-pieces-input input.jx-input__inner").first();
-  await quantityInput.waitFor({ state: "visible", timeout: 20_000 });
-  await clickLocatorLowConflict(quantityInput, page);
-  await setEditableValueLowConflict(quantityInput, "1");
+  const quantityInputs = batchDialog.locator(".sku-classification-input-group .number-of-pieces-input input.jx-input__inner");
+  await quantityInputs.first().waitFor({ state: "visible", timeout: 20_000 });
+
+  const skuQuantityInput = quantityInputs.first();
+  await clickLocatorLowConflict(skuQuantityInput, page);
+  await setEditableValueLowConflict(skuQuantityInput, "1");
   console.log("Input SKU classification quantity: 1");
+  await page.waitForTimeout(200);
+
+  if ((await quantityInputs.count()) > 1) {
+    const containsQuantityInput = quantityInputs.nth(1);
+    await containsQuantityInput.waitFor({ state: "visible", timeout: 20_000 });
+    await clickLocatorLowConflict(containsQuantityInput, page);
+    await setEditableValueLowConflict(containsQuantityInput, "1");
+    console.log("Input SKU classification contains quantity: 1");
+  }
   await page.waitForTimeout(300);
 
   const confirmButton = batchDialog
@@ -3325,7 +3354,7 @@ async function configureHeaderBatchPriceBySizes(
       await captureShopDebugState(page, `miaoshou-${headerText}-size-not-checked-${entry.size}.png`);
       throw new Error(`Clicked size checkbox '${entry.size}', but it did not become checked in ${headerText}.`);
     }
-
+    
     console.log(`Checked 尺码 ${index + 1}/${entries.length} for ${headerText}: ${entry.size}`);
     await page.waitForTimeout(300);
 
@@ -3415,6 +3444,37 @@ async function configureHeaderBatchPriceBySizes(
     await page.waitForTimeout(700);
 
   }
+}
+
+async function configureSuggestedPriceFormulaBatchDialog(page: Page, multiplierValue: string) {
+  const batchDialog = await getVisibleDialogWithTitle(page, `批量修改${suggestedPriceText}`);
+
+  const formulaRadioLabel = batchDialog.locator('label.jx-radio:has(input[value="formula"])').first();
+  await formulaRadioLabel.waitFor({ state: "visible", timeout: 20_000 });
+  await formulaRadioLabel.evaluate((element) => {
+    (element as HTMLLabelElement).click();
+  });
+  await page.waitForTimeout(300);
+
+  let multiplierInput = batchDialog.locator('input.jx-input__inner[placeholder="倍数"]').first();
+  if ((await multiplierInput.count()) === 0) {
+    multiplierInput = batchDialog.locator('input.jx-input__inner:not([disabled]):not([readonly])').nth(1);
+  }
+  await multiplierInput.waitFor({ state: "visible", timeout: 20_000 });
+  await clickLocatorLowConflict(multiplierInput, page);
+  await setEditableValueLowConflict(multiplierInput, multiplierValue);
+  console.log(`Input ${suggestedPriceText} formula multiplier: ${multiplierValue}`);
+  await page.waitForTimeout(300);
+
+  const confirmButton = batchDialog
+    .locator("button")
+    .filter({ has: page.locator('span:text-is("确定")') })
+    .first();
+
+  await confirmButton.waitFor({ state: "visible", timeout: 20_000 });
+  await clickLocatorLowConflict(confirmButton, page);
+  console.log(`Clicked ${suggestedPriceText} formula batch dialog confirm`);
+  await page.waitForTimeout(700);
 }
 
 async function selectOnlySizeInBatchDialog(page: Page, batchDialog: Locator, sizeText: string, debugPrefix: string) {
@@ -3766,17 +3826,7 @@ async function prepareCreateProductFlow(page: Page, productItem: ProductJsonItem
   await clickCurrentBatchDialogCancelButton(page);
   console.log(`Clicked ${cancelText} after ${supplyPriceText}`);
   await clickHeaderBatchButton(page, suggestedPriceText);
-  await configureHeaderBatchPriceBySizes(
-    page,
-    getSkuSizePriceEntries(productItem).map((entry) => ({ size: entry.size, price: suggestedPriceBatchValue })),
-    suggestedPriceText,
-    {
-      useSizeFilter: false,
-      priceMode: "formulaMultiplier",
-    },
-  );
-  await clickCurrentBatchDialogCancelButton(page);
-  console.log(`Clicked header close after ${suggestedPriceText}`);
+  await configureSuggestedPriceFormulaBatchDialog(page, suggestedPriceBatchValue);
   await clickHeaderBatchButton(page, skuClassificationText);
   await configureSkuClassificationBatchDialog(page);
   await clickHeaderBatchButton(page, packageSizeText);

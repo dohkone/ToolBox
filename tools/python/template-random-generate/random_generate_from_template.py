@@ -30,14 +30,16 @@ LAYOUT_COLUMN = "布局模板"
 SCENE_COLUMN = "场景模板"
 SUBJECT_COLUMN = "主体"
 
-COLOR_NAMES = (
-    "黑色",
-    "米白色",
-    "深棕色",
-    "浅灰色",
-    "酒红色",
-    "宝蓝色",
+COLOR_OPTIONS = (
+    ("黑色", "#0A0A0A"),
+    ("米白色", "#F4F4F2"),
+    ("深棕色", "#634234"),
+    ("深灰色", "#C4C8CA"),
+    ("酒红色", "#722829"),
+    ("宝蓝色", "#0B1B6F"),
 )
+
+COLOR_PLACEHOLDER = "{颜色}"
 
 
 class TemplateRandomError(Exception):
@@ -184,8 +186,31 @@ def render_prompt(template: SelectedTemplate) -> str:
     prompt = template.layout_template
     prompt = prompt.replace("{场景模板}", template.scene_template)
     prompt = prompt.replace("{主体}", template.subject)
-    prompt = prompt.replace("{颜色}", random.choice(COLOR_NAMES))
+    prompt = replace_color_placeholders(prompt)
     return prompt.strip()
+
+
+def replace_color_placeholders(prompt: str) -> str:
+    color_count = prompt.count(COLOR_PLACEHOLDER)
+    if color_count == 0:
+        return prompt
+
+    color_pool = list(COLOR_OPTIONS)
+    random.shuffle(color_pool)
+    replacements: list[str] = []
+
+    while len(replacements) < color_count:
+        if not color_pool:
+            color_pool = list(COLOR_OPTIONS)
+            random.shuffle(color_pool)
+
+        color_name, color_hex = color_pool.pop()
+        replacements.append(f"{color_name} {color_hex}")
+
+    for replacement in replacements:
+        prompt = prompt.replace(COLOR_PLACEHOLDER, replacement, 1)
+
+    return prompt
 
 
 def build_unique_filename(batch_timestamp: str, index: int, total_count: int) -> str:

@@ -733,7 +733,8 @@ public sealed class RootCardViewModel : ViewModelBase
             return result;
         });
 
-        RefreshNodeImages(detailFolder);
+        var refreshedDetailNode = RefreshNodeImages(detailFolder);
+        refreshedDetailNode?.RefreshImageCount();
         UpdateCounts();
 
         if (SelectedNode is not null
@@ -743,6 +744,13 @@ public sealed class RootCardViewModel : ViewModelBase
                 StringComparison.OrdinalIgnoreCase))
         {
             RefreshCurrentImages(loadAll: true);
+            OnPropertyChanged(nameof(HasImages));
+            OnPropertyChanged(nameof(ContentEmptyText));
+            OnPropertyChanged(nameof(CurrentFolderMetaText));
+            if (CurrentImages.Count > 0)
+            {
+                RaisePreviewForPath(CurrentImages[0].FilePath);
+            }
         }
 
         StatusChanged?.Invoke($"已复制 main 到 detail，共 {copiedFiles.Count} 张图片，同名文件已覆盖。");
@@ -864,12 +872,12 @@ public sealed class RootCardViewModel : ViewModelBase
         return null;
     }
 
-    private void RefreshNodeImages(string folderPath)
+    private FolderNodeViewModel? RefreshNodeImages(string folderPath)
     {
         var targetNode = FindNodeByFolderPath(_rootNode, folderPath);
         if (targetNode is null || !Directory.Exists(folderPath))
         {
-            return;
+            return null;
         }
 
         targetNode.Model.Images.Clear();
@@ -886,6 +894,8 @@ public sealed class RootCardViewModel : ViewModelBase
                 LastWriteTime = fileInfo.LastWriteTime
             });
         }
+
+        return targetNode;
     }
 
     private static FolderNodeViewModel? FindNodeByFolderPath(FolderNodeViewModel current, string folderPath)

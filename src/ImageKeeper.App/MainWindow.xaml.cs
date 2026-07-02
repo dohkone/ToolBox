@@ -34,6 +34,7 @@ public partial class MainWindow : Window
             CreateMiaoshouPublishService(),
             CreateAutoPublishStateService());
         DataContext = _viewModel;
+        SizeToCurrentWorkArea();
         Loaded += OnLoadedAsync;
         SourceInitialized += OnSourceInitialized;
         PreviewKeyDown += OnPreviewKeyDownAsync;
@@ -41,6 +42,18 @@ public partial class MainWindow : Window
 
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int dwAttribute, ref uint pvAttribute, int cbAttribute);
+
+    private void SizeToCurrentWorkArea()
+    {
+        var workArea = SystemParameters.WorkArea;
+        var targetWidth = Math.Min(Width, Math.Max(MinWidth, workArea.Width - 32));
+        var targetHeight = Math.Min(Height, Math.Max(MinHeight, workArea.Height - 32));
+
+        Width = targetWidth;
+        Height = targetHeight;
+        Left = workArea.Left + Math.Max(0, (workArea.Width - Width) / 2);
+        Top = workArea.Top + Math.Max(0, (workArea.Height - Height) / 2);
+    }
 
     private async void OnLoadedAsync(object sender, RoutedEventArgs e)
     {
@@ -177,14 +190,21 @@ public partial class MainWindow : Window
     private static string ResolveNodeExecutable()
     {
         var appBase = AppContext.BaseDirectory;
-        var candidates = new[]
+        var bundledNode = Path.Combine(appBase, "runtime", "node", "node.exe");
+        if (File.Exists(bundledNode))
         {
-            Path.Combine(appBase, "runtime", "node", "node.exe"),
-            Path.Combine(appBase, "node", "node.exe"),
-            "node"
-        };
+            return bundledNode;
+        }
 
-        return candidates.FirstOrDefault(File.Exists) ?? candidates[^1];
+        var legacyBundledNode = Path.Combine(appBase, "node", "node.exe");
+        if (File.Exists(legacyBundledNode))
+        {
+            return legacyBundledNode;
+        }
+
+        throw new FileNotFoundException(
+            "便携包缺少 Node.js 运行时，请确认 runtime\\node\\node.exe 已随安装包一起复制。",
+            bundledNode);
     }
 
     private async void WorkspaceContentBorder_OnDrop(object sender, System.Windows.DragEventArgs e)

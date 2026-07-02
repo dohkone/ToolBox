@@ -620,20 +620,6 @@ public sealed class MainWindowViewModel : ViewModelBase
         set => SetProperty(ref _spBatchRetriesText, value);
     }
 
-    public bool IsSpBatchDryRun
-    {
-        get => _spBatchMode == SpBatchMode.DryRun;
-        set
-        {
-            if (!value)
-            {
-                return;
-            }
-
-            SetSpBatchMode(SpBatchMode.DryRun);
-        }
-    }
-
     public bool IsSpBatchPrepareOnly
     {
         get => _spBatchMode == SpBatchMode.PrepareOnly;
@@ -1180,9 +1166,11 @@ public sealed class MainWindowViewModel : ViewModelBase
         GenerationStatusText = IsGenerationPromptsOnly ? "正在生成提示词..." : "正在批量生成图片...";
         GenerationResultModeText = $"模式：{(IsGenerationPromptsOnly ? "只出提示词" : "直接生图")}";
         GenerationResultOutputText = $"输出目录：{GenerationOutputDirectory}";
-        ClearGenerationPromptCards();
-        ClearGeneratedImageResultCards();
-        ClearGeneratedImageResultCards();
+        if (IsGenerationPromptsOnly)
+        {
+            ClearGenerationPromptCards();
+        }
+
         StatusMessage = GenerationStatusText;
         IsTemplateGenerationStopping = false;
         _templateGenerationCancellationTokenSource?.Cancel();
@@ -1223,8 +1211,6 @@ public sealed class MainWindowViewModel : ViewModelBase
             GenerationStatusText = "执行失败";
             GenerationResultModeText = "模式：执行失败";
             GenerationResultOutputText = $"输出目录：{GenerationOutputDirectory}";
-            ClearGenerationPromptCards();
-            ClearGeneratedImageResultCards();
             GenerationPromptCards.Add(new GenerationPromptCardViewModel
             {
                 Title = "错误信息",
@@ -1278,7 +1264,6 @@ public sealed class MainWindowViewModel : ViewModelBase
         IsSpBatchRunning = true;
         SpBatchStatusText = _spBatchMode switch
         {
-            SpBatchMode.DryRun => "正在生成预检查计划...",
             SpBatchMode.PrepareOnly => "正在创建 SP 目录结构...",
             _ => "正在批量生成 SP 资源..."
         };
@@ -1824,7 +1809,6 @@ public sealed class MainWindowViewModel : ViewModelBase
         }
 
         _spBatchMode = mode;
-        OnPropertyChanged(nameof(IsSpBatchDryRun));
         OnPropertyChanged(nameof(IsSpBatchPrepareOnly));
         OnPropertyChanged(nameof(IsSpBatchGenerateMode));
     }
@@ -1927,7 +1911,6 @@ public sealed class MainWindowViewModel : ViewModelBase
     {
         GenerationResultModeText = $"\u6a21\u5f0f\uff1a{(result.Mode == "prompts_only" ? "\u53ea\u51fa\u63d0\u793a\u8bcd" : "\u76f4\u63a5\u751f\u56fe")}";
         GenerationResultOutputText = $"\u8f93\u51fa\u76ee\u5f55\uff1a{result.OutputDirectory}";
-        ClearGenerationPromptCards();
 
         if (!string.Equals(result.Mode, "prompts_only", StringComparison.OrdinalIgnoreCase))
         {
@@ -2351,7 +2334,6 @@ public sealed class MainWindowViewModel : ViewModelBase
         IsSpBatchRunning = true;
         SpBatchStatusText = _spBatchMode switch
         {
-            SpBatchMode.DryRun => "正在生成预检查计划...",
             SpBatchMode.PrepareOnly => "正在创建 SP 目录结构...",
             _ => "正在批量生成 SP 资源..."
         };

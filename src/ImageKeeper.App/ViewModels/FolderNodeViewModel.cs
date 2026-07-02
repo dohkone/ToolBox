@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Windows;
 using ImageKeeper.Core.Models;
 using Media = System.Windows.Media;
@@ -92,5 +92,11 @@ public sealed class FolderNodeViewModel : ViewModelBase
             OnPropertyChanged(nameof(RowBorderBrush));
             OnPropertyChanged(nameof(CountForeground));
         }
+    }
+
+    public void RefreshImageCount()
+    {
+        OnPropertyChanged(nameof(ImageCount));
+        OnPropertyChanged(nameof(ImageCountText));
     }
 }

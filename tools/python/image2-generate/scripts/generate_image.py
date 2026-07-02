@@ -18,6 +18,7 @@ from typing import Any
 
 
 DEFAULT_MODEL = "gpt-image-2"
+DEFAULT_BASE_URL = "https://api.change2pro.com"
 DEFAULT_OUTPUT_DIR = Path.home() / "Downloads" / "image2-generations"
 SKILL_DIR = Path(__file__).resolve().parents[1]
 KEY_FILE = SKILL_DIR / ".image2_api_key"
@@ -65,6 +66,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--config",
         help="Optional path to Codex config.toml. Defaults to ${CODEX_HOME}/config.toml.",
+    )
+    parser.add_argument(
+        "--base-url",
+        help=f"Optional image API base URL. Defaults to IMAGE2_BASE_URL or {DEFAULT_BASE_URL}.",
     )
     parser.add_argument(
         "--input-image",
@@ -200,24 +205,46 @@ def parse_toml_scalar(value: str) -> Any:
         return value
 
 
-def resolve_base_url(config: dict[str, Any]) -> str:
+def is_local_base_url(base_url: str) -> bool:
+    try:
+        host = urllib.parse.urlparse(base_url).hostname or ""
+    except ValueError:
+        return False
+    return host.lower() in {"127.0.0.1", "localhost", "::1"}
+
+
+def resolve_base_url(config: dict[str, Any] | None = None, explicit_base_url: str | None = None) -> str:
+    if explicit_base_url and explicit_base_url.strip():
+        return explicit_base_url.strip().rstrip("/")
+
+    env_base_url = os.environ.get("IMAGE2_BASE_URL")
+    if env_base_url and env_base_url.strip():
+        return env_base_url.strip().rstrip("/")
+
+    if config is None:
+        return DEFAULT_BASE_URL
+
     provider_name = config.get("model_provider")
     if not provider_name:
-        raise Image2Error("model_provider is missing from Codex config.")
+        return DEFAULT_BASE_URL
 
     providers = config.get("model_providers")
     if not isinstance(providers, dict):
-        raise Image2Error("model_providers section is missing from Codex config.")
+        return DEFAULT_BASE_URL
 
     provider = providers.get(provider_name)
     if not isinstance(provider, dict):
-        raise Image2Error(f"model_providers.{provider_name} is missing from Codex config.")
+        return DEFAULT_BASE_URL
 
     base_url = provider.get("base_url")
     if not isinstance(base_url, str) or not base_url.strip():
-        raise Image2Error(f"model_providers.{provider_name}.base_url is missing from Codex config.")
+        return DEFAULT_BASE_URL
 
-    return base_url.rstrip("/")
+    base_url = base_url.rstrip("/")
+    if is_local_base_url(base_url):
+        return DEFAULT_BASE_URL
+
+    return base_url
 
 
 def build_images_endpoint(base_url: str) -> str:
@@ -323,6 +350,8 @@ def run_curl_json(url: str, payload: dict[str, Any], api_key: str) -> tuple[int,
     try:
         command = [
             "curl.exe",
+            "--noproxy",
+            "*",
             "--silent",
             "--show-error",
             "--location",
@@ -380,6 +409,8 @@ def run_curl_multipart(
 ) -> tuple[int, str]:
     command = [
         "curl.exe",
+        "--noproxy",
+        "*",
         "--silent",
         "--show-error",
         "--location",
@@ -436,6 +467,8 @@ def run_curl_multipart(
 def run_curl_download(url: str, output_path: Path) -> None:
     command = [
         "curl.exe",
+        "--noproxy",
+        "*",
         "--silent",
         "--show-error",
         "--location",
@@ -483,6 +516,8 @@ def extract_error_message(payload: dict[str, Any]) -> str:
 def list_image_models(models_endpoint: str, api_key: str) -> list[str]:
     command = [
         "curl.exe",
+        "--noproxy",
+        "*",
         "--silent",
         "--show-error",
         "--location",
@@ -696,9 +731,11 @@ def main() -> int:
         return 1
 
     try:
+        config: dict[str, Any] | None = None
         config_path = get_config_path(args.config)
-        config = load_config(config_path)
-        base_url = resolve_base_url(config)
+        if config_path.exists():
+            config = load_config(config_path)
+        base_url = resolve_base_url(config, args.base_url)
         endpoint = build_images_endpoint(base_url)
         edits_endpoint = build_edits_endpoint(base_url)
         models_endpoint = build_models_endpoint(base_url)
