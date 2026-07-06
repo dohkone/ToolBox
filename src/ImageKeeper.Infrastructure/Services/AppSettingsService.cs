@@ -11,7 +11,8 @@ public sealed class AppSettingsService : IAppSettingsService
         WriteIndented = true
     };
 
-    private readonly string _settingsFilePath = Path.Combine(AppContext.BaseDirectory, "config", "user-settings.json");
+    private readonly string _settingsFilePath = ResolveUserSettingsPath();
+    private readonly string _legacySettingsFilePath = Path.Combine(AppContext.BaseDirectory, "config", "user-settings.json");
     private readonly object _syncRoot = new();
 
     public AppUserPathsState LoadUserPaths()
@@ -20,6 +21,11 @@ public sealed class AppSettingsService : IAppSettingsService
         {
             try
             {
+                if (!File.Exists(_settingsFilePath))
+                {
+                    TryMigrateLegacySettings();
+                }
+
                 if (!File.Exists(_settingsFilePath))
                 {
                     return new AppUserPathsState();
@@ -49,6 +55,40 @@ public sealed class AppSettingsService : IAppSettingsService
 
             var json = JsonSerializer.Serialize(state, JsonOptions);
             File.WriteAllText(_settingsFilePath, json);
+        }
+    }
+
+    private static string ResolveUserSettingsPath()
+    {
+        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        if (string.IsNullOrWhiteSpace(appData))
+        {
+            appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        }
+
+        return Path.Combine(appData, "EcomTool Studio", "user-settings.json");
+    }
+
+    private void TryMigrateLegacySettings()
+    {
+        try
+        {
+            if (!File.Exists(_legacySettingsFilePath))
+            {
+                return;
+            }
+
+            var directory = Path.GetDirectoryName(_settingsFilePath);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            File.Copy(_legacySettingsFilePath, _settingsFilePath, overwrite: false);
+        }
+        catch
+        {
+            // A failed migration should not block app startup; empty settings are safe.
         }
     }
 }

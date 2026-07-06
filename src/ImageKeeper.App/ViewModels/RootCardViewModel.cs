@@ -154,6 +154,7 @@ public sealed class RootCardViewModel : ViewModelBase
             OnPropertyChanged(nameof(ContentEmptyText));
             OnPropertyChanged(nameof(AutoPublishKeyPath));
             OnPropertyChanged(nameof(CollapsedSummaryText));
+            OnPropertyChanged(nameof(CollapsedPathText));
             RefreshCurrentImages();
         }
     }
@@ -169,6 +170,7 @@ public sealed class RootCardViewModel : ViewModelBase
             }
 
             OnPropertyChanged(nameof(CollapsedSummaryText));
+            OnPropertyChanged(nameof(CollapsedPathText));
             OnPropertyChanged(nameof(CanBatchSelect));
 
             if (!value)
@@ -309,6 +311,8 @@ public sealed class RootCardViewModel : ViewModelBase
         : "当前文件夹没有图片。可以点击“添加图片”，或直接拖拽图片到这里。";
 
     public string CollapsedSummaryText => $"{DisplayName}    {AutoPublishKeyPath}";
+
+    public string CollapsedPathText => AutoPublishKeyPath;
 
     public bool IsAutoPublishBusy => _isAutoPublishBusyProvider?.Invoke() ?? false;
 

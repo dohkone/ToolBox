@@ -626,15 +626,34 @@
                                                                           IsChecked="{Binding IsBatchSelected, Mode=TwoWay}"
                                                                           Visibility="{Binding CanBatchSelect, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                                                 <Button Grid.Column="1"
-                                                                        HorizontalContentAlignment="Left"
+                                                                        MinWidth="0"
+                                                                        HorizontalContentAlignment="Stretch"
                                                                         Style="{StaticResource FlatButtonStyle}"
                                                                         Command="{Binding ExpandCommand}">
-                                                                    <StackPanel Orientation="Horizontal">
-                                                                        <TextBlock VerticalAlignment="Center"
+                                                                    <Grid MinWidth="0">
+                                                                        <Grid.ColumnDefinitions>
+                                                                            <ColumnDefinition Width="Auto" />
+                                                                            <ColumnDefinition Width="Auto" />
+                                                                            <ColumnDefinition Width="Auto" />
+                                                                        </Grid.ColumnDefinitions>
+                                                                        <TextBlock Grid.Column="0"
+                                                                                   Margin="0,0,14,0"
+                                                                                   VerticalAlignment="Center"
                                                                                    FontSize="13"
                                                                                    FontWeight="SemiBold"
-                                                                                   Text="{Binding CollapsedSummaryText}" />
-                                                                        <Border Margin="12,0,0,0"
+                                                                                   Text="{Binding DisplayName}" />
+                                                                        <TextBlock Grid.Column="1"
+                                                                                   MinWidth="0"
+                                                                                   MaxWidth="420"
+                                                                                   VerticalAlignment="Center"
+                                                                                   FontSize="13"
+                                                                                   FontWeight="SemiBold"
+                                                                                   Text="{Binding CollapsedPathText}"
+                                                                                   TextTrimming="CharacterEllipsis"
+                                                                                   TextWrapping="NoWrap"
+                                                                                   ToolTip="{Binding CollapsedPathText}" />
+                                                                        <Border Grid.Column="2"
+                                                                                Margin="12,0,0,0"
                                                                                 Padding="7,2"
                                                                                 VerticalAlignment="Center"
                                                                                 Background="{Binding AutoPublishStatusBackground}"
@@ -646,7 +665,7 @@
                                                                                        Foreground="{Binding AutoPublishStatusForeground}"
                                                                                        Text="{Binding AutoPublishStatusText}" />
                                                                         </Border>
-                                                                    </StackPanel>
+                                                                    </Grid>
                                                                 </Button>
                                                                 <StackPanel Grid.Column="2"
                                                                             Orientation="Horizontal">
@@ -1077,7 +1096,7 @@
                                         </Style.Triggers>
                                     </Style>
                                 </Button.Style>
-                                <TextBlock Text="模板生图" />
+                                <TextBlock Text="主图生成" />
                             </Button>
                             <Button Margin="8,0,0,0"
                                     Padding="12,5"
@@ -1093,7 +1112,7 @@
                                         </Style.Triggers>
                                     </Style>
                                 </Button.Style>
-                                <TextBlock Text="SP批处理" />
+                                <TextBlock Text="SKU图生成" />
                             </Button>
                         </WrapPanel>
                     </StackPanel>
@@ -1124,7 +1143,7 @@
 
                                     <TextBlock FontSize="16"
                                                FontWeight="SemiBold"
-                                               Text="模板生图" />
+                                               Text="主图生成" />
 
                                     <TextBlock Grid.Row="1"
                                                Margin="0,8,0,6"
@@ -1141,14 +1160,14 @@
                                                  Text="{Binding TemplateLibraryPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                         <Button Grid.Column="1"
                                                 Margin="6,0,0,0"
-                                                Content="打开文件"
-                                                Style="{StaticResource ElementSecondaryButtonStyle}"
-                                                Command="{Binding OpenTemplateLibraryFileCommand}" />
-                                        <Button Grid.Column="2"
-                                                Margin="6,0,0,0"
                                                 Content="选择模板库"
                                                 Style="{StaticResource ElementSecondaryButtonStyle}"
                                                 Command="{Binding ChooseTemplateLibraryCommand}" />
+                                        <Button Grid.Column="2"
+                                                Margin="6,0,0,0"
+                                                Content="打开文件"
+                                                Style="{StaticResource ElementSecondaryButtonStyle}"
+                                                Command="{Binding OpenTemplateLibraryFileCommand}" />
                                     </Grid>
 
                                     <TextBlock Grid.Row="3"
@@ -1281,7 +1300,7 @@
 
                                     <TextBlock FontSize="16"
                                                FontWeight="SemiBold"
-                                               Text="SP批处理" />
+                                               Text="SKU图生成" />
 
                                     <Border Grid.Row="1"
                                             Margin="0,10,0,0"
@@ -1367,7 +1386,7 @@
                                                     <TextBlock HorizontalAlignment="Center"
                                                                VerticalAlignment="Center"
                                                                Foreground="{StaticResource MutedTextBrush}"
-                                                               Text="把模板生图里选中的图片带到这里，或直接拖拽图片到此区域。" />
+                                                               Text="把主图生成里选中的图片带到这里，或直接拖拽图片到此区域。" />
                                                 </Grid>
                                             </Border>
 
@@ -1382,7 +1401,7 @@
                                                                FontSize="14"
                                                                FontWeight="SemiBold"
                                                                Foreground="#606266"
-                                                               Text="松开鼠标，将图片添加到 SP 批处理区域" />
+                                                               Text="松开鼠标，将图片添加到 SKU 图生成区域" />
                                                 </Grid>
                                             </Border>
                                         </Grid>
@@ -1391,8 +1410,8 @@
                                     <Grid Grid.Row="2"
                                           Margin="0,10,0,0">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="1*" />
-                                            <ColumnDefinition Width="1*" />
+                                            <ColumnDefinition Width="7*" />
+                                            <ColumnDefinition Width="3*" />
                                         </Grid.ColumnDefinitions>
 
                                         <StackPanel Grid.Column="0"
@@ -1402,6 +1421,7 @@
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
                                                     <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
                                                 <TextBox Grid.Column="0"
@@ -1413,14 +1433,20 @@
                                                         Content="选择目录"
                                                         Style="{StaticResource ElementSecondaryButtonStyle}"
                                                         Command="{Binding ChooseSpBatchOutputFolderCommand}" />
+                                                <Button Grid.Column="2"
+                                                        Margin="6,0,0,0"
+                                                        Content="打开目录"
+                                                        Style="{StaticResource ElementSecondaryButtonStyle}"
+                                                        Command="{Binding OpenSpBatchOutputFolderCommand}" />
                                             </Grid>
                                         </StackPanel>
 
                                         <StackPanel Grid.Column="1"
-                                                    Margin="8,0,0,0">
+                                                    Margin="10,0,0,0">
                                             <TextBlock Margin="0,0,0,6"
                                                        Text="并发数量" />
-                                            <TextBox HorizontalAlignment="Stretch"
+                                            <TextBox Width="120"
+                                                     HorizontalAlignment="Left"
                                                      Style="{StaticResource ElementInputTextBoxStyle}"
                                                      Text="{Binding SpBatchConcurrencyText, UpdateSourceTrigger=PropertyChanged}" />
                                         </StackPanel>
@@ -1442,8 +1468,25 @@
 
                                         <Button Margin="0,12,0,0"
                                                 FontWeight="SemiBold"
-                                                Content="开始执行"
-                                                Command="{Binding RunSpBatchCommand}" />
+                                                Content="{Binding SpBatchButtonText}">
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+                                                    <Setter Property="Command" Value="{Binding RunSpBatchCommand}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsSpBatchRunning}" Value="True">
+                                                            <Setter Property="Command" Value="{Binding StopSpBatchCommand}" />
+                                                            <Setter Property="Background" Value="#F56C6C" />
+                                                            <Setter Property="BorderBrush" Value="#F56C6C" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsSpBatchStopping}" Value="True">
+                                                            <Setter Property="Command" Value="{x:Null}" />
+                                                            <Setter Property="Background" Value="#E6A23C" />
+                                                            <Setter Property="BorderBrush" Value="#E6A23C" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
                                         <Border Margin="0,10,0,0"
                                                 Padding="12"
                                                 Background="#FFFFFF"
@@ -1639,8 +1682,9 @@
                                                                         <Setter Property="BorderThickness" Value="1" />
                                                                         <Style.Triggers>
                                                                             <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                                                                <Setter Property="Background" Value="#EEEEEE" />
-                                                                                <Setter Property="BorderBrush" Value="#D0D0D0" />
+                                                                                <Setter Property="Background" Value="#EAF3FF" />
+                                                                                <Setter Property="BorderBrush" Value="#1677FF" />
+                                                                                <Setter Property="BorderThickness" Value="2" />
                                                                             </DataTrigger>
                                                                         </Style.Triggers>
                                                                     </Style>
@@ -1702,13 +1746,25 @@
                                                 BorderBrush="#D9E1EC"
                                                 BorderThickness="1"
                                                 CornerRadius="8">
-                                            <StackPanel>
-                                                <TextBlock FontWeight="SemiBold"
-                                                           Text="{Binding SpBatchResultRootText}" />
-                                                <TextBlock Margin="0,4,0,0"
-                                                           Foreground="{StaticResource MutedTextBrush}"
-                                                           Text="{Binding SpBatchResultStatsText}" />
-                                            </StackPanel>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="0">
+                                                    <TextBlock FontWeight="SemiBold"
+                                                               Text="{Binding SpBatchResultRootText}" />
+                                                    <TextBlock Margin="0,4,0,0"
+                                                               Foreground="{StaticResource MutedTextBrush}"
+                                                               Text="{Binding SpBatchResultStatsText}" />
+                                                </StackPanel>
+                                                <Button Grid.Column="1"
+                                                        MinWidth="64"
+                                                        Padding="12,5"
+                                                        Content="刷新"
+                                                        Style="{StaticResource ElementSecondaryButtonStyle}"
+                                                        Command="{Binding RefreshSkuResultsCommand}" />
+                                            </Grid>
                                         </Border>
 
                                         <Grid Grid.Row="1"

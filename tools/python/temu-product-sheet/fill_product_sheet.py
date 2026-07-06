@@ -5,6 +5,7 @@ import random
 import re
 import subprocess
 import sys
+import tempfile
 from datetime import date
 from pathlib import Path
 
@@ -116,6 +117,16 @@ def extract_sizes_from_sp_dir(sp_dir):
     if not candidates:
         raise FileNotFoundError(f"Automatic size image not found under: {main_dir}")
 
+    image_path = candidates[0]
+    ocr_texts = [run_windows_ocr(image_path)]
+    with tempfile.TemporaryDirectory(prefix="ecomtool_size_ocr_") as temp_dir:
+        for variant_path in build_size_ocr_variants(image_path, Path(temp_dir)):
+            ocr_texts.append(run_windows_ocr(variant_path))
+
+    return merge_size_items_from_ocr_texts(ocr_texts)
+
+
+def run_windows_ocr(image_path):
     ps_script = f"""
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Runtime.WindowsRuntime
@@ -136,12 +147,8 @@ function AwaitResult($op, [Type]$resultType) {{
   $task.Result
 }}
 
-$mainDir = '{str(main_dir).replace("'", "''")}'
-$image = Get-ChildItem -LiteralPath $mainDir -Filter '2-*.png' | Select-Object -First 1
-if (-not $image) {{
-  throw "No 2-*.png file found under $mainDir"
-}}
-$file = AwaitResult ([Windows.Storage.StorageFile]::GetFileFromPathAsync($image.FullName)) ([Windows.Storage.StorageFile])
+$imagePath = '{str(image_path).replace("'", "''")}'
+$file = AwaitResult ([Windows.Storage.StorageFile]::GetFileFromPathAsync($imagePath)) ([Windows.Storage.StorageFile])
 $stream = AwaitResult ($file.OpenAsync([Windows.Storage.FileAccessMode]::Read)) ([Windows.Storage.Streams.IRandomAccessStream])
 $decoder = AwaitResult ([Windows.Graphics.Imaging.BitmapDecoder]::CreateAsync($stream)) ([Windows.Graphics.Imaging.BitmapDecoder])
 $bitmap = AwaitResult ($decoder.GetSoftwareBitmapAsync()) ([Windows.Graphics.Imaging.SoftwareBitmap])
@@ -156,17 +163,76 @@ $result.Text
         text=True,
         encoding="utf-8",
     )
-    return parse_sizes_from_ocr_text(completed.stdout)
+    return completed.stdout
+
+
+def build_size_ocr_variants(image_path, temp_dir):
+    try:
+        from PIL import Image, ImageEnhance, ImageFilter
+    except ImportError:
+        return []
+
+    image = Image.open(image_path)
+    if image.mode == "RGBA":
+        background = Image.new("RGB", image.size, "white")
+        background.paste(image, mask=image.getchannel("A"))
+        image = background
+    else:
+        image = image.convert("RGB")
+
+    width, height = image.size
+    configs = [
+        ("bottom_20_scale3.png", 0.80, 0.20, False),
+        ("bottom_25_scale3_sharp.png", 0.75, 0.25, True),
+        ("bottom_30_scale3.png", 0.70, 0.30, False),
+    ]
+    variant_paths = []
+    for name, top_ratio, height_ratio, sharpen in configs:
+        top = int(height * top_ratio)
+        bottom = min(height, top + int(height * height_ratio))
+        crop = image.crop((0, top, width, bottom))
+        resized = crop.resize((crop.width * 3, crop.height * 3), Image.Resampling.LANCZOS)
+        if sharpen:
+            resized = ImageEnhance.Contrast(resized).enhance(1.35)
+            resized = resized.filter(ImageFilter.SHARPEN)
+
+        output_path = temp_dir / name
+        resized.save(output_path)
+        variant_paths.append(output_path)
+
+    return variant_paths
+
+
+def merge_size_items_from_ocr_texts(texts):
+    by_size = {}
+    for text in texts:
+        for item in parse_sizes_from_ocr_text(text):
+            size_text = item["size_text"]
+            existing = by_size.get(size_text)
+            if existing is None or score_display_size(item["display_size_text"]) > score_display_size(existing["display_size_text"]):
+                by_size[size_text] = item
+
+    return list(by_size.values())
+
+
+def score_display_size(display_size):
+    score = len(display_size)
+    if "/" in display_size:
+        score += 20
+    score += display_size.count(".") * 5
+    return score
 
 
 def parse_sizes_from_ocr_text(text):
     normalized = text.replace("\r", "\n")
     unique = []
     seen = set()
-    matches = list(re.finditer(r"(\d+(?:\.\d+)?)\s*[*xX]\s*(\d+(?:\.\d+)?)\s*cm", normalized, re.I))
+    matches = list(re.finditer(r"(\d+(?:\.\d+)?)\s*(?:cm)?\s*[*xX]\s*(\d+(?:\.\d+)?)\s*cm", normalized, re.I))
     for index, match in enumerate(matches):
         width_text, length_text = match.groups()
-        size_text = f"{int(float(width_text))}*{int(float(length_text))}cm"
+        width_cm = int(float(width_text))
+        length_cm = int(float(length_text))
+        size_text = f"{width_cm}*{length_cm}cm"
         if size_text in seen:
             continue
 
@@ -180,11 +246,8 @@ def parse_sizes_from_ocr_text(text):
             trailing_text,
             re.I,
         )
-        if inch_match:
-            inch_width_text = normalize_decimal_token(inch_match.group(1))
-            inch_length_text = normalize_decimal_token(inch_match.group(2))
-            if inch_width_text and inch_length_text:
-                display_size_text = f"{size_text}/{inch_width_text}*{inch_length_text}inch"
+        if inch_match or re.search(r"in\s*[\(\（]?\s*h|inch", trailing_text, re.I):
+            display_size_text = f"{size_text}/{format_inches(width_cm)}*{format_inches(length_cm)}inch"
 
         unique.append(
             {
@@ -194,6 +257,10 @@ def parse_sizes_from_ocr_text(text):
         )
 
     return unique
+
+
+def format_inches(cm_value):
+    return f"{cm_value / 2.54:.2f}".rstrip("0").rstrip(".")
 
 
 def normalize_decimal_token(token):

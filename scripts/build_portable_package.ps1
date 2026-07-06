@@ -6,7 +6,8 @@ $publishDir = Join-Path $projectRoot ("dist\EcomTool_Studio_Portable_" + $timest
 $runtimePythonSource = 'C:\Users\Administrator\AppData\Local\Programs\Python\Python310'
 $runtimeNodeSource = 'C:\Program Files\nodejs'
 $playwrightBrowsersSource = Join-Path $projectRoot 'runtime\playwright-browsers'
-$templateLibrarySource = Join-Path $projectRoot 'tools\python\template-random-generate\data\文生图模板库_Codex.xlsx'
+$templateLibraryFileName = [string]::Concat([char[]](0x6587, 0x751F, 0x56FE, 0x6A21, 0x677F, 0x5E93, 0x005F, 0x0043, 0x006F, 0x0064, 0x0065, 0x0078, 0x002E, 0x0078, 0x006C, 0x0073, 0x0078))
+$templateLibrarySource = Join-Path $projectRoot (Join-Path 'tools\python\template-random-generate\data' $templateLibraryFileName)
 
 function Copy-DirectoryContents {
     param(
@@ -23,6 +24,74 @@ function Copy-DirectoryContents {
     New-Item -ItemType Directory -Force -Path $Destination | Out-Null
     Get-ChildItem -LiteralPath $Source -Force | ForEach-Object {
         Copy-Item -LiteralPath $_.FullName -Destination $Destination -Recurse -Force
+    }
+}
+
+function Test-BundledPythonImport {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$PythonExe,
+        [Parameter(Mandatory = $true)]
+        [string]$ImportName
+    )
+
+    $previousNoUserSite = $env:PYTHONNOUSERSITE
+    $env:PYTHONNOUSERSITE = '1'
+    try {
+        $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+        $startInfo.FileName = $PythonExe
+        $startInfo.Arguments = "-c `"import $ImportName`""
+        $startInfo.UseShellExecute = $false
+        $startInfo.CreateNoWindow = $true
+        $startInfo.RedirectStandardOutput = $true
+        $startInfo.RedirectStandardError = $true
+
+        $process = [System.Diagnostics.Process]::Start($startInfo)
+        $process.WaitForExit()
+        $exitCode = $process.ExitCode
+        $process.Dispose()
+
+        return $exitCode -eq 0
+    }
+    finally {
+        $env:PYTHONNOUSERSITE = $previousNoUserSite
+    }
+}
+
+function Ensure-BundledPythonPackage {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$PythonExe,
+        [Parameter(Mandatory = $true)]
+        [string]$PackageName,
+        [Parameter(Mandatory = $true)]
+        [string]$ImportName
+    )
+
+    if (Test-BundledPythonImport -PythonExe $PythonExe -ImportName $ImportName) {
+        return
+    }
+
+    Write-Output "Installing bundled Python package: $PackageName"
+    $previousNoUserSite = $env:PYTHONNOUSERSITE
+    $env:PYTHONNOUSERSITE = '1'
+    try {
+        & $PythonExe -m ensurepip --upgrade
+        if ($LASTEXITCODE -ne 0) {
+            throw "Failed to bootstrap pip for bundled Python."
+        }
+
+        & $PythonExe -m pip install --disable-pip-version-check --no-warn-script-location --force-reinstall $PackageName
+        if ($LASTEXITCODE -ne 0) {
+            throw "Failed to install bundled Python package: $PackageName"
+        }
+    }
+    finally {
+        $env:PYTHONNOUSERSITE = $previousNoUserSite
+    }
+
+    if (-not (Test-BundledPythonImport -PythonExe $PythonExe -ImportName $ImportName)) {
+        throw "Bundled Python package cannot be imported after install: $ImportName"
     }
 }
 
@@ -74,8 +143,11 @@ if (-not (Test-Path -LiteralPath $bundledPythonExe)) {
     throw "Bundled Python was not copied correctly: $bundledPythonExe"
 }
 
+Ensure-BundledPythonPackage -PythonExe $bundledPythonExe -PackageName 'openpyxl==3.1.5' -ImportName 'openpyxl'
+Ensure-BundledPythonPackage -PythonExe $bundledPythonExe -PackageName 'Pillow==11.3.0' -ImportName 'PIL'
+
 if (Test-Path -LiteralPath $templateLibrarySource) {
-    Copy-Item -LiteralPath $templateLibrarySource -Destination (Join-Path $workspaceRoot 'temp\文生图模板库_Codex.xlsx') -Force
+    Copy-Item -LiteralPath $templateLibrarySource -Destination (Join-Path (Join-Path $workspaceRoot 'temp') $templateLibraryFileName) -Force
 }
 
 $readmePath = Join-Path $publishDir 'INSTALL.md'

@@ -101,7 +101,7 @@ const packageSizeText = "\u5c3a\u5bf8(CM)";
 const packageSizeDialogTitleText = "\u6279\u91cf\u7f16\u8f91\u5305\u88f9\u5c3a\u5bf8";
 const weightText = "\u91cd\u91cf";
 const weightDialogTitleText = "\u6279\u91cf\u4fee\u6539\u91cd\u91cf";
-const skuColorList = ["\u9ed1\u8272", "\u7c73\u767d\u8272", "\u6df1\u68d5\u8272", "\u6df1\u7070\u8272", "\u9152\u7ea2\u8272", "\u5b9d\u84dd\u8272"] as const;
+const skuColorList = ["黑色", "米白色", "深棕色", "深灰色", "酒红色", "宝蓝色"] as const;
 const supportedImageExtensions = new Set([".jpg", ".jpeg", ".png", ".webp", ".bmp"]);
 
 function parseCliOptions(args: string[]): CliOptions {
@@ -3836,7 +3836,7 @@ async function prepareCreateProductFlow(page: Page, productItem: ProductJsonItem
   await configurePackagingInfo(page, productItem);
   await configureProductDescription(page, productItem);
   await publishCreatedProduct(page);
-  await clearPictureIndexCurrentPage(page);
+  // await clearPictureIndexCurrentPage(page);
 }
 
 async function runCollectBoxFlow(page: Page, jsonInstance: ProductJsonItem[]) {

@@ -33,13 +33,14 @@ SUBJECT_COLUMN = "主体"
 COLOR_OPTIONS = (
     ("黑色", "#0A0A0A"),
     ("米白色", "#F4F4F2"),
-    ("深棕色", "#634234"),
+    ("深棕色", "#261107"),
     ("深灰色", "#C4C8CA"),
     ("酒红色", "#722829"),
     ("宝蓝色", "#0B1B6F"),
 )
 
 COLOR_PLACEHOLDER = "{颜色}"
+SUBJECT_PLACEHOLDER = "{主体}"
 
 
 class TemplateRandomError(Exception):
@@ -82,7 +83,7 @@ def split_variants(value: str | None) -> list[str]:
     if value is None:
         return []
 
-    text = str(value).replace("\r\n", "\n").replace("\r", "\n").replace("，", "/")
+    text = str(value).replace("\r\n", "\n").replace("\r", "\n")
     parts = re.split(r"[\/\n]+", text)
     return [part.strip(" -\t") for part in parts if part and part.strip(" -\t")]
 
@@ -184,10 +185,42 @@ def pick_templates(library: TemplateLibrary, count: int, unique_scene: bool) -> 
 
 def render_prompt(template: SelectedTemplate) -> str:
     prompt = template.layout_template
+    subject_text = template.subject
+    subject_color = None
+    if COLOR_PLACEHOLDER in subject_text or has_subject_color_placeholder(prompt):
+        subject_color = format_color_option(random.choice(COLOR_OPTIONS))
+        subject_text = subject_text.replace(COLOR_PLACEHOLDER, subject_color)
+
     prompt = prompt.replace("{场景模板}", template.scene_template)
-    prompt = prompt.replace("{主体}", template.subject)
+    prompt = replace_subject_color_placeholders(prompt, subject_color)
+    prompt = prompt.replace(SUBJECT_PLACEHOLDER, subject_text)
     prompt = replace_color_placeholders(prompt)
     return prompt.strip()
+
+
+def format_color_option(color_option: tuple[str, str]) -> str:
+    color_name, color_hex = color_option
+    return f"{color_name} {color_hex}"
+
+
+def has_subject_color_placeholder(prompt: str) -> bool:
+    subject_color_pattern = re.compile(
+        rf"{re.escape(COLOR_PLACEHOLDER)}(?=\s*{re.escape(SUBJECT_PLACEHOLDER)})"
+    )
+    return bool(subject_color_pattern.search(prompt))
+
+
+def replace_subject_color_placeholders(prompt: str, subject_color: str | None = None) -> str:
+    subject_color_pattern = re.compile(
+        rf"{re.escape(COLOR_PLACEHOLDER)}(?=\s*{re.escape(SUBJECT_PLACEHOLDER)})"
+    )
+    if not subject_color_pattern.search(prompt):
+        return prompt
+
+    if subject_color is None:
+        subject_color = format_color_option(random.choice(COLOR_OPTIONS))
+
+    return subject_color_pattern.sub(subject_color, prompt)
 
 
 def replace_color_placeholders(prompt: str) -> str:
@@ -204,8 +237,7 @@ def replace_color_placeholders(prompt: str) -> str:
             color_pool = list(COLOR_OPTIONS)
             random.shuffle(color_pool)
 
-        color_name, color_hex = color_pool.pop()
-        replacements.append(f"{color_name} {color_hex}")
+        replacements.append(format_color_option(color_pool.pop()))
 
     for replacement in replacements:
         prompt = prompt.replace(COLOR_PLACEHOLDER, replacement, 1)

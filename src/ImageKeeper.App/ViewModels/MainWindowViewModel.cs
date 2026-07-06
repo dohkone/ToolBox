@@ -22,6 +22,7 @@ public sealed class MainWindowViewModel : ViewModelBase
     private const string SpBatchTab = "sp-batch";
     private static string DefaultTemplateLibraryPath => ResolveTemplateLibraryPath();
     private static string DefaultImage2ScriptPath => ResolveImage2ScriptPath();
+    private static string DefaultFolderPickerDirectory => ResolveDefaultFolderPickerDirectory();
 
     private readonly IFolderScanService _folderScanService;
     private readonly IImageWorkspaceService _imageWorkspaceService;
@@ -55,12 +56,16 @@ public sealed class MainWindowViewModel : ViewModelBase
     private readonly RelayCommand _sendSelectedImagesToSpBatchCommand;
     private readonly AsyncRelayCommand _chooseSpBatchInputFolderCommand;
     private readonly AsyncRelayCommand _chooseSpBatchOutputFolderCommand;
+    private readonly RelayCommand _openSpBatchOutputFolderCommand;
     private readonly AsyncRelayCommand _runSpBatchCommand;
+    private readonly RelayCommand _stopSpBatchCommand;
+    private readonly RelayCommand _refreshSkuResultsCommand;
     private readonly AsyncRelayCommand _runBatchAutoPublishCommand;
     private CancellationTokenSource? _previewCancellationTokenSource;
     private CancellationTokenSource? _templateGenerationCancellationTokenSource;
+    private CancellationTokenSource? _spBatchCancellationTokenSource;
     private WorkspaceTabViewModel? _selectedTab;
-    private string _selectedSection = ReviewWorkspaceSection;
+    private string _selectedSection = ImageGenerateSection;
     private string _selectedImageGenerateTab = TemplateGenerateTab;
     private bool _isBusy;
     private bool _isScanProgressIndeterminate = true;
@@ -80,6 +85,7 @@ public sealed class MainWindowViewModel : ViewModelBase
     private bool _isAutoPublishRunning;
     private bool _isTemplateGenerating;
     private bool _isTemplateGenerationStopping;
+    private bool _isSpBatchStopping;
     private string _templateLibraryPath = string.Empty;
     private string _generationOutputDirectory = string.Empty;
     private string _generationCountText = "1";
@@ -146,7 +152,10 @@ public sealed class MainWindowViewModel : ViewModelBase
         _sendSelectedImagesToSpBatchCommand = new RelayCommand(_ => SendSelectedImagesToSpBatch(), _ => CanSendSelectedImagesToSpBatch());
         _chooseSpBatchInputFolderCommand = new AsyncRelayCommand(_ => ChooseSpBatchInputFolderAsync(), _ => !IsBusy);
         _chooseSpBatchOutputFolderCommand = new AsyncRelayCommand(_ => ChooseSpBatchOutputFolderAsync(), _ => !IsBusy);
+        _openSpBatchOutputFolderCommand = new RelayCommand(_ => OpenSpBatchOutputFolder(), _ => Directory.Exists(SpBatchOutputDirectory));
         _runSpBatchCommand = new AsyncRelayCommand(_ => RunSpBatchFromStagingAsync(), _ => !IsBusy);
+        _stopSpBatchCommand = new RelayCommand(_ => StopSpBatch(), _ => IsSpBatchRunning);
+        _refreshSkuResultsCommand = new RelayCommand(_ => RefreshSkuResults(), _ => !IsSpBatchRunning && !IsSpBatchStopping);
         _runBatchAutoPublishCommand = new AsyncRelayCommand(_ => RunBatchAutoPublishAsync(), _ => CanExecuteBatchAutoPublish());
     }
 
@@ -179,7 +188,10 @@ public sealed class MainWindowViewModel : ViewModelBase
     public ICommand SendSelectedImagesToSpBatchCommand => _sendSelectedImagesToSpBatchCommand;
     public ICommand ChooseSpBatchInputFolderCommand => _chooseSpBatchInputFolderCommand;
     public ICommand ChooseSpBatchOutputFolderCommand => _chooseSpBatchOutputFolderCommand;
+    public ICommand OpenSpBatchOutputFolderCommand => _openSpBatchOutputFolderCommand;
     public ICommand RunSpBatchCommand => _runSpBatchCommand;
+    public ICommand StopSpBatchCommand => _stopSpBatchCommand;
+    public ICommand RefreshSkuResultsCommand => _refreshSkuResultsCommand;
     public ICommand RunBatchAutoPublishCommand => _runBatchAutoPublishCommand;
 
     public WorkspaceTabViewModel? SelectedTab
@@ -291,6 +303,11 @@ public sealed class MainWindowViewModel : ViewModelBase
         : IsTemplateGenerating
             ? "停止执行"
             : "开始执行";
+    public string SpBatchButtonText => IsSpBatchStopping
+        ? "正在停止..."
+        : IsSpBatchRunning
+            ? "停止执行"
+            : "开始执行";
     public bool HasSpBatchResultCards => SpBatchResultCards.Count > 0;
     public bool HasSpBatchImageResultCards => SpBatchImageResultCards.Count > 0;
     public bool HasAnySpBatchResultCards => HasSpBatchResultCards || HasSpBatchImageResultCards;
@@ -330,7 +347,9 @@ public sealed class MainWindowViewModel : ViewModelBase
             _sendSelectedImagesToSpBatchCommand.RaiseCanExecuteChanged();
             _chooseSpBatchInputFolderCommand.RaiseCanExecuteChanged();
             _chooseSpBatchOutputFolderCommand.RaiseCanExecuteChanged();
+            _openSpBatchOutputFolderCommand.RaiseCanExecuteChanged();
             _runSpBatchCommand.RaiseCanExecuteChanged();
+            _stopSpBatchCommand.RaiseCanExecuteChanged();
             _runBatchAutoPublishCommand.RaiseCanExecuteChanged();
             NotifyAutoPublishStateChanged();
         }
@@ -574,7 +593,33 @@ public sealed class MainWindowViewModel : ViewModelBase
     public bool IsSpBatchRunning
     {
         get => _isSpBatchRunning;
-        private set => SetProperty(ref _isSpBatchRunning, value);
+        private set
+        {
+            if (!SetProperty(ref _isSpBatchRunning, value))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(SpBatchButtonText));
+            _stopSpBatchCommand.RaiseCanExecuteChanged();
+            _refreshSkuResultsCommand.RaiseCanExecuteChanged();
+        }
+    }
+
+    public bool IsSpBatchStopping
+    {
+        get => _isSpBatchStopping;
+        private set
+        {
+            if (!SetProperty(ref _isSpBatchStopping, value))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(SpBatchButtonText));
+            _stopSpBatchCommand.RaiseCanExecuteChanged();
+            _refreshSkuResultsCommand.RaiseCanExecuteChanged();
+        }
     }
 
     public string SpBatchInputDirectory
@@ -602,6 +647,7 @@ public sealed class MainWindowViewModel : ViewModelBase
             }
 
             PersistUserPathSettings();
+            _openSpBatchOutputFolderCommand.RaiseCanExecuteChanged();
             SpBatchResultRootText = string.IsNullOrWhiteSpace(value)
                 ? "日期目录：未设置"
                 : $"日期目录：{value}";
@@ -976,7 +1022,7 @@ public sealed class MainWindowViewModel : ViewModelBase
             Title = "浏览文件夹",
             InitialDirectory = SelectedTab is not null && Directory.Exists(SelectedTab.RootFolder)
                 ? SelectedTab.RootFolder
-                : WorkspaceDefaults.DefaultOpenFolder,
+                : DefaultFolderPickerDirectory,
             Multiselect = false
         };
 
@@ -993,7 +1039,7 @@ public sealed class MainWindowViewModel : ViewModelBase
         using var dialog = new Forms.FolderBrowserDialog
         {
             Description = "选择备份目录",
-            InitialDirectory = Directory.Exists(BackupFolder) ? BackupFolder : string.Empty,
+            InitialDirectory = Directory.Exists(BackupFolder) ? BackupFolder : DefaultFolderPickerDirectory,
             ShowNewFolderButton = true
         };
 
@@ -1073,6 +1119,11 @@ public sealed class MainWindowViewModel : ViewModelBase
     private void OpenGenerationOutputFolder()
     {
         OpenFolder(GenerationOutputDirectory);
+    }
+
+    private void OpenSpBatchOutputFolder()
+    {
+        OpenFolder(SpBatchOutputDirectory);
     }
 
     private void OpenTemplateLibraryFile()
@@ -1244,6 +1295,21 @@ public sealed class MainWindowViewModel : ViewModelBase
         _templateGenerationCancellationTokenSource?.Cancel();
     }
 
+    private void StopSpBatch()
+    {
+        if (!IsSpBatchRunning || IsSpBatchStopping)
+        {
+            return;
+        }
+
+        IsSpBatchStopping = true;
+        SpBatchStatusText = "正在停止...";
+        SpBatchSummaryText = "正在停止当前 SKU 批处理任务...";
+        StatusMessage = SpBatchSummaryText;
+        _spBatchService.CancelCurrentRun();
+        _spBatchCancellationTokenSource?.Cancel();
+    }
+
     private async Task RunSpBatchAsync()
     {
         if (string.IsNullOrWhiteSpace(SpBatchInputDirectory) || !Directory.Exists(SpBatchInputDirectory))
@@ -1262,6 +1328,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 
         IsBusy = true;
         IsSpBatchRunning = true;
+        IsSpBatchStopping = false;
         SpBatchStatusText = _spBatchMode switch
         {
             SpBatchMode.PrepareOnly => "正在创建 SP 目录结构...",
@@ -1274,6 +1341,9 @@ public sealed class MainWindowViewModel : ViewModelBase
         ClearSpBatchImageResultCards();
         ClearSpBatchImageResultCards();
         StatusMessage = SpBatchStatusText;
+        _spBatchCancellationTokenSource?.Cancel();
+        _spBatchCancellationTokenSource?.Dispose();
+        _spBatchCancellationTokenSource = new CancellationTokenSource();
 
         try
         {
@@ -1284,11 +1354,19 @@ public sealed class MainWindowViewModel : ViewModelBase
                 Image2ScriptPath = DefaultImage2ScriptPath,
                 Concurrency = concurrency,
                 Retries = retries,
-                Mode = _spBatchMode
+                Mode = _spBatchMode,
+                Overwrite = true
             };
 
-            var result = await _spBatchService.GenerateAsync(request);
+            var result = await _spBatchService.GenerateAsync(request, _spBatchCancellationTokenSource.Token);
             ApplySpBatchVisualResult(result);
+            StatusMessage = SpBatchSummaryText;
+        }
+        catch (OperationCanceledException)
+        {
+            IsSpBatchStopping = false;
+            SpBatchStatusText = "已停止";
+            SpBatchSummaryText = "已停止当前 SKU 批处理任务。";
             StatusMessage = SpBatchSummaryText;
         }
         catch (Exception ex)
@@ -1309,6 +1387,9 @@ public sealed class MainWindowViewModel : ViewModelBase
         }
         finally
         {
+            IsSpBatchStopping = false;
+            _spBatchCancellationTokenSource?.Dispose();
+            _spBatchCancellationTokenSource = null;
             IsSpBatchRunning = false;
             IsBusy = false;
         }
@@ -1712,10 +1793,18 @@ public sealed class MainWindowViewModel : ViewModelBase
     private void ResetSpBatchSummary()
     {
         SpBatchStatusText = "\u5f85\u547d";
-        SpBatchSummaryText = "\u7528\u4e8e\u6279\u91cf\u521b\u5efa\u65e5\u671f\u76ee\u5f55\u3001SP \u7ed3\u6784\u548c 6 \u8272 SKU \u56fe\u3002";
+        SpBatchSummaryText = "\u7528\u4e8e\u6279\u91cf\u521b\u5efa\u65e5\u671f\u76ee\u5f55\u3001SKU \u7ed3\u6784\u548c 6 \u8272 SKU \u56fe\u3002";
         SpBatchResultRootText = $"\u65e5\u671f\u76ee\u5f55\uff1a{SpBatchOutputDirectory}";
-        SpBatchResultStatsText = "SP \u6570\u91cf\uff1a0  \u603b\u4efb\u52a1\uff1a0  \u6210\u529f\uff1a0  \u8df3\u8fc7\uff1a0  \u5931\u8d25\uff1a0";
+        SpBatchResultStatsText = "SKU \u6570\u91cf\uff1a0  \u603b\u4efb\u52a1\uff1a0  \u6210\u529f\uff1a0  \u8df3\u8fc7\uff1a0  \u5931\u8d25\uff1a0";
         ClearSpBatchResultCards();
+    }
+
+    private void RefreshSkuResults()
+    {
+        ClearSpBatchResultCards();
+        ClearSpBatchImageResultCards();
+        ResetSpBatchSummary();
+        StatusMessage = "\u5df2\u6e05\u7a7a SKU \u7ed3\u679c\u5c55\u793a\uff0c\u672c\u5730\u56fe\u7247\u6587\u4ef6\u672a\u5220\u9664\u3002";
     }
 
     private void UpdateSummaryForTab(WorkspaceTabViewModel tab)
@@ -1874,6 +1963,18 @@ public sealed class MainWindowViewModel : ViewModelBase
         return candidates.FirstOrDefault(File.Exists) ?? candidates[0];
     }
 
+    private static string ResolveDefaultFolderPickerDirectory()
+    {
+        var desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+        if (!string.IsNullOrWhiteSpace(desktop) && Directory.Exists(desktop))
+        {
+            return desktop;
+        }
+
+        var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        return string.IsNullOrWhiteSpace(userProfile) ? string.Empty : userProfile;
+    }
+
     private void ApplyUserPathSettings(AppUserPathsState state)
     {
         BackupFolder = state.BackupFolder ?? string.Empty;
@@ -1991,12 +2092,12 @@ public sealed class MainWindowViewModel : ViewModelBase
         SpBatchSummaryText = result.Mode switch
         {
             "dry_run" => $"\u9884\u68c0\u67e5\u5b8c\u6210\uff0c\u5171\u89c4\u5212 {result.Results.Count} \u4e2a\u989c\u8272\u4efb\u52a1\u3002",
-            "prepared" => $"\u76ee\u5f55\u7ed3\u6784\u521b\u5efa\u5b8c\u6210\uff0c\u5171\u51c6\u5907 {result.PreparedBundles.Count} \u4e2a SP \u76ee\u5f55\u3002",
+            "prepared" => $"\u76ee\u5f55\u7ed3\u6784\u521b\u5efa\u5b8c\u6210\uff0c\u5171\u51c6\u5907 {result.PreparedBundles.Count} \u4e2a SKU \u76ee\u5f55\u3002",
             _ => $"\u6279\u5904\u7406\u5b8c\u6210\uff0c\u5171 {result.Results.Count} \u4e2a\u4efb\u52a1\uff0c\u6210\u529f {result.SuccessCount}\uff0c\u8df3\u8fc7 {result.SkippedCount}\uff0c\u5931\u8d25 {result.FailedCount}\u3002"
         };
 
         SpBatchResultRootText = $"\u65e5\u671f\u76ee\u5f55\uff1a{result.DatedRoot}";
-        SpBatchResultStatsText = $"SP \u6570\u91cf\uff1a{CountSpDirectories(result)}  \u603b\u4efb\u52a1\uff1a{result.Results.Count}  \u6210\u529f\uff1a{result.SuccessCount}  \u8df3\u8fc7\uff1a{result.SkippedCount}  \u5931\u8d25\uff1a{result.FailedCount}";
+        SpBatchResultStatsText = $"SKU \u6570\u91cf\uff1a{CountSpDirectories(result)}  \u603b\u4efb\u52a1\uff1a{result.Results.Count}  \u6210\u529f\uff1a{result.SuccessCount}  \u8df3\u8fc7\uff1a{result.SkippedCount}  \u5931\u8d25\uff1a{result.FailedCount}";
         ClearSpBatchResultCards();
 
         foreach (var group in result.Results.GroupBy(item => item.SpDirectory).OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase))
@@ -2296,17 +2397,56 @@ public sealed class MainWindowViewModel : ViewModelBase
         var stagingRoot = Path.Combine(Path.GetTempPath(), "ImageKeeper", "sp-batch-staging", DateTime.Now.ToString("yyyyMMdd_HHmmss_fff"));
         Directory.CreateDirectory(stagingRoot);
 
-        var index = 1;
+        var usedFileNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var card in SpBatchSourceImageCards)
         {
-            var extension = Path.GetExtension(card.ImagePath);
-            var targetName = $"{index:000}{extension}";
+            var targetName = GetUniqueStagingFileName(card, usedFileNames);
             var targetPath = Path.Combine(stagingRoot, targetName);
             File.Copy(card.ImagePath, targetPath, overwrite: true);
-            index++;
         }
 
         return stagingRoot;
+    }
+
+    private static string GetUniqueStagingFileName(GeneratedImageResultCardViewModel card, ISet<string> usedFileNames)
+    {
+        var originalFileName = Path.GetFileName(card.FileName);
+        if (string.IsNullOrWhiteSpace(originalFileName))
+        {
+            originalFileName = Path.GetFileName(card.ImagePath);
+        }
+
+        var extension = Path.GetExtension(originalFileName);
+        if (string.IsNullOrWhiteSpace(extension))
+        {
+            extension = Path.GetExtension(card.ImagePath);
+        }
+
+        var baseName = Path.GetFileNameWithoutExtension(originalFileName);
+        if (string.IsNullOrWhiteSpace(baseName))
+        {
+            baseName = Path.GetFileNameWithoutExtension(card.ImagePath);
+        }
+
+        foreach (var invalidChar in Path.GetInvalidFileNameChars())
+        {
+            baseName = baseName.Replace(invalidChar, '_');
+        }
+
+        if (string.IsNullOrWhiteSpace(baseName))
+        {
+            baseName = "image";
+        }
+
+        var candidate = $"{baseName}{extension}";
+        var index = 2;
+        while (!usedFileNames.Add(candidate))
+        {
+            candidate = $"{baseName}_{index}{extension}";
+            index++;
+        }
+
+        return candidate;
     }
 
     private async Task RunSpBatchFromStagingAsync()
@@ -2332,6 +2472,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 
         IsBusy = true;
         IsSpBatchRunning = true;
+        IsSpBatchStopping = false;
         SpBatchStatusText = _spBatchMode switch
         {
             SpBatchMode.PrepareOnly => "正在创建 SP 目录结构...",
@@ -2343,6 +2484,9 @@ public sealed class MainWindowViewModel : ViewModelBase
         ClearSpBatchResultCards();
         ClearSpBatchImageResultCards();
         StatusMessage = SpBatchStatusText;
+        _spBatchCancellationTokenSource?.Cancel();
+        _spBatchCancellationTokenSource?.Dispose();
+        _spBatchCancellationTokenSource = new CancellationTokenSource();
 
         try
         {
@@ -2356,11 +2500,19 @@ public sealed class MainWindowViewModel : ViewModelBase
                 Image2ScriptPath = DefaultImage2ScriptPath,
                 Concurrency = concurrency,
                 Retries = retries,
-                Mode = _spBatchMode
+                Mode = _spBatchMode,
+                Overwrite = true
             };
 
-            var result = await _spBatchService.GenerateAsync(request);
+            var result = await _spBatchService.GenerateAsync(request, _spBatchCancellationTokenSource.Token);
             ApplySpBatchVisualResult(result);
+            StatusMessage = SpBatchSummaryText;
+        }
+        catch (OperationCanceledException)
+        {
+            IsSpBatchStopping = false;
+            SpBatchStatusText = "已停止";
+            SpBatchSummaryText = "已停止当前 SKU 批处理任务。";
             StatusMessage = SpBatchSummaryText;
         }
         catch (Exception ex)
@@ -2381,6 +2533,9 @@ public sealed class MainWindowViewModel : ViewModelBase
         }
         finally
         {
+            IsSpBatchStopping = false;
+            _spBatchCancellationTokenSource?.Dispose();
+            _spBatchCancellationTokenSource = null;
             IsSpBatchRunning = false;
             IsBusy = false;
         }

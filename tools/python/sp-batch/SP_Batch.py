@@ -29,6 +29,7 @@ DEFAULT_OUTPUT_DIR = Path(r"D:\temu_auto\assert")
 DEFAULT_CONCURRENCY = 2
 DEFAULT_RETRIES = 4
 VALID_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
+SOURCE_METADATA_NAME = ".sku-source.json"
 MAIN_IMAGE_NAME = "1-封面.png"
 
 
@@ -79,8 +80,8 @@ class Job:
 COLORS: tuple[ColorSpec, ...] = (
     ColorSpec("black", "Black", "黑色", "#0A0A0A"),
     ColorSpec("offwhite", "Off-white", "米白色", "#F4F4F2"),
-    ColorSpec("darkbrown", "Dark brown", "深棕色", "#634234"),
-    ColorSpec("lightgray", "Light gray", "深灰色", "#C4C8CA"),
+    ColorSpec("darkbrown", "Dark brown", "深棕色", "#261107"),
+    ColorSpec("darkgray", "Dark gray", "深灰色", "#C4C8CA"),
     ColorSpec("winered", "Wine red", "酒红色", "#722829"),
     ColorSpec("royalblue", "Royal blue", "宝蓝色", "#0B1B6F"),
 )
@@ -89,7 +90,7 @@ COLOR_ALIAS_MAP: dict[str, str] = {
     "black": "black",
     "offwhite": "offwhite",
     "darkbrown": "darkbrown",
-    "lightgray": "lightgray",
+    "darkgray": "darkgray",
     "winered": "winered",
     "royalblue": "royalblue",
 }
@@ -212,17 +213,105 @@ def get_dated_root(output_dir: Path) -> Path:
     return output_dir / str(date.today())
 
 
+def get_next_sp_index(dated_root: Path) -> int:
+    max_index = 0
+    if dated_root.exists():
+        for child in dated_root.iterdir():
+            if not child.is_dir():
+                continue
+            match = re.fullmatch(r"SP(\d+)", child.name, re.IGNORECASE)
+            if match:
+                max_index = max(max_index, int(match.group(1)))
+    return max_index + 1
+
+
+def normalize_source_file_name(file_name: str) -> str:
+    return Path(file_name).name.casefold()
+
+
+def load_source_file_name(sp_dir: Path) -> str | None:
+    metadata_path = sp_dir / SOURCE_METADATA_NAME
+    if not metadata_path.exists():
+        return None
+
+    try:
+        data = json.loads(metadata_path.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+    source_file_name = data.get("source_file_name")
+    return source_file_name if isinstance(source_file_name, str) and source_file_name.strip() else None
+
+
+def build_existing_source_map(dated_root: Path) -> dict[str, Path]:
+    source_map: dict[str, Path] = {}
+    if not dated_root.exists():
+        return source_map
+
+    sp_dirs = [
+        child
+        for child in dated_root.iterdir()
+        if child.is_dir() and re.fullmatch(r"SP\d+", child.name, re.IGNORECASE)
+    ]
+    sp_dirs.sort(key=lambda path: int(re.fullmatch(r"SP(\d+)", path.name, re.IGNORECASE).group(1)))
+
+    for sp_dir in sp_dirs:
+        source_file_name = load_source_file_name(sp_dir)
+        if not source_file_name:
+            continue
+        source_map.setdefault(normalize_source_file_name(source_file_name), sp_dir)
+
+    return source_map
+
+
+def clear_directory_contents(directory: Path) -> None:
+    if not directory.exists():
+        return
+
+    for child in directory.iterdir():
+        if child.is_dir():
+            shutil.rmtree(child)
+        else:
+            child.unlink()
+
+
+def write_source_metadata(sp_dir: Path, image_path: Path) -> None:
+    metadata = {
+        "source_file_name": image_path.name,
+        "source_original_path": str(image_path.resolve()),
+        "updated_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+    }
+    (sp_dir / SOURCE_METADATA_NAME).write_text(
+        json.dumps(metadata, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
 def ensure_output_bundles(images: list[Path], output_dir: Path, overwrite: bool) -> dict[Path, OutputBundle]:
     dated_root = get_dated_root(output_dir)
     dated_root.mkdir(parents=True, exist_ok=True)
 
     bundles: dict[Path, OutputBundle] = {}
-    for idx, image_path in enumerate(images, start=1):
-        sp_name = f"SP{idx:02d}"
-        sp_dir = dated_root / sp_name
+    existing_source_map = build_existing_source_map(dated_root)
+    next_index = get_next_sp_index(dated_root)
+    used_sp_dirs: set[Path] = set()
+
+    for image_path in images:
+        source_key = normalize_source_file_name(image_path.name)
+        sp_dir = existing_source_map.get(source_key)
+        reuse_existing = sp_dir is not None and sp_dir not in used_sp_dirs
+        if not reuse_existing:
+            sp_dir = dated_root / f"SP{next_index:02d}"
+            next_index += 1
+
+        used_sp_dirs.add(sp_dir)
         main_dir = sp_dir / "main"
         sku_dir = sp_dir / "sku"
         detail_dir = sp_dir / "detail"
+
+        if overwrite and reuse_existing:
+            for folder in (main_dir, sku_dir, detail_dir):
+                clear_directory_contents(folder)
 
         for folder in (main_dir, sku_dir, detail_dir):
             folder.mkdir(parents=True, exist_ok=True)
@@ -230,6 +319,7 @@ def ensure_output_bundles(images: list[Path], output_dir: Path, overwrite: bool)
         source_copy_path = main_dir / MAIN_IMAGE_NAME
         if overwrite or not source_copy_path.exists() or source_copy_path.stat().st_size == 0:
             shutil.copy2(image_path, source_copy_path)
+        write_source_metadata(sp_dir, image_path)
 
         bundles[image_path] = OutputBundle(
             sp_dir=sp_dir,
@@ -271,27 +361,30 @@ def build_jobs(
     return jobs
 
 
-def build_prompt(color: ColorSpec) -> str:
+def build_master_prompt(color: ColorSpec) -> str:
     return (
         "Use the uploaded image as a lifestyle scene and material reference.\n"
-        "Create one clean SKU color image for ecommerce use.\n"
+        "Create the MASTER SKU image for this product. This master image will be used as the only reference "
+        "for all other color variants, so the composition must be clean, balanced, and reusable.\n"
         f"Target color: {color.label} {color.hex_code}.\n"
-        "Keep the original main subject and premium lifestyle scene. Preserve realistic lighting, product scale, "
-        "commercial photography quality, and clean composition.\n"
+        "Continue the visual feeling of the original main subject and premium lifestyle scene. Preserve realistic "
+        "lighting, product scale, commercial photography quality, and clean composition.\n"
+        "If the reference image contains multiple possible main subjects, choose only ONE clear primary subject "
+        "as the hero product. Do not keep multiple duplicate main subjects. Do not create several versions of "
+        "the same furniture, bag, seat, wall panel, or product. The final image must have one dominant main "
+        "subject only.\n"
         "Remove all poster text, icons, labels, callout lines, badges, circular magnifier windows, "
         "zoom bubbles, comparison blocks, decorative overlays, and any text from the reference image.\n"
         "Do not keep the top-right leather texture inset or any separate sample window.\n"
-        "Do not unroll, spread out, flatten, or lay the repair patch as a large sheet. Do not create a "
-        "large leather sheet on a table, floor, seat, bag, car interior, or any main subject surface.\n"
-        "If the repair patch product is visible, keep it compact: a small roll, compact patch piece, "
-        "or subtle repair area only. The original main subject should remain the main visual focus.\n"
-        "Leather roll specification: any visible roll must stay fully rolled, with the roll diameter "
-        "about one third smaller than a normal leather roll and the roll body about twice as long as "
-        "a normal leather roll. The overall proportion must be obviously thinner, longer, lighter, "
-        "and more elegant. Avoid short, thick, heavy rolls. Do not make it look like a tape roll, PVC "
-        "pipe roll, paper tube roll, or bulky material roll. Every visible roll surface must show "
-        "clear, fine, natural lychee grain and realistic PU leather texture. All rolls must share the "
-        "same slim-diameter, long-body, lightweight visual character.\n"
+        "Add the leather repair patch product naturally into the scene. It may be placed on the main subject, "
+        "in front of the main subject, or leaning against the main subject. Choose one natural placement only. "
+        "The placement should look realistic, relaxed, and commercially composed, not pasted on or repetitive.\n"
+        "The SKU image must show at most ONE leather repair roll. If a leather repair roll is visible, it must be "
+        "exactly one single roll only. Do not generate two rolls, three rolls, multiple rolls, stacked rolls, "
+        "parallel rolls, bundled rolls, repeated rolls, or several color samples in the same image.\n"
+        "If a leather repair roll is visible, keep it elegant, compact, fully rolled, and realistic. The roll size, "
+        "angle, position, distance from the subject, and visible paper core must be clearly established in this "
+        "master image and must be suitable for later color-only variants.\n"
         "Only change leather-repair-related color areas to the target color:\n"
         "- the original main leather surface or upholstered surface\n"
         "- the repair demonstration surface\n"
@@ -304,6 +397,29 @@ def build_prompt(color: ColorSpec) -> str:
         "obvious color difference.\n"
         "Final result should be a clean, photorealistic, high-end cross-border ecommerce SKU image with "
         "the original scene retained and all overlay graphics removed.\n"
+    )
+
+
+def build_recolor_prompt(color: ColorSpec) -> str:
+    return (
+        "Use the uploaded image as the fixed master SKU composition.\n"
+        "Create a color variant of the exact same SKU image.\n"
+        f"Target color: {color.label} {color.hex_code}.\n"
+        "STRICT LOCK: Do not change the composition, camera angle, perspective, crop, object positions, "
+        "main subject size, main subject shape, repair patch size, repair patch position, roll size, roll angle, "
+        "roll position, background, props, lighting direction, shadows, depth of field, or layout.\n"
+        "The output must look like the same photo and the same scene as the uploaded master image, with only "
+        "the SKU color changed.\n"
+        "Only recolor leather-repair-related areas to the target color:\n"
+        "- the main leather or upholstered surface\n"
+        "- the leather repair patch/product material\n"
+        "- any repair demonstration leather surface\n"
+        "Do not recolor non-leather materials such as wood, marble, metal, glass, walls, floor, plants, curtains, "
+        "decorations, paper core, or background objects.\n"
+        "Do not add or remove objects. Do not add text, icons, logos, watermarks, labels, or overlays. "
+        "Do not redraw the scene. Do not move the roll or patch. Do not resize anything.\n"
+        "Final result must be a strict color-only SKU variant that matches the master image in every detail "
+        "except the target leather color.\n"
     )
 
 
@@ -334,7 +450,15 @@ def is_retryable_error(message: str) -> bool:
     return any(marker in lowered for marker in markers)
 
 
-def run_job(job: Job, image2_script: Path, retries: int, overwrite: bool) -> dict[str, Any]:
+def run_job(
+    job: Job,
+    image2_script: Path,
+    retries: int,
+    overwrite: bool,
+    input_image_path: Path | None = None,
+    prompt: str | None = None,
+    stage: str = "generated",
+) -> dict[str, Any]:
     if not overwrite and job.output_path.exists() and job.output_path.stat().st_size > 0:
         return {
             "index": job.index,
@@ -342,18 +466,20 @@ def run_job(job: Job, image2_script: Path, retries: int, overwrite: bool) -> dic
             "source_copy_path": str(job.bundle.source_copy_path),
             "sp_dir": str(job.bundle.sp_dir),
             "color": job.color.suffix,
+            "stage": stage,
             "status": "skipped",
             "image_path": str(job.output_path.resolve()),
         }
 
     job.bundle.sku_dir.mkdir(parents=True, exist_ok=True)
+    reference_image_path = input_image_path or job.image_path
     command = [
         sys.executable,
         str(image2_script),
         "--input-image",
-        str(job.image_path),
+        str(reference_image_path),
         "--prompt",
-        build_prompt(job.color),
+        prompt or build_master_prompt(job.color),
         "--output-dir",
         str(job.bundle.sku_dir),
         "--filename",
@@ -379,6 +505,8 @@ def run_job(job: Job, image2_script: Path, retries: int, overwrite: bool) -> dic
                 "source_copy_path": str(job.bundle.source_copy_path),
                 "sp_dir": str(job.bundle.sp_dir),
                 "color": job.color.suffix,
+                "stage": stage,
+                "reference_image": str(reference_image_path),
                 "status": "generated",
                 "attempts": attempt,
                 "image_path": final_path,
@@ -396,40 +524,96 @@ def run_job(job: Job, image2_script: Path, retries: int, overwrite: bool) -> dic
         "source_copy_path": str(job.bundle.source_copy_path),
         "sp_dir": str(job.bundle.sp_dir),
         "color": job.color.suffix,
+        "stage": stage,
+        "reference_image": str(reference_image_path),
         "status": "failed",
         "attempts": retries,
         "error": last_error or "Unknown error",
     }
 
 
-def execute_jobs(jobs: list[Job], options: RequestOptions) -> list[dict[str, Any]]:
-    results_by_index: dict[int, dict[str, Any]] = {}
+def fail_dependent_job(job: Job, master_result: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "index": job.index,
+        "source_image": str(job.image_path),
+        "source_copy_path": str(job.bundle.source_copy_path),
+        "sp_dir": str(job.bundle.sp_dir),
+        "color": job.color.suffix,
+        "stage": "recolor",
+        "status": "failed",
+        "error": "Master SKU image was not generated, so this color variant was not created.",
+        "master_error": master_result.get("error", ""),
+    }
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=options.concurrency) as executor:
-        future_to_job = {
-            executor.submit(
-                run_job,
+
+def execute_job_group(group_jobs: list[Job], options: RequestOptions) -> list[dict[str, Any]]:
+    if not group_jobs:
+        return []
+
+    ordered_jobs = sorted(group_jobs, key=lambda item: item.index)
+    master_job = ordered_jobs[0]
+    master_result = run_job(
+        master_job,
+        options.image2_script,
+        options.retries,
+        options.overwrite,
+        input_image_path=master_job.image_path,
+        prompt=build_master_prompt(master_job.color),
+        stage="master",
+    )
+    results = [master_result]
+    if master_result.get("status") == "failed":
+        results.extend(fail_dependent_job(job, master_result) for job in ordered_jobs[1:])
+        return results
+
+    master_image_path = Path(str(master_result.get("image_path") or master_job.output_path)).resolve()
+    for job in ordered_jobs[1:]:
+        results.append(
+            run_job(
                 job,
                 options.image2_script,
                 options.retries,
                 options.overwrite,
-            ): job
-            for job in jobs
+                input_image_path=master_image_path,
+                prompt=build_recolor_prompt(job.color),
+                stage="recolor",
+            )
+        )
+
+    return results
+
+
+def execute_jobs(jobs: list[Job], options: RequestOptions) -> list[dict[str, Any]]:
+    results_by_index: dict[int, dict[str, Any]] = {}
+    groups_by_sp_dir: dict[Path, list[Job]] = {}
+    for job in jobs:
+        groups_by_sp_dir.setdefault(job.bundle.sp_dir, []).append(job)
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=options.concurrency) as executor:
+        future_to_job = {
+            executor.submit(
+                execute_job_group,
+                group_jobs,
+                options,
+            ): group_jobs
+            for group_jobs in groups_by_sp_dir.values()
         }
         for future in concurrent.futures.as_completed(future_to_job):
-            job = future_to_job[future]
+            group_jobs = future_to_job[future]
             try:
-                results_by_index[job.index] = future.result()
+                for result in future.result():
+                    results_by_index[int(result["index"])] = result
             except Exception as exc:  # noqa: BLE001
-                results_by_index[job.index] = {
-                    "index": job.index,
-                    "source_image": str(job.image_path),
-                    "source_copy_path": str(job.bundle.source_copy_path),
-                    "sp_dir": str(job.bundle.sp_dir),
-                    "color": job.color.suffix,
-                    "status": "failed",
-                    "error": str(exc),
-                }
+                for job in group_jobs:
+                    results_by_index[job.index] = {
+                        "index": job.index,
+                        "source_image": str(job.image_path),
+                        "source_copy_path": str(job.bundle.source_copy_path),
+                        "sp_dir": str(job.bundle.sp_dir),
+                        "color": job.color.suffix,
+                        "status": "failed",
+                        "error": str(exc),
+                    }
 
     return [results_by_index[index] for index in sorted(results_by_index)]
 
