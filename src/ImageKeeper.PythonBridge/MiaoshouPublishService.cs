@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text;
 using System.Text.Json;
 using ImageKeeper.Core.Models;
 using ImageKeeper.Core.Services;
@@ -78,11 +79,14 @@ public sealed class MiaoshouPublishService : IMiaoshouPublishService
         var completedTask = await Task.WhenAny(resultTask, exitTask);
         if (completedTask == resultTask && await resultTask)
         {
-            var result = await ReadResultAsync(request, cancellationToken);
             resultWaitCancellation.Cancel();
+            await exitTask;
             eventsCancellation.Cancel();
             await IgnoreCancellationAsync(eventsTask);
-            return result;
+            await outputTask;
+            await errorTask;
+
+            return await ReadResultAsync(request, cancellationToken);
         }
 
         resultWaitCancellation.Cancel();
@@ -97,6 +101,12 @@ public sealed class MiaoshouPublishService : IMiaoshouPublishService
             return await ReadResultAsync(request, cancellationToken);
         }
 
+        var fallbackResult = await TryBuildFallbackResultAsync(request, error, cancellationToken);
+        if (fallbackResult is not null)
+        {
+            return fallbackResult;
+        }
+
         if (process.ExitCode != 0)
         {
             throw new InvalidOperationException(string.IsNullOrWhiteSpace(error)
@@ -107,6 +117,63 @@ public sealed class MiaoshouPublishService : IMiaoshouPublishService
         return new MiaoshouPublishResult
         {
             Status = "success",
+            ResultPath = request.ResultPath,
+            LogPath = request.LogPath
+        };
+    }
+
+    private static async Task<MiaoshouPublishResult?> TryBuildFallbackResultAsync(
+        MiaoshouPublishRequest request,
+        string processError,
+        CancellationToken cancellationToken)
+    {
+        var expectedCardPaths = await ReadManifestCardPathsAsync(request.ManifestPath, cancellationToken);
+        var eventResults = await ReadEventResultsAsync(request.EventsPath, cancellationToken);
+        if (expectedCardPaths.Count == 0 && eventResults.Count == 0)
+        {
+            return null;
+        }
+
+        var results = new List<MiaoshouPublishItemResult>();
+        foreach (var cardPath in expectedCardPaths)
+        {
+            if (eventResults.TryGetValue(cardPath, out var itemResult))
+            {
+                results.Add(itemResult);
+                continue;
+            }
+
+            results.Add(new MiaoshouPublishItemResult
+            {
+                CardPath = cardPath,
+                Label = Path.GetFileName(cardPath),
+                Status = "failed",
+                Error = "流程异常中断，未收到该卡片的最终上架结果。"
+            });
+        }
+
+        foreach (var pair in eventResults)
+        {
+            if (expectedCardPaths.Contains(pair.Key))
+            {
+                continue;
+            }
+
+            results.Add(pair.Value);
+        }
+
+        var successCount = results.Count(item =>
+            string.Equals(item.Status, "success", StringComparison.OrdinalIgnoreCase));
+        var failedCount = results.Count - successCount;
+
+        return new MiaoshouPublishResult
+        {
+            Status = failedCount > 0 ? "failed" : "success",
+            Error = string.IsNullOrWhiteSpace(processError) ? "未生成最终结果文件，已根据过程事件补全上架结果。" : processError.Trim(),
+            Total = results.Count,
+            SuccessCount = successCount,
+            FailedCount = failedCount,
+            Results = results,
             ResultPath = request.ResultPath,
             LogPath = request.LogPath
         };
@@ -148,6 +215,98 @@ public sealed class MiaoshouPublishService : IMiaoshouPublishService
         var result = JsonSerializer.Deserialize<MiaoshouPublishResult>(json, JsonOptions) ?? new MiaoshouPublishResult();
         result.ResultPath = request.ResultPath;
         result.LogPath = request.LogPath;
+        return result;
+    }
+
+    private static async Task<HashSet<string>> ReadManifestCardPathsAsync(
+        string manifestPath,
+        CancellationToken cancellationToken)
+    {
+        var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (!File.Exists(manifestPath))
+        {
+            return result;
+        }
+
+        await using var stream = File.OpenRead(manifestPath);
+        using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+        if (document.RootElement.ValueKind != JsonValueKind.Array)
+        {
+            return result;
+        }
+
+        foreach (var item in document.RootElement.EnumerateArray())
+        {
+            if (item.TryGetProperty("card_folder_path", out var cardPathElement)
+                && cardPathElement.ValueKind == JsonValueKind.String)
+            {
+                var cardPath = cardPathElement.GetString();
+                if (!string.IsNullOrWhiteSpace(cardPath))
+                {
+                    result.Add(cardPath);
+                }
+            }
+        }
+
+        return result;
+    }
+
+    private static async Task<Dictionary<string, MiaoshouPublishItemResult>> ReadEventResultsAsync(
+        string eventsPath,
+        CancellationToken cancellationToken)
+    {
+        var result = new Dictionary<string, MiaoshouPublishItemResult>(StringComparer.OrdinalIgnoreCase);
+        if (!File.Exists(eventsPath))
+        {
+            return result;
+        }
+
+        string[] lines;
+        try
+        {
+            lines = await File.ReadAllLinesAsync(eventsPath, Encoding.UTF8, cancellationToken);
+        }
+        catch (IOException)
+        {
+            return result;
+        }
+
+        foreach (var line in lines)
+        {
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                continue;
+            }
+
+            MiaoshouPublishProgressEvent? progressEvent;
+            try
+            {
+                progressEvent = JsonSerializer.Deserialize<MiaoshouPublishProgressEvent>(line, JsonOptions);
+            }
+            catch (JsonException)
+            {
+                continue;
+            }
+
+            if (progressEvent is null
+                || string.IsNullOrWhiteSpace(progressEvent.CardPath)
+                || !IsProductFinishedEvent(progressEvent.Type))
+            {
+                continue;
+            }
+
+            result[progressEvent.CardPath] = new MiaoshouPublishItemResult
+            {
+                CardPath = progressEvent.CardPath,
+                Label = progressEvent.Label,
+                Status = string.Equals(progressEvent.Type, "product_success", StringComparison.OrdinalIgnoreCase)
+                    ? "success"
+                    : "failed",
+                Error = progressEvent.Error,
+                Elapsed = progressEvent.Elapsed
+            };
+        }
+
         return result;
     }
 

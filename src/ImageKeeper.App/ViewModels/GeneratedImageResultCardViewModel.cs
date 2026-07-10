@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.IO;
 using System.Windows.Input;
 using ImageKeeper.App.Utilities;
@@ -116,10 +115,17 @@ public sealed class GeneratedImageResultCardViewModel : ViewModelBase
 
     private void OpenFile()
     {
-        Process.Start(new ProcessStartInfo
+        try
         {
-            FileName = ImagePath,
-            UseShellExecute = true
-        });
+            ShellOpenHelper.OpenFile(ImagePath);
+        }
+        catch (Exception ex)
+        {
+            System.Windows.MessageBox.Show(
+                $"打开文件失败：{ex.Message}",
+                "提示",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Warning);
+        }
     }
 }

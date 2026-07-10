@@ -193,11 +193,34 @@ public sealed class FolderScanService : IFolderScanService
     private static void SortTree(FolderNode node)
     {
         node.Images.Sort((left, right) => StringComparer.OrdinalIgnoreCase.Compare(left.FileName, right.FileName));
-        node.Children.Sort((left, right) => StringComparer.OrdinalIgnoreCase.Compare(left.DisplayName, right.DisplayName));
+        node.Children.Sort(CompareFolderNodes);
 
         foreach (var child in node.Children)
         {
             SortTree(child);
         }
+    }
+
+    private static int CompareFolderNodes(FolderNode left, FolderNode right)
+    {
+        var leftOrder = GetFolderOrder(left.DisplayName);
+        var rightOrder = GetFolderOrder(right.DisplayName);
+        if (leftOrder != rightOrder)
+        {
+            return leftOrder.CompareTo(rightOrder);
+        }
+
+        return StringComparer.OrdinalIgnoreCase.Compare(left.DisplayName, right.DisplayName);
+    }
+
+    private static int GetFolderOrder(string name)
+    {
+        return name.ToLowerInvariant() switch
+        {
+            "main" => 0,
+            "sku" => 1,
+            "detail" => 2,
+            _ => 100
+        };
     }
 }

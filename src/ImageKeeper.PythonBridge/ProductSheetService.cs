@@ -19,7 +19,10 @@ public sealed class ProductSheetService : IProductSheetService
         _buildSizeIndexScriptPath = buildSizeIndexScriptPath;
     }
 
-    public async Task<ProductSheetTask> GenerateAsync(string spRootFolder, CancellationToken cancellationToken = default)
+    public async Task<ProductSheetTask> GenerateAsync(
+        string spRootFolder,
+        IReadOnlyList<string>? sizes = null,
+        CancellationToken cancellationToken = default)
     {
         var task = new ProductSheetTask
         {
@@ -33,9 +36,27 @@ public sealed class ProductSheetService : IProductSheetService
             var outputDir = Path.Combine(AppContext.BaseDirectory, "output", "products");
             Directory.CreateDirectory(outputDir);
             var productsJsonPath = Path.Combine(outputDir, $"{Path.GetFileName(spRootFolder)}.product.json");
+            var arguments = new List<string>
+            {
+                "--sp-dir",
+                spRootFolder,
+                "--product-id",
+                Path.GetFileName(spRootFolder),
+                "--output-dir",
+                outputDir,
+                "--products-json",
+                productsJsonPath
+            };
+
+            if (sizes is { Count: > 0 })
+            {
+                arguments.Add("--sizes");
+                arguments.AddRange(sizes.Where(size => !string.IsNullOrWhiteSpace(size)));
+            }
+
             var exitCode = await _scriptRunner.RunAsync(
                 _fillProductSheetScriptPath,
-                ["--sp-dir", spRootFolder, "--output-dir", outputDir, "--products-json", productsJsonPath],
+                arguments,
                 cancellationToken);
             task.Status = exitCode == 0 ? "Completed" : "Failed";
             if (task.Status == "Completed")

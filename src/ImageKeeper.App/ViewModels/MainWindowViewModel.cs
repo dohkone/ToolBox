@@ -1,8 +1,10 @@
 using System.Collections.ObjectModel;
-using System.Diagnostics;
+using System.Globalization;
 using System.IO;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Input;
 using ImageKeeper.App.Utilities;
@@ -18,6 +20,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 {
     private const string ReviewWorkspaceSection = "review-workspace";
     private const string ImageGenerateSection = "image-generate";
+    private const string TemplateManagerSection = "template-manager";
     private const string TemplateGenerateTab = "template-generate";
     private const string SpBatchTab = "sp-batch";
     private static string DefaultTemplateLibraryPath => ResolveTemplateLibraryPath();
@@ -33,6 +36,8 @@ public sealed class MainWindowViewModel : ViewModelBase
     private readonly ISpBatchService _spBatchService;
     private readonly IMiaoshouPublishService _miaoshouPublishService;
     private readonly IAutoPublishStateService _autoPublishStateService;
+    private readonly ICardSizeInfoService _cardSizeInfoService;
+    private readonly ITemplateLibraryService _templateLibraryService;
     private readonly SemaphoreSlim _autoPublishLock = new(1, 1);
     private readonly AsyncRelayCommand _chooseFolderCommand;
     private readonly AsyncRelayCommand _selectBackupFolderCommand;
@@ -44,8 +49,25 @@ public sealed class MainWindowViewModel : ViewModelBase
     private readonly AsyncRelayCommand _addTabCommand;
     private readonly RelayCommand _showReviewWorkspaceCommand;
     private readonly RelayCommand _showImageGenerateCommand;
+    private readonly RelayCommand _showTemplateManagerCommand;
     private readonly RelayCommand _showTemplateGenerateTabCommand;
     private readonly RelayCommand _showSpBatchTabCommand;
+    private readonly AsyncRelayCommand _showLayoutTemplateTabCommand;
+    private readonly AsyncRelayCommand _showSceneTemplateTabCommand;
+    private readonly RelayCommand _newTemplateCommand;
+    private readonly AsyncRelayCommand _saveTemplateCommand;
+    private readonly AsyncRelayCommand _deleteTemplateCommand;
+    private readonly AsyncRelayCommand _deleteManagedTemplateCommand;
+    private readonly RelayCommand _selectManagedTemplateCommand;
+    private readonly AsyncRelayCommand _chooseTemplatePreviewCommand;
+    private readonly AsyncRelayCommand _importLayoutTemplatesCommand;
+    private readonly AsyncRelayCommand _exportLayoutTemplatesCommand;
+    private readonly RelayCommand _closeTemplateEditorCommand;
+    private readonly RelayCommand _addSceneContentLineCommand;
+    private readonly RelayCommand _removeSceneContentLineCommand;
+    private readonly RelayCommand _startAddTemplateSubjectTagCommand;
+    private readonly RelayCommand _commitTemplateSubjectTagCommand;
+    private readonly RelayCommand _removeTemplateSubjectTagCommand;
     private readonly AsyncRelayCommand _chooseTemplateLibraryCommand;
     private readonly RelayCommand _openTemplateLibraryFileCommand;
     private readonly AsyncRelayCommand _chooseGenerationOutputFolderCommand;
@@ -61,12 +83,16 @@ public sealed class MainWindowViewModel : ViewModelBase
     private readonly RelayCommand _stopSpBatchCommand;
     private readonly RelayCommand _refreshSkuResultsCommand;
     private readonly AsyncRelayCommand _runBatchAutoPublishCommand;
+    private readonly AsyncRelayCommand _saveCardSizeInfoCommand;
+    private readonly RelayCommand _cancelCardSizeInfoCommand;
     private CancellationTokenSource? _previewCancellationTokenSource;
     private CancellationTokenSource? _templateGenerationCancellationTokenSource;
     private CancellationTokenSource? _spBatchCancellationTokenSource;
     private WorkspaceTabViewModel? _selectedTab;
+    private TemplateItemViewModel? _selectedTemplateItem;
     private string _selectedSection = ImageGenerateSection;
     private string _selectedImageGenerateTab = TemplateGenerateTab;
+    private TemplateCategory _selectedTemplateCategory = TemplateCategory.Layout;
     private bool _isBusy;
     private bool _isScanProgressIndeterminate = true;
     private double _scanProgressValue;
@@ -106,7 +132,29 @@ public sealed class MainWindowViewModel : ViewModelBase
     private string _spBatchSummaryText = "用于批量创建日期目录、SP 结构和 6 色 SKU 图。";
     private string _spBatchResultRootText = "日期目录：未设置";
     private string _spBatchResultStatsText = "SP 数量：0  总任务：0  成功：0  跳过：0  失败：0";
+    private int _spBatchStatsSkuCount;
+    private int _spBatchStatsTotalCount;
+    private int _spBatchStatsSuccessCount;
+    private int _spBatchStatsSkippedCount;
+    private int _spBatchStatsFailedCount;
 
+    private RootCardViewModel? _cardSizeDialogCard;
+    private string _cardSizeDialogImagePath = string.Empty;
+    private string _cardSizeDialogImageHash = string.Empty;
+    private string _cardSizeDialogImageLastWriteUtc = string.Empty;
+    private string _cardSizeInputText = string.Empty;
+    private string _cardSizePreviewMeta = string.Empty;
+    private Media.ImageSource? _cardSizePreviewImageSource;
+    private bool _isCardSizeDialogOpen;
+
+    private string _templateEditorName = string.Empty;
+    private string _templateEditorContent = string.Empty;
+    private string _templateEditorSubject = string.Empty;
+    private string _newTemplateSubjectText = string.Empty;
+    private string _templateEditorPreviewImagePath = string.Empty;
+    private bool _templateEditorIsEnabled = true;
+    private bool _isTemplateEditorDialogOpen;
+    private bool _isAddingTemplateSubjectTag;
     private bool _isSpBatchStagingDropTarget;
 
     public MainWindowViewModel(
@@ -118,7 +166,9 @@ public sealed class MainWindowViewModel : ViewModelBase
         ITemplateGenerationService templateGenerationService,
         ISpBatchService spBatchService,
         IMiaoshouPublishService miaoshouPublishService,
-        IAutoPublishStateService autoPublishStateService)
+        IAutoPublishStateService autoPublishStateService,
+        ICardSizeInfoService cardSizeInfoService,
+        ITemplateLibraryService templateLibraryService)
     {
         _folderScanService = folderScanService;
         _imageWorkspaceService = imageWorkspaceService;
@@ -129,6 +179,8 @@ public sealed class MainWindowViewModel : ViewModelBase
         _spBatchService = spBatchService;
         _miaoshouPublishService = miaoshouPublishService;
         _autoPublishStateService = autoPublishStateService;
+        _cardSizeInfoService = cardSizeInfoService;
+        _templateLibraryService = templateLibraryService;
 
         _chooseFolderCommand = new AsyncRelayCommand(_ => ChooseFolderAsync());
         _selectBackupFolderCommand = new AsyncRelayCommand(_ => SelectBackupFolderAsync());
@@ -140,23 +192,42 @@ public sealed class MainWindowViewModel : ViewModelBase
         _addTabCommand = new AsyncRelayCommand(_ => ChooseFolderAsync(), _ => !IsBusy);
         _showReviewWorkspaceCommand = new RelayCommand(_ => SetSelectedSection(ReviewWorkspaceSection));
         _showImageGenerateCommand = new RelayCommand(_ => SetSelectedSection(ImageGenerateSection));
+        _showTemplateManagerCommand = new RelayCommand(_ => SetSelectedSection(TemplateManagerSection));
         _showTemplateGenerateTabCommand = new RelayCommand(_ => SetSelectedImageGenerateTab(TemplateGenerateTab));
         _showSpBatchTabCommand = new RelayCommand(_ => SetSelectedImageGenerateTab(SpBatchTab));
-        _chooseTemplateLibraryCommand = new AsyncRelayCommand(_ => ChooseTemplateLibraryAsync(), _ => !IsBusy);
+        _showLayoutTemplateTabCommand = new AsyncRelayCommand(_ => SelectTemplateCategoryAsync(TemplateCategory.Layout));
+        _showSceneTemplateTabCommand = new AsyncRelayCommand(_ => SelectTemplateCategoryAsync(TemplateCategory.Scene));
+        _newTemplateCommand = new RelayCommand(_ => NewTemplate());
+        _saveTemplateCommand = new AsyncRelayCommand(_ => SaveTemplateAsync(), _ => CanSaveTemplate());
+        _deleteTemplateCommand = new AsyncRelayCommand(_ => DeleteTemplateAsync(), _ => SelectedTemplateItem is not null && SelectedTemplateItem.Id > 0);
+        _deleteManagedTemplateCommand = new AsyncRelayCommand(item => DeleteManagedTemplateAsync(item as TemplateItemViewModel), item => item is TemplateItemViewModel);
+        _selectManagedTemplateCommand = new RelayCommand(item => SelectManagedTemplate(item as TemplateItemViewModel), item => item is TemplateItemViewModel);
+        _chooseTemplatePreviewCommand = new AsyncRelayCommand(_ => ChooseTemplatePreviewAsync(), _ => IsLayoutTemplateTabSelected);
+        _importLayoutTemplatesCommand = new AsyncRelayCommand(_ => ImportLayoutTemplatesAsync(), _ => IsLayoutTemplateTabSelected);
+        _exportLayoutTemplatesCommand = new AsyncRelayCommand(_ => ExportLayoutTemplatesAsync(), _ => IsLayoutTemplateTabSelected);
+        _closeTemplateEditorCommand = new RelayCommand(_ => IsTemplateEditorDialogOpen = false);
+        _addSceneContentLineCommand = new RelayCommand(line => AddSceneContentLine(line as SceneContentLineViewModel));
+        _removeSceneContentLineCommand = new RelayCommand(line => RemoveSceneContentLine(line as SceneContentLineViewModel), line => SceneContentLines.Count > 1 && line is SceneContentLineViewModel);
+        _startAddTemplateSubjectTagCommand = new RelayCommand(_ => StartAddTemplateSubjectTag());
+        _commitTemplateSubjectTagCommand = new RelayCommand(_ => CommitTemplateSubjectTag());
+        _removeTemplateSubjectTagCommand = new RelayCommand(tag => RemoveTemplateSubjectTag(tag as TemplateSubjectTagViewModel), tag => tag is TemplateSubjectTagViewModel);
+        _chooseTemplateLibraryCommand = new AsyncRelayCommand(_ => ChooseTemplateLibraryAsync(), _ => CanEditTemplateGenerationSettings());
         _openTemplateLibraryFileCommand = new RelayCommand(_ => OpenTemplateLibraryFile(), _ => File.Exists(TemplateLibraryPath));
-        _chooseGenerationOutputFolderCommand = new AsyncRelayCommand(_ => ChooseGenerationOutputFolderAsync(), _ => !IsBusy);
+        _chooseGenerationOutputFolderCommand = new AsyncRelayCommand(_ => ChooseGenerationOutputFolderAsync(), _ => CanEditTemplateGenerationSettings());
         _openGenerationOutputFolderCommand = new RelayCommand(_ => OpenGenerationOutputFolder(), _ => Directory.Exists(GenerationOutputDirectory));
-        _runTemplateGenerationCommand = new AsyncRelayCommand(_ => RunTemplateGenerationAsync(), _ => !IsBusy);
+        _runTemplateGenerationCommand = new AsyncRelayCommand(_ => RunTemplateGenerationAsync(), _ => CanRunTemplateGeneration());
         _stopTemplateGenerationCommand = new RelayCommand(_ => StopTemplateGeneration(), _ => IsTemplateGenerating);
-        _chooseGenerationImagesCommand = new AsyncRelayCommand(_ => ChooseGenerationImagesAsync(), _ => !IsBusy);
+        _chooseGenerationImagesCommand = new AsyncRelayCommand(_ => ChooseGenerationImagesAsync(), _ => true);
         _sendSelectedImagesToSpBatchCommand = new RelayCommand(_ => SendSelectedImagesToSpBatch(), _ => CanSendSelectedImagesToSpBatch());
-        _chooseSpBatchInputFolderCommand = new AsyncRelayCommand(_ => ChooseSpBatchInputFolderAsync(), _ => !IsBusy);
-        _chooseSpBatchOutputFolderCommand = new AsyncRelayCommand(_ => ChooseSpBatchOutputFolderAsync(), _ => !IsBusy);
+        _chooseSpBatchInputFolderCommand = new AsyncRelayCommand(_ => ChooseSpBatchInputFolderAsync(), _ => CanEditSpBatchSettings());
+        _chooseSpBatchOutputFolderCommand = new AsyncRelayCommand(_ => ChooseSpBatchOutputFolderAsync(), _ => CanEditSpBatchSettings());
         _openSpBatchOutputFolderCommand = new RelayCommand(_ => OpenSpBatchOutputFolder(), _ => Directory.Exists(SpBatchOutputDirectory));
-        _runSpBatchCommand = new AsyncRelayCommand(_ => RunSpBatchFromStagingAsync(), _ => !IsBusy);
+        _runSpBatchCommand = new AsyncRelayCommand(_ => RunSpBatchFromStagingAsync(), _ => CanRunSpBatch());
         _stopSpBatchCommand = new RelayCommand(_ => StopSpBatch(), _ => IsSpBatchRunning);
         _refreshSkuResultsCommand = new RelayCommand(_ => RefreshSkuResults(), _ => !IsSpBatchRunning && !IsSpBatchStopping);
         _runBatchAutoPublishCommand = new AsyncRelayCommand(_ => RunBatchAutoPublishAsync(), _ => CanExecuteBatchAutoPublish());
+        _saveCardSizeInfoCommand = new AsyncRelayCommand(_ => SaveCardSizeInfoAsync(), _ => CanSaveCardSizeInfo());
+        _cancelCardSizeInfoCommand = new RelayCommand(_ => CloseCardSizeDialog());
     }
 
     public ObservableCollection<WorkspaceTabViewModel> WorkspaceTabs { get; } = [];
@@ -165,6 +236,10 @@ public sealed class MainWindowViewModel : ViewModelBase
     public ObservableCollection<GeneratedImageResultCardViewModel> SpBatchSourceImageCards { get; } = [];
     public ObservableCollection<GeneratedImageResultCardViewModel> SpBatchImageResultCards { get; } = [];
     public ObservableCollection<SpBatchResultCardViewModel> SpBatchResultCards { get; } = [];
+    public ObservableCollection<TemplateItemViewModel> ManagedTemplateItems { get; } = [];
+    public ObservableCollection<SceneContentLineViewModel> SceneContentLines { get; } = [];
+    public ObservableCollection<TemplateSubjectTagViewModel> TemplateSubjectTags { get; } = [];
+    public ObservableCollection<TemplateSubjectTagViewModel> TemplateSubjectTagItems { get; } = [];
 
     public ICommand ChooseFolderCommand => _chooseFolderCommand;
     public ICommand SelectBackupFolderCommand => _selectBackupFolderCommand;
@@ -176,8 +251,25 @@ public sealed class MainWindowViewModel : ViewModelBase
     public ICommand AddTabCommand => _addTabCommand;
     public ICommand ShowReviewWorkspaceCommand => _showReviewWorkspaceCommand;
     public ICommand ShowImageGenerateCommand => _showImageGenerateCommand;
+    public ICommand ShowTemplateManagerCommand => _showTemplateManagerCommand;
     public ICommand ShowTemplateGenerateTabCommand => _showTemplateGenerateTabCommand;
     public ICommand ShowSpBatchTabCommand => _showSpBatchTabCommand;
+    public ICommand ShowLayoutTemplateTabCommand => _showLayoutTemplateTabCommand;
+    public ICommand ShowSceneTemplateTabCommand => _showSceneTemplateTabCommand;
+    public ICommand NewTemplateCommand => _newTemplateCommand;
+    public ICommand SaveTemplateCommand => _saveTemplateCommand;
+    public ICommand DeleteTemplateCommand => _deleteTemplateCommand;
+    public ICommand DeleteManagedTemplateCommand => _deleteManagedTemplateCommand;
+    public ICommand SelectManagedTemplateCommand => _selectManagedTemplateCommand;
+    public ICommand ChooseTemplatePreviewCommand => _chooseTemplatePreviewCommand;
+    public ICommand ImportLayoutTemplatesCommand => _importLayoutTemplatesCommand;
+    public ICommand ExportLayoutTemplatesCommand => _exportLayoutTemplatesCommand;
+    public ICommand CloseTemplateEditorCommand => _closeTemplateEditorCommand;
+    public ICommand AddSceneContentLineCommand => _addSceneContentLineCommand;
+    public ICommand RemoveSceneContentLineCommand => _removeSceneContentLineCommand;
+    public ICommand StartAddTemplateSubjectTagCommand => _startAddTemplateSubjectTagCommand;
+    public ICommand CommitTemplateSubjectTagCommand => _commitTemplateSubjectTagCommand;
+    public ICommand RemoveTemplateSubjectTagCommand => _removeTemplateSubjectTagCommand;
     public ICommand ChooseTemplateLibraryCommand => _chooseTemplateLibraryCommand;
     public ICommand OpenTemplateLibraryFileCommand => _openTemplateLibraryFileCommand;
     public ICommand ChooseGenerationOutputFolderCommand => _chooseGenerationOutputFolderCommand;
@@ -193,6 +285,8 @@ public sealed class MainWindowViewModel : ViewModelBase
     public ICommand StopSpBatchCommand => _stopSpBatchCommand;
     public ICommand RefreshSkuResultsCommand => _refreshSkuResultsCommand;
     public ICommand RunBatchAutoPublishCommand => _runBatchAutoPublishCommand;
+    public ICommand SaveCardSizeInfoCommand => _saveCardSizeInfoCommand;
+    public ICommand CancelCardSizeInfoCommand => _cancelCardSizeInfoCommand;
 
     public WorkspaceTabViewModel? SelectedTab
     {
@@ -242,12 +336,70 @@ public sealed class MainWindowViewModel : ViewModelBase
         }
     }
 
+    public TemplateItemViewModel? SelectedTemplateItem
+    {
+        get => _selectedTemplateItem;
+        private set
+        {
+            if (_selectedTemplateItem == value)
+            {
+                return;
+            }
+
+            if (_selectedTemplateItem is not null)
+            {
+                _selectedTemplateItem.IsSelected = false;
+            }
+
+            _selectedTemplateItem = value;
+
+            if (_selectedTemplateItem is not null)
+            {
+                _selectedTemplateItem.IsSelected = true;
+                LoadTemplateEditor(_selectedTemplateItem);
+            }
+
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(TemplateEditorDialogTitle));
+            _deleteTemplateCommand.RaiseCanExecuteChanged();
+        }
+    }
+
     public bool HasTabs => WorkspaceTabs.Count > 0;
     public bool HasRootCards => SelectedTab?.HasRootCards ?? false;
     public bool IsReviewWorkspaceSelected => _selectedSection == ReviewWorkspaceSection;
     public bool IsImageGenerateSelected => _selectedSection == ImageGenerateSection;
+    public bool IsTemplateManagerSelected => _selectedSection == TemplateManagerSection;
     public bool IsTemplateGenerateTabSelected => _selectedImageGenerateTab == TemplateGenerateTab;
     public bool IsSpBatchTabSelected => _selectedImageGenerateTab == SpBatchTab;
+    public bool IsLayoutTemplateTabSelected => _selectedTemplateCategory == TemplateCategory.Layout;
+    public bool IsSceneTemplateTabSelected => _selectedTemplateCategory == TemplateCategory.Scene;
+    public bool IsSubjectTemplateTabSelected => _selectedTemplateCategory == TemplateCategory.Subject;
+    public bool HasManagedTemplateItems => ManagedTemplateItems.Count > 0;
+    public bool IsTemplateEditorPreviewVisible => IsLayoutTemplateTabSelected && !string.IsNullOrWhiteSpace(TemplateEditorPreviewImagePath) && File.Exists(TemplateEditorPreviewImagePath);
+    public bool IsTemplateEditorSubjectVisible => IsSceneTemplateTabSelected;
+    public string TemplateManagerTitle => _selectedTemplateCategory switch
+    {
+        TemplateCategory.Scene => "场景模板",
+        TemplateCategory.Subject => "主体模板",
+        _ => "布局模板"
+    };
+    public string TemplateManagerDescription => _selectedTemplateCategory switch
+    {
+        TemplateCategory.Scene => "维护可随机使用的场景描述文本。",
+        TemplateCategory.Subject => "维护可复用的主体描述文本。",
+        _ => "维护主图提示词布局，并为每个布局配置一张预览图。"
+    };
+    public string TemplateEditorContentLabel => _selectedTemplateCategory switch
+    {
+        TemplateCategory.Scene => "场景内容",
+        TemplateCategory.Subject => "主体内容",
+        _ => "布局模板内容"
+    };
+    public string TemplateEmptyText => $"暂无{TemplateManagerTitle}，点击“新增模板”开始维护。";
+    public string TemplateEditorDialogTitle => SelectedTemplateItem is null
+        ? $"新增{TemplateManagerTitle}"
+        : $"编辑{TemplateManagerTitle}";
     public bool IsLoadingVisible => IsBusy && !IsTemplateGenerating && !IsSpBatchRunning;
     public bool HasPreviewImage => PreviewImageSource is not null;
     public bool HasBatchSelectedCards => SelectedTab?.GetBatchSelectedCards().Count > 0;
@@ -297,7 +449,7 @@ public sealed class MainWindowViewModel : ViewModelBase
     public bool HasGeneratedImageResultCards => GeneratedImageResultCards.Count > 0;
     public bool HasAnyGenerationResultCards => HasGenerationPromptCards || HasGeneratedImageResultCards;
     public bool HasSelectedGeneratedImages => GeneratedImageResultCards.Any(card => card.IsSelected);
-    public bool CanGenerateSkuFromTemplate => !IsGenerationPromptsOnly && HasSelectedGeneratedImages && !IsBusy;
+    public bool CanGenerateSkuFromTemplate => !IsGenerationPromptsOnly && HasSelectedGeneratedImages;
     public string TemplateGenerationButtonText => IsTemplateGenerationStopping
         ? "正在停止..."
         : IsTemplateGenerating
@@ -317,6 +469,134 @@ public sealed class MainWindowViewModel : ViewModelBase
     {
         get => _isSpBatchStagingDropTarget;
         private set => SetProperty(ref _isSpBatchStagingDropTarget, value);
+    }
+
+    public bool IsCardSizeDialogOpen
+    {
+        get => _isCardSizeDialogOpen;
+        private set => SetProperty(ref _isCardSizeDialogOpen, value);
+    }
+
+    public string CardSizeDialogTitle => _cardSizeDialogCard is null
+        ? "录入尺寸"
+        : $"录入尺寸：{_cardSizeDialogCard.DisplayName}";
+
+    public string CardSizeInputText
+    {
+        get => _cardSizeInputText;
+        set
+        {
+            if (!SetProperty(ref _cardSizeInputText, value))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(CardSizePreviewText));
+            _saveCardSizeInfoCommand.RaiseCanExecuteChanged();
+        }
+    }
+
+    public string CardSizePreviewText
+    {
+        get
+        {
+            var sizes = BuildDisplaySizes(CardSizeInputText);
+            return sizes.Count == 0
+                ? "输入示例：50*225 或 50cm*225cm。保存后会自动补全 inch。"
+                : string.Join(Environment.NewLine, sizes);
+        }
+    }
+
+    public string CardSizePreviewMeta
+    {
+        get => _cardSizePreviewMeta;
+        private set => SetProperty(ref _cardSizePreviewMeta, value);
+    }
+
+    public Media.ImageSource? CardSizePreviewImageSource
+    {
+        get => _cardSizePreviewImageSource;
+        private set => SetProperty(ref _cardSizePreviewImageSource, value);
+    }
+
+    public bool IsTemplateEditorDialogOpen
+    {
+        get => _isTemplateEditorDialogOpen;
+        private set => SetProperty(ref _isTemplateEditorDialogOpen, value);
+    }
+
+    public string TemplateEditorName
+    {
+        get => _templateEditorName;
+        set
+        {
+            if (!SetProperty(ref _templateEditorName, value))
+            {
+                return;
+            }
+
+            _saveTemplateCommand.RaiseCanExecuteChanged();
+        }
+    }
+
+    public string TemplateEditorContent
+    {
+        get => _templateEditorContent;
+        set
+        {
+            if (!SetProperty(ref _templateEditorContent, value))
+            {
+                return;
+            }
+
+            _saveTemplateCommand.RaiseCanExecuteChanged();
+        }
+    }
+
+    public string TemplateEditorSubject
+    {
+        get => _templateEditorSubject;
+        set
+        {
+            if (!SetProperty(ref _templateEditorSubject, value))
+            {
+                return;
+            }
+
+            _saveTemplateCommand.RaiseCanExecuteChanged();
+        }
+    }
+
+    public string NewTemplateSubjectText
+    {
+        get => _newTemplateSubjectText;
+        set => SetProperty(ref _newTemplateSubjectText, value);
+    }
+
+    public bool IsAddingTemplateSubjectTag
+    {
+        get => _isAddingTemplateSubjectTag;
+        private set => SetProperty(ref _isAddingTemplateSubjectTag, value);
+    }
+
+    public string TemplateEditorPreviewImagePath
+    {
+        get => _templateEditorPreviewImagePath;
+        set
+        {
+            if (!SetProperty(ref _templateEditorPreviewImagePath, value))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(IsTemplateEditorPreviewVisible));
+        }
+    }
+
+    public bool TemplateEditorIsEnabled
+    {
+        get => _templateEditorIsEnabled;
+        set => SetProperty(ref _templateEditorIsEnabled, value);
     }
 
     public bool IsBusy
@@ -351,6 +631,9 @@ public sealed class MainWindowViewModel : ViewModelBase
             _runSpBatchCommand.RaiseCanExecuteChanged();
             _stopSpBatchCommand.RaiseCanExecuteChanged();
             _runBatchAutoPublishCommand.RaiseCanExecuteChanged();
+            _saveTemplateCommand.RaiseCanExecuteChanged();
+            _deleteTemplateCommand.RaiseCanExecuteChanged();
+            _chooseTemplatePreviewCommand.RaiseCanExecuteChanged();
             NotifyAutoPublishStateChanged();
         }
     }
@@ -461,6 +744,9 @@ public sealed class MainWindowViewModel : ViewModelBase
             }
 
             OnPropertyChanged(nameof(TemplateGenerationButtonText));
+            _chooseTemplateLibraryCommand.RaiseCanExecuteChanged();
+            _chooseGenerationOutputFolderCommand.RaiseCanExecuteChanged();
+            _runTemplateGenerationCommand.RaiseCanExecuteChanged();
             _stopTemplateGenerationCommand.RaiseCanExecuteChanged();
         }
     }
@@ -476,6 +762,9 @@ public sealed class MainWindowViewModel : ViewModelBase
             }
 
             OnPropertyChanged(nameof(TemplateGenerationButtonText));
+            _chooseTemplateLibraryCommand.RaiseCanExecuteChanged();
+            _chooseGenerationOutputFolderCommand.RaiseCanExecuteChanged();
+            _runTemplateGenerationCommand.RaiseCanExecuteChanged();
             _stopTemplateGenerationCommand.RaiseCanExecuteChanged();
         }
     }
@@ -601,6 +890,9 @@ public sealed class MainWindowViewModel : ViewModelBase
             }
 
             OnPropertyChanged(nameof(SpBatchButtonText));
+            _chooseSpBatchInputFolderCommand.RaiseCanExecuteChanged();
+            _chooseSpBatchOutputFolderCommand.RaiseCanExecuteChanged();
+            _runSpBatchCommand.RaiseCanExecuteChanged();
             _stopSpBatchCommand.RaiseCanExecuteChanged();
             _refreshSkuResultsCommand.RaiseCanExecuteChanged();
         }
@@ -617,6 +909,9 @@ public sealed class MainWindowViewModel : ViewModelBase
             }
 
             OnPropertyChanged(nameof(SpBatchButtonText));
+            _chooseSpBatchInputFolderCommand.RaiseCanExecuteChanged();
+            _chooseSpBatchOutputFolderCommand.RaiseCanExecuteChanged();
+            _runSpBatchCommand.RaiseCanExecuteChanged();
             _stopSpBatchCommand.RaiseCanExecuteChanged();
             _refreshSkuResultsCommand.RaiseCanExecuteChanged();
         }
@@ -718,10 +1013,21 @@ public sealed class MainWindowViewModel : ViewModelBase
         private set => SetProperty(ref _spBatchResultStatsText, value);
     }
 
+    public string SpBatchStatsSkuCountText => $"SKU 数量：{_spBatchStatsSkuCount}";
+    public string SpBatchStatsTotalText => $"总任务：{_spBatchStatsTotalCount}";
+    public string SpBatchStatsSuccessText => $"成功：{_spBatchStatsSuccessCount}";
+    public string SpBatchStatsSkippedText => $"跳过：{_spBatchStatsSkippedCount}";
+    public string SpBatchStatsFailedText => $"失败：{_spBatchStatsFailedCount}";
+    public Media.Brush SpBatchStatsSuccessBrush => new Media.SolidColorBrush(Media.Color.FromRgb(103, 194, 58));
+    public Media.Brush SpBatchStatsFailedBrush => new Media.SolidColorBrush(Media.Color.FromRgb(245, 108, 108));
+
     public async Task InitializeAsync()
     {
         await Task.Yield();
         await _autoPublishStateService.InitializeAsync();
+        await _cardSizeInfoService.InitializeAsync();
+        await _templateLibraryService.InitializeAsync();
+        await LoadManagedTemplatesAsync();
         var userSettings = _appSettingsService.LoadUserPaths();
         ApplyUserPathSettings(userSettings);
         EnsurePlaceholderTab();
@@ -784,6 +1090,13 @@ public sealed class MainWindowViewModel : ViewModelBase
             return;
         }
 
+        if (IsTemplateManagerSelected)
+        {
+            await LoadManagedTemplatesAsync();
+            StatusMessage = "已刷新模板管理页。";
+            return;
+        }
+
         if (IsImageGenerateSelected)
         {
             if (IsTemplateGenerateTabSelected)
@@ -799,6 +1112,387 @@ public sealed class MainWindowViewModel : ViewModelBase
                 StatusMessage = "已刷新 SP 批处理页。";
             }
         }
+    }
+
+    private async Task SelectTemplateCategoryAsync(TemplateCategory category)
+    {
+        if (_selectedTemplateCategory == category)
+        {
+            return;
+        }
+
+        _selectedTemplateCategory = category;
+        NotifyTemplateCategoryChanged();
+        await LoadManagedTemplatesAsync();
+    }
+
+    private async Task LoadManagedTemplatesAsync()
+    {
+        var records = await _templateLibraryService.GetByCategoryAsync(_selectedTemplateCategory);
+        ManagedTemplateItems.Clear();
+        foreach (var record in records)
+        {
+            ManagedTemplateItems.Add(new TemplateItemViewModel(record));
+        }
+
+        OnPropertyChanged(nameof(HasManagedTemplateItems));
+        OnPropertyChanged(nameof(TemplateEmptyText));
+        ResetTemplateEditor();
+    }
+
+    private void NewTemplate()
+    {
+        ResetTemplateEditor();
+        IsTemplateEditorDialogOpen = true;
+    }
+
+    private void ResetTemplateEditor()
+    {
+        SelectedTemplateItem = null;
+        TemplateEditorName = string.Empty;
+        TemplateEditorContent = string.Empty;
+        TemplateEditorSubject = string.Empty;
+        NewTemplateSubjectText = string.Empty;
+        IsAddingTemplateSubjectTag = false;
+        SetTemplateSubjectTags(string.Empty);
+        SetSceneContentLines(string.Empty);
+        TemplateEditorPreviewImagePath = string.Empty;
+        TemplateEditorIsEnabled = true;
+        IsTemplateEditorDialogOpen = false;
+        OnPropertyChanged(nameof(TemplateEditorDialogTitle));
+        _deleteTemplateCommand.RaiseCanExecuteChanged();
+        _saveTemplateCommand.RaiseCanExecuteChanged();
+    }
+
+    private void SelectManagedTemplate(TemplateItemViewModel? item)
+    {
+        SelectedTemplateItem = item;
+        if (item is null)
+        {
+            return;
+        }
+
+        LoadTemplateEditor(item);
+        IsTemplateEditorDialogOpen = true;
+    }
+
+    private void LoadTemplateEditor(TemplateItemViewModel item)
+    {
+        TemplateEditorName = item.Name;
+        TemplateEditorContent = item.Content;
+        TemplateEditorSubject = item.Subject;
+        NewTemplateSubjectText = string.Empty;
+        IsAddingTemplateSubjectTag = false;
+        SetTemplateSubjectTags(item.Subject);
+        SetSceneContentLines(item.Content);
+        TemplateEditorPreviewImagePath = item.PreviewImagePath;
+        TemplateEditorIsEnabled = item.IsEnabled;
+    }
+
+    private bool CanSaveTemplate()
+    {
+        return !IsBusy
+            && !string.IsNullOrWhiteSpace(TemplateEditorName)
+            && (IsSceneTemplateTabSelected
+                ? SceneContentLines.Any(line => !string.IsNullOrWhiteSpace(line.Text))
+                : !string.IsNullOrWhiteSpace(TemplateEditorContent))
+            && (!IsSceneTemplateTabSelected || TemplateSubjectTags.Count > 0);
+    }
+
+    private async Task SaveTemplateAsync()
+    {
+        if (!CanSaveTemplate())
+        {
+            StatusMessage = "请填写模板名称和模板内容。";
+            return;
+        }
+
+        var record = new TemplateItemRecord
+        {
+            Id = SelectedTemplateItem?.Id ?? 0,
+            Category = _selectedTemplateCategory,
+            Name = TemplateEditorName,
+            Content = IsSceneTemplateTabSelected ? JoinSceneContentLines() : TemplateEditorContent,
+            Subject = IsSceneTemplateTabSelected ? JoinTemplateSubjectTags() : string.Empty,
+            PreviewImagePath = IsLayoutTemplateTabSelected ? TemplateEditorPreviewImagePath : string.Empty,
+            SortOrder = 0,
+            IsEnabled = TemplateEditorIsEnabled
+        };
+
+        var saved = await _templateLibraryService.SaveAsync(record);
+        await LoadManagedTemplatesAsync();
+        SelectedTemplateItem = ManagedTemplateItems.FirstOrDefault(item => item.Id == saved.Id);
+        IsTemplateEditorDialogOpen = false;
+        StatusMessage = $"已保存{TemplateManagerTitle}：{saved.Name}";
+    }
+
+    private void SetTemplateSubjectTags(string subject)
+    {
+        TemplateSubjectTags.Clear();
+
+        foreach (var part in subject.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            TemplateSubjectTags.Add(TemplateSubjectTagViewModel.CreateTag(part));
+        }
+
+        TemplateEditorSubject = JoinTemplateSubjectTags();
+        RefreshTemplateSubjectTagItems();
+        _saveTemplateCommand.RaiseCanExecuteChanged();
+    }
+
+    private void StartAddTemplateSubjectTag()
+    {
+        NewTemplateSubjectText = string.Empty;
+        IsAddingTemplateSubjectTag = true;
+        RefreshTemplateSubjectTagItems();
+    }
+
+    private void CommitTemplateSubjectTag()
+    {
+        var text = NewTemplateSubjectText.Trim();
+        if (!string.IsNullOrWhiteSpace(text)
+            && !TemplateSubjectTags.Any(tag => string.Equals(tag.Text, text, StringComparison.OrdinalIgnoreCase)))
+        {
+            TemplateSubjectTags.Add(TemplateSubjectTagViewModel.CreateTag(text));
+        }
+
+        NewTemplateSubjectText = string.Empty;
+        IsAddingTemplateSubjectTag = false;
+        TemplateEditorSubject = JoinTemplateSubjectTags();
+        RefreshTemplateSubjectTagItems();
+        _saveTemplateCommand.RaiseCanExecuteChanged();
+    }
+
+    private void RemoveTemplateSubjectTag(TemplateSubjectTagViewModel? tag)
+    {
+        if (tag is null)
+        {
+            return;
+        }
+
+        TemplateSubjectTags.Remove(tag);
+        TemplateEditorSubject = JoinTemplateSubjectTags();
+        RefreshTemplateSubjectTagItems();
+        _saveTemplateCommand.RaiseCanExecuteChanged();
+    }
+
+    private void RefreshTemplateSubjectTagItems()
+    {
+        TemplateSubjectTagItems.Clear();
+
+        foreach (var tag in TemplateSubjectTags)
+        {
+            TemplateSubjectTagItems.Add(tag);
+        }
+
+        TemplateSubjectTagItems.Add(IsAddingTemplateSubjectTag
+            ? TemplateSubjectTagViewModel.CreateInput()
+            : TemplateSubjectTagViewModel.CreateAddButton());
+    }
+
+    private string JoinTemplateSubjectTags()
+    {
+        return string.Join(
+            "/",
+            TemplateSubjectTags
+                .Select(tag => tag.Text.Trim())
+                .Where(text => !string.IsNullOrWhiteSpace(text)));
+    }
+
+    private void SetSceneContentLines(string content)
+    {
+        foreach (var line in SceneContentLines)
+        {
+            line.PropertyChanged -= OnSceneContentLineChanged;
+        }
+
+        SceneContentLines.Clear();
+        var parts = content
+            .Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .DefaultIfEmpty(string.Empty);
+
+        foreach (var part in parts)
+        {
+            AddSceneContentLineInternal(part);
+        }
+
+        RefreshSceneContentLineStates();
+        _saveTemplateCommand.RaiseCanExecuteChanged();
+    }
+
+    private void AddSceneContentLine(SceneContentLineViewModel? currentLine)
+    {
+        var insertIndex = currentLine is null
+            ? SceneContentLines.Count
+            : SceneContentLines.IndexOf(currentLine) + 1;
+
+        if (insertIndex < 0)
+        {
+            insertIndex = SceneContentLines.Count;
+        }
+
+        SceneContentLines.Insert(insertIndex, CreateSceneContentLine(string.Empty));
+        RefreshSceneContentLineStates();
+        _saveTemplateCommand.RaiseCanExecuteChanged();
+    }
+
+    private void RemoveSceneContentLine(SceneContentLineViewModel? line)
+    {
+        if (line is null || SceneContentLines.Count <= 1)
+        {
+            return;
+        }
+
+        line.PropertyChanged -= OnSceneContentLineChanged;
+        SceneContentLines.Remove(line);
+        RefreshSceneContentLineStates();
+        _saveTemplateCommand.RaiseCanExecuteChanged();
+    }
+
+    private void AddSceneContentLineInternal(string text)
+    {
+        SceneContentLines.Add(CreateSceneContentLine(text));
+    }
+
+    private SceneContentLineViewModel CreateSceneContentLine(string text)
+    {
+        var line = new SceneContentLineViewModel(text);
+        line.PropertyChanged += OnSceneContentLineChanged;
+        return line;
+    }
+
+    private void RefreshSceneContentLineStates()
+    {
+        for (var index = 0; index < SceneContentLines.Count; index++)
+        {
+            SceneContentLines[index].CanAdd = index == SceneContentLines.Count - 1;
+            SceneContentLines[index].CanRemove = SceneContentLines.Count > 1;
+        }
+
+        _removeSceneContentLineCommand.RaiseCanExecuteChanged();
+    }
+
+    private void OnSceneContentLineChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(SceneContentLineViewModel.Text))
+        {
+            _saveTemplateCommand.RaiseCanExecuteChanged();
+        }
+    }
+
+    private string JoinSceneContentLines()
+    {
+        return string.Join(
+            "/",
+            SceneContentLines
+                .Select(line => line.Text.Trim())
+                .Where(text => !string.IsNullOrWhiteSpace(text)));
+    }
+
+    private async Task DeleteTemplateAsync()
+    {
+        if (SelectedTemplateItem is null || SelectedTemplateItem.Id <= 0)
+        {
+            return;
+        }
+
+        var name = SelectedTemplateItem.Name;
+        await _templateLibraryService.DeleteAsync(SelectedTemplateItem.Id);
+        await LoadManagedTemplatesAsync();
+        IsTemplateEditorDialogOpen = false;
+        StatusMessage = $"已删除{TemplateManagerTitle}：{name}";
+    }
+
+    private async Task DeleteManagedTemplateAsync(TemplateItemViewModel? item)
+    {
+        if (item is null || item.Id <= 0)
+        {
+            return;
+        }
+
+        var name = item.Name;
+        var wasEditing = SelectedTemplateItem?.Id == item.Id;
+        await _templateLibraryService.DeleteAsync(item.Id);
+        await LoadManagedTemplatesAsync();
+        if (wasEditing)
+        {
+            IsTemplateEditorDialogOpen = false;
+        }
+
+        StatusMessage = $"已删除{TemplateManagerTitle}：{name}";
+    }
+
+    private async Task ImportLayoutTemplatesAsync()
+    {
+        using var dialog = new Forms.OpenFileDialog
+        {
+            Title = "导入布局模板",
+            Filter = "EcomTool 布局模板包|*.ecomtpl|所有文件|*.*",
+            Multiselect = false
+        };
+
+        if (dialog.ShowDialog() != Forms.DialogResult.OK)
+        {
+            return;
+        }
+
+        var count = await _templateLibraryService.ImportLayoutTemplatesAsync(dialog.FileName);
+        await LoadManagedTemplatesAsync();
+        StatusMessage = $"已导入布局模板：{count} 个";
+    }
+
+    private async Task ExportLayoutTemplatesAsync()
+    {
+        using var dialog = new Forms.SaveFileDialog
+        {
+            Title = "导出布局模板",
+            Filter = "EcomTool 布局模板包|*.ecomtpl",
+            DefaultExt = "ecomtpl",
+            AddExtension = true,
+            FileName = $"layout_templates_{DateTimeOffset.Now:yyyyMMdd_HHmmss}.ecomtpl"
+        };
+
+        if (dialog.ShowDialog() != Forms.DialogResult.OK)
+        {
+            return;
+        }
+
+        var count = await _templateLibraryService.ExportLayoutTemplatesAsync(dialog.FileName, ImageTemplateType.MainImage);
+        StatusMessage = $"已导出布局模板：{count} 个";
+    }
+
+    private async Task ChooseTemplatePreviewAsync()
+    {
+        using var dialog = new Forms.OpenFileDialog
+        {
+            Title = "选择布局模板预览图",
+            Filter = "图片文件|*.png;*.jpg;*.jpeg;*.webp;*.bmp|所有文件|*.*",
+            Multiselect = false
+        };
+
+        if (dialog.ShowDialog() != Forms.DialogResult.OK)
+        {
+            return;
+        }
+
+        TemplateEditorPreviewImagePath = await _templateLibraryService.ImportPreviewImageAsync(dialog.FileName);
+        StatusMessage = "已导入布局模板预览图。";
+    }
+
+    private void NotifyTemplateCategoryChanged()
+    {
+        OnPropertyChanged(nameof(IsLayoutTemplateTabSelected));
+        OnPropertyChanged(nameof(IsSceneTemplateTabSelected));
+        OnPropertyChanged(nameof(TemplateManagerTitle));
+        OnPropertyChanged(nameof(TemplateManagerDescription));
+        OnPropertyChanged(nameof(TemplateEditorContentLabel));
+        OnPropertyChanged(nameof(TemplateEmptyText));
+        OnPropertyChanged(nameof(IsTemplateEditorPreviewVisible));
+        OnPropertyChanged(nameof(IsTemplateEditorSubjectVisible));
+        _chooseTemplatePreviewCommand.RaiseCanExecuteChanged();
+        _importLayoutTemplatesCommand.RaiseCanExecuteChanged();
+        _exportLayoutTemplatesCommand.RaiseCanExecuteChanged();
+        _saveTemplateCommand.RaiseCanExecuteChanged();
     }
 
     private WorkspaceTabViewModel CreateAndAddTab(string folderPath)
@@ -821,9 +1515,11 @@ public sealed class MainWindowViewModel : ViewModelBase
             RunAutoPublishExclusiveAsync,
             SetCardAutoPublishStatusAsync,
             RunSingleAutoPublishAsync,
+            OpenCardSizeDialogForCardAsync,
             OnBatchSelectionChanged);
         tab.RequestedActivate += OnTabRequestedActivate;
         tab.RequestedClose += OnTabRequestedClose;
+        tab.CardImageFilesAdded += OnTabCardImageFilesAdded;
         return tab;
     }
 
@@ -916,6 +1612,26 @@ public sealed class MainWindowViewModel : ViewModelBase
         return CanRunBatchAutoPublish;
     }
 
+    private bool CanEditTemplateGenerationSettings()
+    {
+        return !IsTemplateGenerating && !IsTemplateGenerationStopping;
+    }
+
+    private bool CanRunTemplateGeneration()
+    {
+        return CanEditTemplateGenerationSettings();
+    }
+
+    private bool CanEditSpBatchSettings()
+    {
+        return !IsSpBatchRunning && !IsSpBatchStopping;
+    }
+
+    private bool CanRunSpBatch()
+    {
+        return CanEditSpBatchSettings();
+    }
+
     private bool CanModifyBatchSelection()
     {
         return !IsBusy
@@ -933,6 +1649,158 @@ public sealed class MainWindowViewModel : ViewModelBase
     {
         SelectedTab?.SetBatchSelectionForAll(false);
         StatusMessage = "已取消当前页全部小卡片的批量选中。";
+    }
+
+    private void OnTabCardImageFilesAdded(RootCardViewModel card, IReadOnlyList<string> copiedFiles)
+    {
+        _ = HandleCardImageFilesAddedSafelyAsync(card, copiedFiles);
+    }
+
+    private async Task HandleCardImageFilesAddedSafelyAsync(RootCardViewModel card, IReadOnlyList<string> copiedFiles)
+    {
+        try
+        {
+            await HandleCardImageFilesAddedAsync(card, copiedFiles);
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"尺寸录入弹窗打开失败：{ex.Message}";
+        }
+    }
+
+    private async Task HandleCardImageFilesAddedAsync(RootCardViewModel card, IReadOnlyList<string> copiedFiles)
+    {
+        if (!TryFindSizeImageFromFiles(card, copiedFiles, out var sizeImagePath))
+        {
+            return;
+        }
+
+        var existing = await _cardSizeInfoService.GetByCardPathAsync(card.AutoPublishKeyPath);
+        var fingerprint = await GetSizeImageFingerprintAsync(sizeImagePath);
+        if (existing is not null)
+        {
+            card.ApplyCardSizeInfo(existing);
+        }
+
+        await OpenCardSizeDialogAsync(card, sizeImagePath, existing, fingerprint);
+    }
+
+    private async Task OpenCardSizeDialogForCardAsync(RootCardViewModel card)
+    {
+        var sizeImagePath = FindCurrentSizeImagePath(card);
+        if (string.IsNullOrWhiteSpace(sizeImagePath) || !File.Exists(sizeImagePath))
+        {
+            throw new InvalidOperationException($"当前 main 文件夹下没有尺寸图：{Path.Combine(card.AutoPublishKeyPath, "main")}");
+        }
+
+        var existing = await _cardSizeInfoService.GetByCardPathAsync(card.AutoPublishKeyPath);
+        var fingerprint = await GetSizeImageFingerprintAsync(sizeImagePath);
+        if (existing is not null)
+        {
+            card.ApplyCardSizeInfo(existing);
+        }
+
+        await OpenCardSizeDialogAsync(card, sizeImagePath, existing, fingerprint);
+    }
+
+    private async Task<bool> IsCardSizeInfoStaleAsync(RootCardViewModel card, CardSizeInfoRecord? record)
+    {
+        if (record is null || string.IsNullOrWhiteSpace(record.SizeText))
+        {
+            return false;
+        }
+
+        var sizeImagePath = FindCurrentSizeImagePath(card);
+        if (string.IsNullOrWhiteSpace(sizeImagePath) || !File.Exists(sizeImagePath))
+        {
+            return false;
+        }
+
+        var fingerprint = await GetSizeImageFingerprintAsync(sizeImagePath);
+        return !string.Equals(record.SizeImageHash, fingerprint.Hash, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private async Task OpenCardSizeDialogAsync(
+        RootCardViewModel card,
+        string sizeImagePath,
+        CardSizeInfoRecord? existing,
+        SizeImageFingerprint? fingerprint = null)
+    {
+        fingerprint ??= await GetSizeImageFingerprintAsync(sizeImagePath);
+        var reuseExistingInput = existing is not null
+            && string.Equals(existing.SizeImageHash, fingerprint.Value.Hash, StringComparison.OrdinalIgnoreCase);
+        _cardSizeDialogCard = card;
+        _cardSizeDialogImagePath = sizeImagePath;
+        _cardSizeDialogImageHash = fingerprint.Value.Hash;
+        _cardSizeDialogImageLastWriteUtc = fingerprint.Value.LastWriteUtc;
+        CardSizeInputText = reuseExistingInput
+            ? existing?.SizeRawInput ?? string.Empty
+            : string.Empty;
+        CardSizePreviewMeta = $"尺寸图：{Path.GetFileName(sizeImagePath)}{Environment.NewLine}录入后会保存到本地数据库，并在上架时使用。";
+        CardSizePreviewImageSource = null;
+        OnPropertyChanged(nameof(CardSizeDialogTitle));
+        IsCardSizeDialogOpen = true;
+        _saveCardSizeInfoCommand.RaiseCanExecuteChanged();
+
+        try
+        {
+            CardSizePreviewImageSource = await Task.Run(() => ImageBitmapLoader.LoadFromFile(sizeImagePath, decodePixelWidth: 1200));
+        }
+        catch (Exception ex)
+        {
+            CardSizePreviewMeta = $"尺寸图预览失败：{ex.Message}";
+        }
+    }
+
+    private bool CanSaveCardSizeInfo()
+    {
+        return IsCardSizeDialogOpen
+            && _cardSizeDialogCard is not null
+            && !string.IsNullOrWhiteSpace(CardSizeInputText)
+            && BuildDisplaySizes(CardSizeInputText).Count > 0;
+    }
+
+    private async Task SaveCardSizeInfoAsync()
+    {
+        if (_cardSizeDialogCard is null)
+        {
+            return;
+        }
+
+        var sizes = BuildDisplaySizes(CardSizeInputText);
+        if (sizes.Count == 0)
+        {
+            throw new InvalidOperationException("请输入至少一组尺寸，例如：50*225。");
+        }
+
+        var record = new CardSizeInfoRecord
+        {
+            CardPath = _cardSizeDialogCard.AutoPublishKeyPath,
+            SizeText = string.Join(Environment.NewLine, sizes),
+            SizeRawInput = CardSizeInputText.Trim(),
+            SizeImageHash = _cardSizeDialogImageHash,
+            SizeImageLastWriteUtc = _cardSizeDialogImageLastWriteUtc,
+            SizeUpdatedAt = DateTimeOffset.Now
+        };
+
+        await _cardSizeInfoService.UpsertAsync(record);
+        _cardSizeDialogCard.ApplyCardSizeInfo(record);
+        StatusMessage = $"已保存尺寸：{_cardSizeDialogCard.DisplayName}";
+        CloseCardSizeDialog();
+    }
+
+    private void CloseCardSizeDialog()
+    {
+        IsCardSizeDialogOpen = false;
+        _cardSizeDialogCard = null;
+        _cardSizeDialogImagePath = string.Empty;
+        _cardSizeDialogImageHash = string.Empty;
+        _cardSizeDialogImageLastWriteUtc = string.Empty;
+        CardSizeInputText = string.Empty;
+        CardSizePreviewMeta = string.Empty;
+        CardSizePreviewImageSource = null;
+        OnPropertyChanged(nameof(CardSizeDialogTitle));
+        _saveCardSizeInfoCommand.RaiseCanExecuteChanged();
     }
 
     private void NotifyAutoPublishStateChanged()
@@ -978,6 +1846,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 
             tab.SetRootNodes(nodes);
             await tab.RefreshAutoPublishRecordsAsync(_autoPublishStateService);
+            await tab.RefreshCardSizeInfoAsync(_cardSizeInfoService, IsCardSizeInfoStaleAsync);
             ApplyAutoPublishStatusFilter();
             NotifyAutoPublishFilterPropertiesChanged();
             tab.RestoreDefaultSelection();
@@ -1118,12 +1987,12 @@ public sealed class MainWindowViewModel : ViewModelBase
 
     private void OpenGenerationOutputFolder()
     {
-        OpenFolder(GenerationOutputDirectory);
+        TryOpenFolder(GenerationOutputDirectory, "输出目录");
     }
 
     private void OpenSpBatchOutputFolder()
     {
-        OpenFolder(SpBatchOutputDirectory);
+        TryOpenFolder(SpBatchOutputDirectory, "输出目录");
     }
 
     private void OpenTemplateLibraryFile()
@@ -1133,11 +2002,14 @@ public sealed class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        Process.Start(new ProcessStartInfo
+        try
         {
-            FileName = TemplateLibraryPath,
-            UseShellExecute = true
-        });
+            ShellOpenHelper.OpenFile(TemplateLibraryPath);
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"打开文件失败：{ex.Message}";
+        }
     }
 
     private async Task ChooseSpBatchInputFolderAsync()
@@ -1178,19 +2050,27 @@ public sealed class MainWindowViewModel : ViewModelBase
         await Task.CompletedTask;
     }
 
-    private static void OpenFolder(string folderPath)
+    private void TryOpenFolder(string folderPath, string label)
     {
         if (!Directory.Exists(folderPath))
         {
+            StatusMessage = $"{label}不存在：{folderPath}";
             return;
         }
 
-        Process.Start(new ProcessStartInfo
+        try
         {
-            FileName = "explorer.exe",
-            Arguments = $"\"{folderPath}\"",
-            UseShellExecute = true
-        });
+            ShellOpenHelper.OpenFolder(folderPath);
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"打开目录失败：{ex.Message}";
+        }
+    }
+
+    private static void OpenFolder(string folderPath)
+    {
+        ShellOpenHelper.OpenFolder(folderPath);
     }
 
     private async Task RunTemplateGenerationAsync()
@@ -1212,7 +2092,6 @@ public sealed class MainWindowViewModel : ViewModelBase
 
         Directory.CreateDirectory(GenerationOutputDirectory);
 
-        IsBusy = true;
         IsTemplateGenerating = true;
         GenerationStatusText = IsGenerationPromptsOnly ? "正在生成提示词..." : "正在批量生成图片...";
         GenerationResultModeText = $"模式：{(IsGenerationPromptsOnly ? "只出提示词" : "直接生图")}";
@@ -1277,7 +2156,6 @@ public sealed class MainWindowViewModel : ViewModelBase
             _templateGenerationCancellationTokenSource?.Dispose();
             _templateGenerationCancellationTokenSource = null;
             IsTemplateGenerating = false;
-            IsBusy = false;
         }
     }
 
@@ -1326,7 +2204,6 @@ public sealed class MainWindowViewModel : ViewModelBase
 
         Directory.CreateDirectory(SpBatchOutputDirectory);
 
-        IsBusy = true;
         IsSpBatchRunning = true;
         IsSpBatchStopping = false;
         SpBatchStatusText = _spBatchMode switch
@@ -1337,6 +2214,7 @@ public sealed class MainWindowViewModel : ViewModelBase
         SpBatchSummaryText = "任务执行中，请稍候。";
         SpBatchResultRootText = $"日期目录：{SpBatchOutputDirectory}";
         SpBatchResultStatsText = "SP 数量：0  总任务：0  成功：0  跳过：0  失败：0";
+        UpdateSpBatchStats(0, 0, 0, 0, 0);
         ClearSpBatchResultCards();
         ClearSpBatchImageResultCards();
         ClearSpBatchImageResultCards();
@@ -1391,7 +2269,6 @@ public sealed class MainWindowViewModel : ViewModelBase
             _spBatchCancellationTokenSource?.Dispose();
             _spBatchCancellationTokenSource = null;
             IsSpBatchRunning = false;
-            IsBusy = false;
         }
     }
 
@@ -1525,7 +2402,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 
     private async Task<List<JsonElement>> PrepareAutoPublishProductItemsAsync(RootCardViewModel card)
     {
-        var task = await card.PrepareAutoPublishDataAsync();
+        var manualSizes = await EnsureCardSizeForPublishAsync(card);
+        var task = await card.PrepareAutoPublishDataAsync(manualSizes);
         if (!File.Exists(task.ProductsJsonPath))
         {
             throw new FileNotFoundException("商品 JSON 未生成。", task.ProductsJsonPath);
@@ -1687,6 +2565,168 @@ public sealed class MainWindowViewModel : ViewModelBase
         return Path.GetFullPath(path.Trim()).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
     }
 
+    private async Task<IReadOnlyList<string>> EnsureCardSizeForPublishAsync(RootCardViewModel card)
+    {
+        var record = await _cardSizeInfoService.GetByCardPathAsync(card.AutoPublishKeyPath);
+        var isStale = await IsCardSizeInfoStaleAsync(card, record);
+        card.ApplyCardSizeInfo(record, isStale);
+
+        if (isStale)
+        {
+            throw new InvalidOperationException($"请先重新录入尺寸：{card.DisplayName} 的尺寸图已变更。");
+        }
+
+        if (record is null || string.IsNullOrWhiteSpace(record.SizeText))
+        {
+            throw new InvalidOperationException($"请先录入尺寸：{card.DisplayName}。");
+        }
+
+        var sizes = BuildPublishSizeEntries(record.SizeText);
+        if (sizes.Count == 0)
+        {
+            throw new InvalidOperationException($"尺寸缺少 cm 规格，无法匹配规格表：{card.DisplayName}。");
+        }
+
+        return sizes;
+    }
+
+    private static bool TryFindSizeImageFromFiles(
+        RootCardViewModel card,
+        IReadOnlyList<string> files,
+        out string sizeImagePath)
+    {
+        var mainFolder = Path.Combine(card.AutoPublishKeyPath, "main");
+        sizeImagePath = files
+            .Where(IsSupportedImageFile)
+            .Where(path => IsInMainFolder(path, mainFolder))
+            .Where(IsSizeImageName)
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault() ?? string.Empty;
+
+        return !string.IsNullOrWhiteSpace(sizeImagePath);
+    }
+
+    private static string FindCurrentSizeImagePath(RootCardViewModel card)
+    {
+        var mainFolder = Path.Combine(card.AutoPublishKeyPath, "main");
+        if (!Directory.Exists(mainFolder))
+        {
+            return string.Empty;
+        }
+
+        return Directory.EnumerateFiles(mainFolder, "*", SearchOption.TopDirectoryOnly)
+            .Where(IsSupportedImageFile)
+            .Where(IsSizeImageName)
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault() ?? string.Empty;
+    }
+
+    private static bool IsSizeImageName(string filePath)
+    {
+        var fileName = Path.GetFileNameWithoutExtension(filePath);
+        return fileName.StartsWith("2-", StringComparison.OrdinalIgnoreCase)
+            || fileName.Contains("尺寸", StringComparison.OrdinalIgnoreCase)
+            || fileName.Contains("size", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsInMainFolder(string filePath, string expectedMainFolder)
+    {
+        var folderPath = Path.GetDirectoryName(filePath);
+        if (string.IsNullOrWhiteSpace(folderPath))
+        {
+            return false;
+        }
+
+        if (string.Equals(folderPath, expectedMainFolder, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return string.Equals(Path.GetFileName(folderPath), "main", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static async Task<SizeImageFingerprint> GetSizeImageFingerprintAsync(string imagePath)
+    {
+        return await Task.Run(() =>
+        {
+            using var stream = File.OpenRead(imagePath);
+            var hash = Convert.ToHexString(SHA256.HashData(stream));
+            var lastWriteUtc = File.GetLastWriteTimeUtc(imagePath).ToString("O", CultureInfo.InvariantCulture);
+            return new SizeImageFingerprint(hash, lastWriteUtc);
+        });
+    }
+
+    private static IReadOnlyList<string> BuildPublishSizeEntries(string sizeText)
+    {
+        return BuildDisplaySizes(sizeText)
+            .Where(size => Regex.IsMatch(size, @"^\s*\d+(?:\.\d+)?\s*(?:cm)?\s*[*xX×]\s*\d+(?:\.\d+)?\s*cm\b", RegexOptions.IgnoreCase))
+            .ToArray();
+    }
+
+    private static IReadOnlyList<string> BuildDisplaySizes(string rawInput)
+    {
+        if (string.IsNullOrWhiteSpace(rawInput))
+        {
+            return [];
+        }
+
+        var result = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var cmMatches = Regex.Matches(
+            rawInput,
+            @"(?<![\d.])(?<width>\d+(?:\.\d+)?)\s*(?:cm)?\s*[*xX×]\s*(?<length>\d+(?:\.\d+)?)(?:\s*cm)?(?!\s*(?:inch|in\b))",
+            RegexOptions.IgnoreCase);
+
+        foreach (Match match in cmMatches)
+        {
+            if (!double.TryParse(match.Groups["width"].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var widthCm)
+                || !double.TryParse(match.Groups["length"].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var lengthCm))
+            {
+                continue;
+            }
+
+            var display = $"{FormatCm(widthCm)}*{FormatCm(lengthCm)}cm/{FormatInch(widthCm)}*{FormatInch(lengthCm)}inch";
+            if (seen.Add(display))
+            {
+                result.Add(display);
+            }
+        }
+
+        if (result.Count > 0)
+        {
+            return result;
+        }
+
+        var inchMatches = Regex.Matches(
+            rawInput,
+            @"(?<![\d.])(?<width>\d+(?:\.\d+)?)\s*[*xX×]\s*(?<length>\d+(?:\.\d+)?)\s*(?:inch|in\b)",
+            RegexOptions.IgnoreCase);
+        foreach (Match match in inchMatches)
+        {
+            var display = $"{match.Groups["width"].Value}*{match.Groups["length"].Value}inch";
+            if (seen.Add(display))
+            {
+                result.Add(display);
+            }
+        }
+
+        return result;
+    }
+
+    private static string FormatCm(double value)
+    {
+        return Math.Abs(value - Math.Round(value)) < 0.001
+            ? Math.Round(value).ToString("0", CultureInfo.InvariantCulture)
+            : value.ToString("0.##", CultureInfo.InvariantCulture);
+    }
+
+    private static string FormatInch(double cmValue)
+    {
+        return (cmValue / 2.54).ToString("0.##", CultureInfo.InvariantCulture);
+    }
+
+    private readonly record struct SizeImageFingerprint(string Hash, string LastWriteUtc);
+
     private static MiaoshouPublishRequest CreateMiaoshouPublishRequest(
         Func<MiaoshouPublishProgressEvent, Task>? progressHandler = null)
     {
@@ -1830,6 +2870,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 
         tab.RequestedActivate -= OnTabRequestedActivate;
         tab.RequestedClose -= OnTabRequestedClose;
+        tab.CardImageFilesAdded -= OnTabCardImageFilesAdded;
         tab.SelectionContextChanged -= OnTabSelectionContextChanged;
         tab.StatusChanged -= OnTabStatusChanged;
         tab.PreviewRequested -= OnPreviewRequested;
@@ -1876,6 +2917,7 @@ public sealed class MainWindowViewModel : ViewModelBase
         _selectedSection = section;
         OnPropertyChanged(nameof(IsReviewWorkspaceSelected));
         OnPropertyChanged(nameof(IsImageGenerateSelected));
+        OnPropertyChanged(nameof(IsTemplateManagerSelected));
     }
 
     private void SetSelectedImageGenerateTab(string tabKey)
@@ -2080,6 +3122,20 @@ public sealed class MainWindowViewModel : ViewModelBase
         OnPropertyChanged(nameof(HasAnyGenerationResultCards));
     }
 
+    private void UpdateSpBatchStats(int skuCount, int totalCount, int successCount, int skippedCount, int failedCount)
+    {
+        _spBatchStatsSkuCount = skuCount;
+        _spBatchStatsTotalCount = totalCount;
+        _spBatchStatsSuccessCount = successCount;
+        _spBatchStatsSkippedCount = skippedCount;
+        _spBatchStatsFailedCount = failedCount;
+        OnPropertyChanged(nameof(SpBatchStatsSkuCountText));
+        OnPropertyChanged(nameof(SpBatchStatsTotalText));
+        OnPropertyChanged(nameof(SpBatchStatsSuccessText));
+        OnPropertyChanged(nameof(SpBatchStatsSkippedText));
+        OnPropertyChanged(nameof(SpBatchStatsFailedText));
+    }
+
     private void ApplySpBatchResult(SpBatchResult result)
     {
         SpBatchStatusText = result.Mode switch
@@ -2098,6 +3154,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 
         SpBatchResultRootText = $"\u65e5\u671f\u76ee\u5f55\uff1a{result.DatedRoot}";
         SpBatchResultStatsText = $"SKU \u6570\u91cf\uff1a{CountSpDirectories(result)}  \u603b\u4efb\u52a1\uff1a{result.Results.Count}  \u6210\u529f\uff1a{result.SuccessCount}  \u8df3\u8fc7\uff1a{result.SkippedCount}  \u5931\u8d25\uff1a{result.FailedCount}";
+        UpdateSpBatchStats(CountSpDirectories(result), result.Results.Count, result.SuccessCount, result.SkippedCount, result.FailedCount);
         ClearSpBatchResultCards();
 
         foreach (var group in result.Results.GroupBy(item => item.SpDirectory).OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase))
@@ -2271,7 +3328,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 
     private bool CanSendSelectedImagesToSpBatch()
     {
-        return !IsBusy && !IsGenerationPromptsOnly && GeneratedImageResultCards.Any(card => card.IsSelected);
+        return !IsGenerationPromptsOnly && GeneratedImageResultCards.Any(card => card.IsSelected);
     }
 
     private void OnGeneratedImageSelectionChanged(GeneratedImageResultCardViewModel _)
@@ -2470,7 +3527,6 @@ public sealed class MainWindowViewModel : ViewModelBase
 
         Directory.CreateDirectory(SpBatchOutputDirectory);
 
-        IsBusy = true;
         IsSpBatchRunning = true;
         IsSpBatchStopping = false;
         SpBatchStatusText = _spBatchMode switch
@@ -2481,6 +3537,7 @@ public sealed class MainWindowViewModel : ViewModelBase
         SpBatchSummaryText = "任务执行中，请稍候。";
         SpBatchResultRootText = $"日期目录：{SpBatchOutputDirectory}";
         SpBatchResultStatsText = "SP 数量：0  总任务：0  成功：0  跳过：0  失败：0";
+        UpdateSpBatchStats(0, 0, 0, 0, 0);
         ClearSpBatchResultCards();
         ClearSpBatchImageResultCards();
         StatusMessage = SpBatchStatusText;
@@ -2537,7 +3594,6 @@ public sealed class MainWindowViewModel : ViewModelBase
             _spBatchCancellationTokenSource?.Dispose();
             _spBatchCancellationTokenSource = null;
             IsSpBatchRunning = false;
-            IsBusy = false;
         }
     }
 
@@ -2568,12 +3624,15 @@ public sealed class MainWindowViewModel : ViewModelBase
             return false;
         }
 
-        Process.Start(new ProcessStartInfo
+        try
         {
-            FileName = _previewImagePath,
-            UseShellExecute = true
-        });
-        return true;
+            ShellOpenHelper.OpenFile(_previewImagePath);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static bool IsSupportedImageFile(string filePath)

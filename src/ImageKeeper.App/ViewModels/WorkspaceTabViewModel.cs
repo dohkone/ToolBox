@@ -14,6 +14,7 @@ public sealed class WorkspaceTabViewModel : ViewModelBase
     private readonly Func<Func<Task>, Task>? _runExclusiveAsync;
     private readonly Func<RootCardViewModel, AutoPublishStatus, string, Task>? _setAutoPublishStatusAsync;
     private readonly Func<RootCardViewModel, Task>? _runAutoPublishCardAsync;
+    private readonly Func<RootCardViewModel, Task>? _openCardSizeDialogAsync;
     private readonly Action? _batchSelectionChanged;
     private readonly RelayCommand _activateCommand;
     private readonly RelayCommand _closeCommand;
@@ -32,6 +33,7 @@ public sealed class WorkspaceTabViewModel : ViewModelBase
         Func<Func<Task>, Task>? runExclusiveAsync = null,
         Func<RootCardViewModel, AutoPublishStatus, string, Task>? setAutoPublishStatusAsync = null,
         Func<RootCardViewModel, Task>? runAutoPublishCardAsync = null,
+        Func<RootCardViewModel, Task>? openCardSizeDialogAsync = null,
         Action? batchSelectionChanged = null)
     {
         _rootFolder = rootFolder;
@@ -43,6 +45,7 @@ public sealed class WorkspaceTabViewModel : ViewModelBase
         _runExclusiveAsync = runExclusiveAsync;
         _setAutoPublishStatusAsync = setAutoPublishStatusAsync;
         _runAutoPublishCardAsync = runAutoPublishCardAsync;
+        _openCardSizeDialogAsync = openCardSizeDialogAsync;
         _batchSelectionChanged = batchSelectionChanged;
         _title = BuildTitle(rootFolder);
         _activateCommand = new RelayCommand(_ => RequestedActivate?.Invoke(this));
@@ -56,6 +59,8 @@ public sealed class WorkspaceTabViewModel : ViewModelBase
     public event Action<PreviewRequest?>? PreviewRequested;
 
     public event Action<string>? StatusChanged;
+
+    public event Action<RootCardViewModel, IReadOnlyList<string>>? CardImageFilesAdded;
 
     public event Action<WorkspaceTabViewModel>? SelectionContextChanged;
 
@@ -140,6 +145,7 @@ public sealed class WorkspaceTabViewModel : ViewModelBase
             existingCard.StatusChanged -= OnCardStatusChanged;
             existingCard.Activated -= OnCardActivated;
             existingCard.SelectionContextChanged -= OnCardSelectionContextChanged;
+            existingCard.ImageFilesAdded -= OnCardImageFilesAdded;
         }
 
         RootCards.Clear();
@@ -158,11 +164,13 @@ public sealed class WorkspaceTabViewModel : ViewModelBase
                 _runExclusiveAsync,
                 _setAutoPublishStatusAsync,
                 _runAutoPublishCardAsync,
+                _openCardSizeDialogAsync,
                 _batchSelectionChanged);
             card.PreviewRequested += OnCardPreviewRequested;
             card.StatusChanged += OnCardStatusChanged;
             card.Activated += OnCardActivated;
             card.SelectionContextChanged += OnCardSelectionContextChanged;
+            card.ImageFilesAdded += OnCardImageFilesAdded;
             RootCards.Add(card);
         }
 
@@ -270,6 +278,26 @@ public sealed class WorkspaceTabViewModel : ViewModelBase
         }
     }
 
+    public async Task RefreshCardSizeInfoAsync(
+        ICardSizeInfoService cardSizeInfoService,
+        Func<RootCardViewModel, CardSizeInfoRecord?, Task<bool>> isStaleAsync,
+        CancellationToken cancellationToken = default)
+    {
+        var cards = RootCards
+            .Where(card => !string.IsNullOrWhiteSpace(card.AutoPublishKeyPath))
+            .ToArray();
+        var records = await cardSizeInfoService.GetByCardPathsAsync(
+            cards.Select(card => card.AutoPublishKeyPath),
+            cancellationToken);
+
+        foreach (var card in cards)
+        {
+            records.TryGetValue(card.AutoPublishKeyPath, out var record);
+            var isStale = await isStaleAsync(card, record);
+            card.ApplyCardSizeInfo(record, isStale);
+        }
+    }
+
     private static bool MatchesAutoPublishStatusFilter(
         RootCardViewModel card,
         AutoPublishStatusFilter filter)
@@ -321,6 +349,11 @@ public sealed class WorkspaceTabViewModel : ViewModelBase
         {
             SelectionContextChanged?.Invoke(this);
         }
+    }
+
+    private void OnCardImageFilesAdded(RootCardViewModel card, IReadOnlyList<string> copiedFiles)
+    {
+        CardImageFilesAdded?.Invoke(card, copiedFiles);
     }
 
     private void SetActiveCard(RootCardViewModel? card)

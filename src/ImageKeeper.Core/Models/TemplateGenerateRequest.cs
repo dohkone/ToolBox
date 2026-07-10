@@ -5,6 +5,7 @@ public sealed class TemplateGenerateRequest
     public string TemplatePath { get; init; } = string.Empty;
     public string OutputDirectory { get; init; } = string.Empty;
     public string Image2ScriptPath { get; init; } = string.Empty;
+    public ImageTemplateType ImageType { get; init; } = ImageTemplateType.MainImage;
     public int Count { get; init; }
     public int Concurrency { get; init; }
     public int? Seed { get; init; }

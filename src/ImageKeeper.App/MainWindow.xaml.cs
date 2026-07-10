@@ -32,7 +32,9 @@ public partial class MainWindow : Window
             CreateTemplateGenerationService(),
             CreateSpBatchService(),
             CreateMiaoshouPublishService(),
-            CreateAutoPublishStateService());
+            CreateAutoPublishStateService(),
+            CreateCardSizeInfoService(),
+            CreateTemplateLibraryService());
         DataContext = _viewModel;
         SizeToCurrentWorkArea();
         Loaded += OnLoadedAsync;
@@ -75,6 +77,33 @@ public partial class MainWindow : Window
 
         e.Handled = true;
         await _viewModel.RefreshCurrentPageAsync();
+    }
+
+    private void TemplateSubjectInput_OnKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter)
+        {
+            return;
+        }
+
+        _viewModel.CommitTemplateSubjectTagCommand.Execute(null);
+        e.Handled = true;
+    }
+
+    private void TemplateSubjectInput_OnLostFocus(object sender, RoutedEventArgs e)
+    {
+        _viewModel.CommitTemplateSubjectTagCommand.Execute(null);
+    }
+
+    private void TemplateSubjectInput_OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (e.NewValue is not true || sender is not System.Windows.Controls.TextBox textBox)
+        {
+            return;
+        }
+
+        textBox.Focus();
+        textBox.SelectAll();
     }
 
     private static IFolderScanService CreateFolderScanService()
@@ -136,6 +165,23 @@ public partial class MainWindow : Window
         var databasePath = Path.Combine(localAppData, "ToolBox", "toolbox.db");
         MigrateLegacyDatabaseIfNeeded(databasePath);
         return new AutoPublishStateService(databasePath);
+    }
+
+    private static ICardSizeInfoService CreateCardSizeInfoService()
+    {
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        var databasePath = Path.Combine(localAppData, "ToolBox", "toolbox.db");
+        MigrateLegacyDatabaseIfNeeded(databasePath);
+        return new CardSizeInfoService(databasePath);
+    }
+
+    private static ITemplateLibraryService CreateTemplateLibraryService()
+    {
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        var databasePath = Path.Combine(localAppData, "ToolBox", "toolbox.db");
+        var assetRoot = Path.Combine(localAppData, "ToolBox", "templates");
+        MigrateLegacyDatabaseIfNeeded(databasePath);
+        return new TemplateLibraryService(databasePath, assetRoot);
     }
 
     private static void MigrateLegacyDatabaseIfNeeded(string databasePath)
@@ -201,6 +247,8 @@ public partial class MainWindow : Window
         {
             return legacyBundledNode;
         }
+
+        return "node";
 
         throw new FileNotFoundException(
             "便携包缺少 Node.js 运行时，请确认 runtime\\node\\node.exe 已随安装包一起复制。",

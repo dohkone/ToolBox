@@ -21,6 +21,7 @@ public sealed class RootCardViewModel : ViewModelBase
     private readonly RelayCommand _collapseCommand;
     private readonly RelayCommand _expandCommand;
     private readonly AsyncRelayCommand _addImagesCommand;
+    private readonly AsyncRelayCommand _openCardSizeDialogCommand;
     private readonly AsyncRelayCommand _copyMainToDetailCommand;
     private readonly AsyncRelayCommand _moveSelectedCommand;
     private readonly AsyncRelayCommand _autoPublishCommand;
@@ -32,6 +33,7 @@ public sealed class RootCardViewModel : ViewModelBase
     private readonly Func<Func<Task>, Task>? _runExclusiveAsync;
     private readonly Func<RootCardViewModel, AutoPublishStatus, string, Task>? _setAutoPublishStatusAsync;
     private readonly Func<RootCardViewModel, Task>? _runAutoPublishCardAsync;
+    private readonly Func<RootCardViewModel, Task>? _openCardSizeDialogAsync;
     private readonly Action? _batchSelectionChanged;
     private FolderNodeViewModel? _selectedNode;
     private bool _isCollapsed;
@@ -44,6 +46,9 @@ public sealed class RootCardViewModel : ViewModelBase
     private string _backupFolder;
     private AutoPublishStatus _autoPublishStatus = AutoPublishStatus.NotPublished;
     private string _autoPublishLastError = string.Empty;
+    private string _sizeText = string.Empty;
+    private string _sizeRawInput = string.Empty;
+    private bool _hasStaleSizeImage;
 
     public RootCardViewModel(
         FolderNode rootNode,
@@ -55,6 +60,7 @@ public sealed class RootCardViewModel : ViewModelBase
         Func<Func<Task>, Task>? runExclusiveAsync = null,
         Func<RootCardViewModel, AutoPublishStatus, string, Task>? setAutoPublishStatusAsync = null,
         Func<RootCardViewModel, Task>? runAutoPublishCardAsync = null,
+        Func<RootCardViewModel, Task>? openCardSizeDialogAsync = null,
         Action? batchSelectionChanged = null)
     {
         _workspaceService = workspaceService;
@@ -65,6 +71,7 @@ public sealed class RootCardViewModel : ViewModelBase
         _runExclusiveAsync = runExclusiveAsync;
         _setAutoPublishStatusAsync = setAutoPublishStatusAsync;
         _runAutoPublishCardAsync = runAutoPublishCardAsync;
+        _openCardSizeDialogAsync = openCardSizeDialogAsync;
         _batchSelectionChanged = batchSelectionChanged;
         _rootNode = new FolderNodeViewModel(rootNode);
         _cardState = _workspaceStateService.GetOrCreateCardState(rootNode.Id);
@@ -80,6 +87,7 @@ public sealed class RootCardViewModel : ViewModelBase
             Activate();
         });
         _addImagesCommand = new AsyncRelayCommand(_ => AddImagesAsync(), _ => SelectedNode is not null);
+        _openCardSizeDialogCommand = new AsyncRelayCommand(_ => OpenCardSizeDialogAsync(), _ => CanOpenCardSizeDialog());
         _copyMainToDetailCommand = new AsyncRelayCommand(_ => CopyMainToDetailAsync(), _ => CanCopyMainToDetail());
         _moveSelectedCommand = new AsyncRelayCommand(_ => MoveSelectedAsync(), _ => SelectedNode is not null && SelectedCount > 0);
         _autoPublishCommand = new AsyncRelayCommand(_ => AutoPublishAsync(), _ => CanAutoPublish());
@@ -98,6 +106,8 @@ public sealed class RootCardViewModel : ViewModelBase
     public event Action<RootCardViewModel>? Activated;
 
     public event Action<RootCardViewModel>? SelectionContextChanged;
+
+    public event Action<RootCardViewModel, IReadOnlyList<string>>? ImageFilesAdded;
 
     public string DisplayName => _rootNode.DisplayName;
 
@@ -120,6 +130,8 @@ public sealed class RootCardViewModel : ViewModelBase
     public RelayCommand ExpandCommand => _expandCommand;
 
     public AsyncRelayCommand AddImagesCommand => _addImagesCommand;
+
+    public AsyncRelayCommand OpenCardSizeDialogCommand => _openCardSizeDialogCommand;
 
     public AsyncRelayCommand CopyMainToDetailCommand => _copyMainToDetailCommand;
 
@@ -314,6 +326,64 @@ public sealed class RootCardViewModel : ViewModelBase
 
     public string CollapsedPathText => AutoPublishKeyPath;
 
+    public string SizeText
+    {
+        get => _sizeText;
+        private set
+        {
+            if (!SetProperty(ref _sizeText, value))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(HasSizeText));
+            OnPropertyChanged(nameof(SizeSummaryText));
+            OnPropertyChanged(nameof(SizeStatusForeground));
+        }
+    }
+
+    public string SizeRawInput
+    {
+        get => _sizeRawInput;
+        private set => SetProperty(ref _sizeRawInput, value);
+    }
+
+    public bool HasSizeText => !string.IsNullOrWhiteSpace(SizeText);
+
+    public bool HasStaleSizeImage
+    {
+        get => _hasStaleSizeImage;
+        private set
+        {
+            if (!SetProperty(ref _hasStaleSizeImage, value))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(SizeSummaryText));
+            OnPropertyChanged(nameof(SizeStatusForeground));
+        }
+    }
+
+    public string SizeSummaryText
+    {
+        get
+        {
+            if (HasStaleSizeImage)
+            {
+                return "尺寸：需重新录入";
+            }
+
+            return HasSizeText
+                ? $"尺寸：{SizeText.Replace(Environment.NewLine, " ")}"
+                : "尺寸：未录入";
+        }
+    }
+
+    public Media.Brush SizeStatusForeground => HasSizeText && !HasStaleSizeImage
+        ? new Media.SolidColorBrush(Media.Color.FromRgb(96, 98, 102))
+        : new Media.SolidColorBrush(Media.Color.FromRgb(245, 108, 108));
+
     public bool IsAutoPublishBusy => _isAutoPublishBusyProvider?.Invoke() ?? false;
 
     public bool CanBatchSelect => IsCollapsed && !string.IsNullOrWhiteSpace(GetSpRootFolder());
@@ -403,6 +473,13 @@ public sealed class RootCardViewModel : ViewModelBase
         AutoPublishLastError = record?.LastError ?? string.Empty;
     }
 
+    public void ApplyCardSizeInfo(CardSizeInfoRecord? record, bool hasStaleSizeImage = false)
+    {
+        SizeText = hasStaleSizeImage ? string.Empty : record?.SizeText ?? string.Empty;
+        SizeRawInput = hasStaleSizeImage ? record?.SizeRawInput ?? string.Empty : record?.SizeRawInput ?? string.Empty;
+        HasStaleSizeImage = hasStaleSizeImage;
+    }
+
     public void SetAutoPublishStatus(AutoPublishStatus status, string lastError = "")
     {
         AutoPublishStatus = status;
@@ -456,6 +533,12 @@ public sealed class RootCardViewModel : ViewModelBase
             && !string.IsNullOrWhiteSpace(GetSpRootFolder());
     }
 
+    private bool CanOpenCardSizeDialog()
+    {
+        return _openCardSizeDialogAsync is not null
+            && !string.IsNullOrWhiteSpace(GetSpRootFolder());
+    }
+
     private bool CanCopyMainToDetail()
     {
         var spRootFolder = GetSpRootFolder();
@@ -467,9 +550,9 @@ public sealed class RootCardViewModel : ViewModelBase
         return Directory.Exists(Path.Combine(spRootFolder, "main"));
     }
 
-    public async Task<string> RunAutoPublishInternalAsync()
+    public async Task<string> RunAutoPublishInternalAsync(IReadOnlyList<string>? manualSizes = null)
     {
-        var task = await PrepareAutoPublishDataAsync();
+        var task = await PrepareAutoPublishDataAsync(manualSizes);
         var message = string.IsNullOrWhiteSpace(task.ProductsJsonPath)
             ? "上架 JSON 已生成。"
             : task.ProductsJsonPath;
@@ -477,7 +560,7 @@ public sealed class RootCardViewModel : ViewModelBase
         return message;
     }
 
-    public async Task<ProductSheetTask> PrepareAutoPublishDataAsync()
+    public async Task<ProductSheetTask> PrepareAutoPublishDataAsync(IReadOnlyList<string>? manualSizes = null)
     {
         var spRootFolder = GetSpRootFolder();
         if (string.IsNullOrWhiteSpace(spRootFolder) || _productSheetService is null)
@@ -497,7 +580,7 @@ public sealed class RootCardViewModel : ViewModelBase
         try
         {
             StatusChanged?.Invoke($"开始准备上架数据：{Path.GetFileName(spRootFolder)}");
-            var task = await _productSheetService.GenerateAsync(spRootFolder);
+            var task = await _productSheetService.GenerateAsync(spRootFolder, manualSizes);
             if (task.Status == "Completed")
             {
                 StatusChanged?.Invoke($"上架数据准备完成：{Path.GetFileName(spRootFolder)}");
@@ -527,6 +610,36 @@ public sealed class RootCardViewModel : ViewModelBase
         }
 
         await runAutoPublishCardAsync(this);
+    }
+
+    private async Task OpenCardSizeDialogAsync()
+    {
+        if (_openCardSizeDialogAsync is null)
+        {
+            StatusChanged?.Invoke("当前卡片未接入尺寸录入功能。");
+            return;
+        }
+
+        var spRootFolder = GetSpRootFolder();
+        if (string.IsNullOrWhiteSpace(spRootFolder))
+        {
+            throw new InvalidOperationException("当前卡片未解析到 SP 根目录，无法手动录入尺寸。");
+        }
+
+        var mainFolder = Path.Combine(spRootFolder, "main");
+        if (!Directory.Exists(mainFolder))
+        {
+            throw new InvalidOperationException($"未找到 main 文件夹：{mainFolder}");
+        }
+
+        var hasSizeImage = Directory.EnumerateFiles(mainFolder, "2-*.png", SearchOption.TopDirectoryOnly).Any();
+        if (!hasSizeImage)
+        {
+            throw new InvalidOperationException($"当前 main 文件夹下没有尺寸图：{mainFolder}");
+        }
+
+        Activate();
+        await _openCardSizeDialogAsync(this);
     }
 
     private string? GetSpRootFolder()
@@ -600,6 +713,11 @@ public sealed class RootCardViewModel : ViewModelBase
         if (showStatusMessage)
         {
             StatusChanged?.Invoke($"已向 {SelectedNode.DisplayName} 添加 {copiedFiles.Count} 张图片。");
+        }
+
+        if (copiedFiles.Count > 0)
+        {
+            ImageFilesAdded?.Invoke(this, copiedFiles);
         }
     }
 

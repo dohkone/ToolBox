@@ -6,6 +6,8 @@ public interface IAutoPublishStateService
 {
     Task InitializeAsync(CancellationToken cancellationToken = default);
 
+    Task MarkIncompletePublishingAsFailedAsync(CancellationToken cancellationToken = default);
+
     Task<IReadOnlyDictionary<string, AutoPublishCardRecord>> GetByCardPathsAsync(
         IEnumerable<string> cardFolderPaths,
         CancellationToken cancellationToken = default);

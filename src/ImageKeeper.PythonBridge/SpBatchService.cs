@@ -62,6 +62,14 @@ public sealed class SpBatchService : ISpBatchService
         {
             startInfo.ArgumentList.Add("--prepare-only");
         }
+        else if (request.Mode == SpBatchMode.GenerateMaster)
+        {
+            startInfo.ArgumentList.Add("--master-only");
+        }
+        else if (request.Mode == SpBatchMode.GenerateColors)
+        {
+            startInfo.ArgumentList.Add("--recolor-only");
+        }
 
         using var process = Process.Start(startInfo) ?? throw new InvalidOperationException("无法启动 SP 批处理脚本。");
         RegisterRunningProcess(process, cancellationToken);
@@ -148,6 +156,8 @@ public sealed class SpBatchService : ISpBatchService
         {
             SpBatchMode.DryRun => "只出计划",
             SpBatchMode.PrepareOnly => "只建结构",
+            SpBatchMode.GenerateMaster => "只生成 SKU 母图",
+            SpBatchMode.GenerateColors => "基于 SKU 母图生成其他颜色",
             _ => "正式生成"
         };
 
@@ -214,6 +224,7 @@ public sealed class SpBatchService : ISpBatchService
                     SourceCopyPath = item.SourceCopyPath ?? string.Empty,
                     SpDirectory = item.SpDir ?? string.Empty,
                     Color = item.Color ?? string.Empty,
+                    Stage = item.Stage ?? string.Empty,
                     Status = item.Status ?? string.Empty,
                     ImagePath = item.ImagePath ?? string.Empty,
                     Error = item.Error ?? string.Empty,
@@ -231,6 +242,7 @@ public sealed class SpBatchService : ISpBatchService
                     SourceImage = item.SourceImage ?? string.Empty,
                     SpDirectory = item.SpDir ?? string.Empty,
                     Color = item.Color ?? string.Empty,
+                    Stage = item.Stage ?? string.Empty,
                     Status = "planned",
                     ImagePath = item.OutputPath ?? string.Empty
                 })
@@ -289,6 +301,7 @@ public sealed class SpBatchService : ISpBatchService
         [JsonPropertyName("sp_dir")]
         public string? SpDir { get; init; }
         public string? Color { get; init; }
+        public string? Stage { get; init; }
         public string? Status { get; init; }
         [JsonPropertyName("image_path")]
         public string? ImagePath { get; init; }
@@ -304,6 +317,7 @@ public sealed class SpBatchService : ISpBatchService
         [JsonPropertyName("sp_dir")]
         public string? SpDir { get; init; }
         public string? Color { get; init; }
+        public string? Stage { get; init; }
         [JsonPropertyName("output_path")]
         public string? OutputPath { get; init; }
     }

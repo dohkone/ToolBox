@@ -13,4 +13,6 @@ public sealed class AppUserPathsState
     public string SpBatchInputDirectory { get; set; } = string.Empty;
 
     public string SpBatchOutputDirectory { get; set; } = string.Empty;
+
+    public string SkuOptimizeOutputDirectory { get; set; } = string.Empty;
 }

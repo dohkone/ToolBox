@@ -1,13 +1,9 @@
 namespace ImageKeeper.Core.Models;
 
-public sealed class SpBatchJobResult
+public sealed class SkuOptimizeJobResult
 {
     public int Index { get; init; }
     public string SourceImage { get; init; } = string.Empty;
-    public string SourceCopyPath { get; init; } = string.Empty;
-    public string SpDirectory { get; init; } = string.Empty;
-    public string Color { get; init; } = string.Empty;
-    public string Stage { get; init; } = string.Empty;
     public string Status { get; init; } = string.Empty;
     public string ImagePath { get; init; } = string.Empty;
     public string Error { get; init; } = string.Empty;

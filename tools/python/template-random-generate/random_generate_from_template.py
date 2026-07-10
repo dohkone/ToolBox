@@ -15,7 +15,10 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-import openpyxl
+try:
+    import openpyxl
+except ModuleNotFoundError:
+    openpyxl = None
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
@@ -36,21 +39,25 @@ COLOR_OPTIONS = (
     ("深棕色", "#261107"),
     ("深灰色", "#C4C8CA"),
     ("酒红色", "#722829"),
-    ("宝蓝色", "#0B1B6F"),
+    ("宝蓝色", "#2E3EA5"),
 )
 
 COLOR_PLACEHOLDER = "{颜色}"
 SUBJECT_PLACEHOLDER = "{主体}"
 
 
+LEATHER_GRAIN_REQUIREMENT = (
+    "All visible outer PU leather repair patch or roll surfaces must have a subtle, fine, natural lychee-grain "
+    "texture with shallow micro embossing, a soft glossy finish, rich leather luster, elegant natural sheen, "
+    "clean specular highlights, and a smooth reflective surface. The leather should appear smooth first, with "
+    "the ultra-fine grain becoming visible only at close viewing distance. Avoid deep embossing, coarse pebble "
+    "grain, rough leather, oversized pores, matte finish, chalky surface, or patent-leather mirror reflections. "
+    "Do not add lychee grain to the paper core, release liner, background, props, or any non-leather object."
+)
+
+
 class TemplateRandomError(Exception):
     """Raised when template generation fails with a user-facing message."""
-
-
-@dataclass
-class TemplateRow:
-    scene_options: list[str]
-    subject_options: list[str]
 
 
 @dataclass
@@ -63,7 +70,8 @@ class SelectedTemplate:
 @dataclass
 class TemplateLibrary:
     layout_templates: list[str]
-    rows: list[TemplateRow]
+    scene_templates: list[str]
+    subject_templates: list[str]
 
 
 def parse_args() -> argparse.Namespace:
@@ -86,6 +94,28 @@ def split_variants(value: str | None) -> list[str]:
     text = str(value).replace("\r\n", "\n").replace("\r", "\n")
     parts = re.split(r"[\/\n]+", text)
     return [part.strip(" -\t") for part in parts if part and part.strip(" -\t")]
+
+
+def split_variants_list(values: list[str] | tuple[str, ...]) -> list[str]:
+    result: list[str] = []
+    for value in values:
+        result.extend(split_variants(value))
+    return result
+
+
+def dedupe_preserve_order(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        key = value.strip()
+        if not key:
+            continue
+        lowered = key.lower()
+        if lowered in seen:
+            continue
+        seen.add(lowered)
+        result.append(key)
+    return result
 
 
 def load_template_library(template_path: Path) -> TemplateLibrary:
@@ -195,7 +225,7 @@ def render_prompt(template: SelectedTemplate) -> str:
     prompt = replace_subject_color_placeholders(prompt, subject_color)
     prompt = prompt.replace(SUBJECT_PLACEHOLDER, subject_text)
     prompt = replace_color_placeholders(prompt)
-    return prompt.strip()
+    return f"{prompt.strip()}\n\n{LEATHER_GRAIN_REQUIREMENT}"
 
 
 def format_color_option(color_option: tuple[str, str]) -> str:

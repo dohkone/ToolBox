@@ -168,7 +168,7 @@ $result.Text
 
 def build_size_ocr_variants(image_path, temp_dir):
     try:
-        from PIL import Image, ImageEnhance, ImageFilter
+        from PIL import Image, ImageEnhance, ImageFilter, ImageOps
     except ImportError:
         return []
 
@@ -200,6 +200,49 @@ def build_size_ocr_variants(image_path, temp_dir):
         resized.save(output_path)
         variant_paths.append(output_path)
 
+    threshold_configs = [
+        ("bottom_22_scale3_threshold160.png", 0.78, 0.22, 3, 160),
+        ("bottom_22_scale4_threshold180.png", 0.78, 0.22, 4, 180),
+        ("bottom_20_scale5_threshold160.png", 0.80, 0.20, 5, 160),
+    ]
+    for name, top_ratio, height_ratio, scale, threshold in threshold_configs:
+        top = int(height * top_ratio)
+        bottom = min(height, top + int(height * height_ratio))
+        crop = image.crop((0, top, width, bottom))
+        gray = ImageOps.grayscale(crop)
+        resized = gray.resize((gray.width * scale, gray.height * scale), Image.Resampling.LANCZOS)
+        resized = resized.point(lambda pixel: 255 if pixel > threshold else 0)
+        resized = ImageEnhance.Contrast(resized).enhance(1.8)
+        resized = resized.filter(ImageFilter.SHARPEN)
+
+        output_path = temp_dir / name
+        resized.convert("RGB").save(output_path)
+        variant_paths.append(output_path)
+
+    strong_configs = [
+        ("bottom_18_scale6_threshold170_bold.png", 0.00, 1.00, 0.82, 0.18, 6, 170),
+        ("bottom_left_scale7_threshold170_bold.png", 0.02, 0.38, 0.84, 0.14, 7, 170),
+        ("bottom_middle_scale7_threshold170_bold.png", 0.30, 0.70, 0.84, 0.14, 7, 170),
+        ("bottom_right_scale7_threshold170_bold.png", 0.60, 0.98, 0.84, 0.14, 7, 170),
+    ]
+    for name, left_ratio, right_ratio, top_ratio, height_ratio, scale, threshold in strong_configs:
+        left = max(0, int(width * left_ratio))
+        right = min(width, int(width * right_ratio))
+        top = int(height * top_ratio)
+        bottom = min(height, top + int(height * height_ratio))
+        crop = image.crop((left, top, right, bottom))
+        gray = ImageOps.grayscale(crop)
+        gray = ImageOps.expand(gray, border=max(12, crop.height // 10), fill=255)
+        resized = gray.resize((gray.width * scale, gray.height * scale), Image.Resampling.LANCZOS)
+        resized = resized.point(lambda pixel: 255 if pixel > threshold else 0)
+        # Slightly thicken dark strokes so OCR is less likely to drop the 0 in values such as 50.
+        resized = resized.filter(ImageFilter.MinFilter(3))
+        resized = ImageEnhance.Contrast(resized).enhance(1.6)
+
+        output_path = temp_dir / name
+        resized.convert("RGB").save(output_path)
+        variant_paths.append(output_path)
+
     return variant_paths
 
 
@@ -212,7 +255,15 @@ def merge_size_items_from_ocr_texts(texts):
             if existing is None or score_display_size(item["display_size_text"]) > score_display_size(existing["display_size_text"]):
                 by_size[size_text] = item
 
-    return list(by_size.values())
+    return sorted(by_size.values(), key=lambda item: parse_size_sort_key(item["size_text"]))
+
+
+def parse_size_sort_key(size_text):
+    match = re.search(r"(\d+(?:\.\d+)?)\s*\*\s*(\d+(?:\.\d+)?)\s*cm", size_text, re.I)
+    if not match:
+        return (9999, 9999)
+
+    return (float(match.group(1)), float(match.group(2)))
 
 
 def score_display_size(display_size):
@@ -224,7 +275,7 @@ def score_display_size(display_size):
 
 
 def parse_sizes_from_ocr_text(text):
-    normalized = text.replace("\r", "\n")
+    normalized = normalize_ocr_size_text(text)
     unique = []
     seen = set()
     matches = list(re.finditer(r"(\d+(?:\.\d+)?)\s*(?:cm)?\s*[*xX]\s*(\d+(?:\.\d+)?)\s*cm", normalized, re.I))
@@ -232,6 +283,9 @@ def parse_sizes_from_ocr_text(text):
         width_text, length_text = match.groups()
         width_cm = int(float(width_text))
         length_cm = int(float(length_text))
+        if not is_plausible_sku_size(width_cm, length_cm):
+            continue
+
         size_text = f"{width_cm}*{length_cm}cm"
         if size_text in seen:
             continue
@@ -256,7 +310,96 @@ def parse_sizes_from_ocr_text(text):
             }
         )
 
+    fuzzy_items = parse_fuzzy_sizes_from_ocr_text(normalized)
+    for item in fuzzy_items:
+        if item["size_text"] in seen:
+            continue
+
+        seen.add(item["size_text"])
+        unique.append(item)
+
     return unique
+
+
+def parse_fuzzy_sizes_from_ocr_text(text):
+    items = []
+    seen = set()
+    normalized = normalize_ocr_size_text(text)
+    pattern = re.compile(
+        r"(?<!\d)(\d{1,3})\D{0,8}(\d{2,3})\s*(?:cm|c\s*m|\(\s*m)\s*/\s*(.{0,60}?)(?:inch|in\s*\(?\s*h)",
+        re.I,
+    )
+    for match in pattern.finditer(normalized):
+        width_token, length_token, inch_text = match.groups()
+        width_cm = int(width_token)
+        length_cm = int(length_token)
+
+        if not is_plausible_sku_size(width_cm, length_cm):
+            continue
+
+        size_text = f"{width_cm}*{length_cm}cm"
+        if size_text in seen:
+            continue
+
+        seen.add(size_text)
+        display_size_text = size_text
+        inch_values = extract_inch_values(inch_text)
+        if len(inch_values) >= 2:
+            display_size_text = f"{size_text}/{format_inches(width_cm)}*{format_inches(length_cm)}inch"
+
+        items.append(
+            {
+                "size_text": size_text,
+                "display_size_text": display_size_text,
+            }
+        )
+
+    return items
+
+
+def normalize_ocr_size_text(text):
+    normalized = text.replace("\r", "\n")
+    normalized = re.sub(r"(?<=\d)[lI|](?=\d)", "1", normalized)
+    normalized = normalized.translate(
+        str.maketrans(
+            {
+                "＊": "*",
+                "×": "*",
+                "✕": "*",
+                "﹡": "*",
+                "榨": "*",
+                "俨": "*",
+                "夤": "*",
+                "漡": "*",
+                "聶": "*",
+                "愐": "*",
+                "樥": "*",
+                "𩂰": "*",
+                "敤": "*",
+                "彊": "*",
+                "蟬": "*",
+                "，": ".",
+                "．": ".",
+                "·": ".",
+                "﹞": ".",
+                "ㄝ": ".",
+            }
+        )
+    )
+    return normalized
+
+
+def extract_inch_values(text):
+    normalized = normalize_ocr_size_text(text)
+    values = []
+    for match in re.finditer(r"(\d{1,3})\s*\.\s*(\d{1,2})", normalized):
+        values.append(float(f"{match.group(1)}.{match.group(2)}"))
+
+    return values
+
+
+def is_plausible_sku_size(width_cm, length_cm):
+    return 30 <= width_cm <= 100 and 100 <= length_cm <= 400
 
 
 def format_inches(cm_value):
@@ -280,7 +423,7 @@ def normalize_decimal_token(token):
 
 
 def parse_size(size_text):
-    match = re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*\*\s*(\d+(?:\.\d+)?)\s*cm\s*", size_text, re.I)
+    match = re.search(r"^\s*(\d+(?:\.\d+)?)\s*(?:cm)?\s*\*\s*(\d+(?:\.\d+)?)\s*cm\b", size_text, re.I)
     if not match:
         raise ValueError(f"Unsupported size format: {size_text}")
     width = int(float(match.group(1)))
@@ -550,6 +693,11 @@ def main():
     summaries = []
 
     if args.sizes:
+        sp_path = Path(args.sp_dir) if args.sp_dir else None
+        product_id = sp_path.name if sp_path is not None else args.product_id
+        if sp_path is not None:
+            main_rows.append(build_main_row(sp_path, titles, english_titles))
+
         size_texts = list(args.sizes)
         current_matched_rows = []
         skipped_sizes = []
@@ -561,8 +709,9 @@ def main():
                 continue
             current_matched_rows.append(
                 {
-                    "product_id": args.product_id,
+                    "product_id": product_id,
                     "size_text": size_text,
+                    "display_size_text": size_text,
                     "record": record,
                     "price": random_price(record),
                 }
@@ -571,7 +720,7 @@ def main():
         matched_rows.extend(current_matched_rows)
         summaries.append(
             {
-                "product_id": args.product_id,
+                "product_id": product_id,
                 "size_texts": size_texts,
                 "matched_rows": current_matched_rows,
                 "skipped_sizes": skipped_sizes,

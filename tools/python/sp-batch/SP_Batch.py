@@ -55,6 +55,8 @@ class RequestOptions:
     overwrite: bool
     dry_run: bool
     prepare_only: bool
+    master_only: bool
+    recolor_only: bool
     selected_colors: tuple[str, ...]
     color_count: int | None
 
@@ -83,7 +85,7 @@ COLORS: tuple[ColorSpec, ...] = (
     ColorSpec("darkbrown", "Dark brown", "深棕色", "#261107"),
     ColorSpec("darkgray", "Dark gray", "深灰色", "#C4C8CA"),
     ColorSpec("winered", "Wine red", "酒红色", "#722829"),
-    ColorSpec("royalblue", "Royal blue", "宝蓝色", "#0B1B6F"),
+    ColorSpec("royalblue", "Royal blue", "宝蓝色", "#2E3EA5"),
 )
 
 COLOR_ALIAS_MAP: dict[str, str] = {
@@ -94,6 +96,32 @@ COLOR_ALIAS_MAP: dict[str, str] = {
     "winered": "winered",
     "royalblue": "royalblue",
 }
+
+
+def normalize_color_token(text: str) -> str:
+    return re.sub(r"[\s_\-#]+", "", text.casefold())
+
+
+def infer_color_from_path(image_path: Path) -> str | None:
+    text = normalize_color_token(image_path.stem)
+    for color in COLORS:
+        candidates = {
+            color.suffix,
+            color.label,
+            color.file_name,
+            color.hex_code,
+            color.hex_code.lstrip("#"),
+        }
+        for candidate in candidates:
+            token = normalize_color_token(candidate)
+            if token and token in text:
+                return color.suffix
+
+    for alias, suffix in COLOR_ALIAS_MAP.items():
+        if normalize_color_token(alias) in text:
+            return suffix
+
+    return None
 
 
 def parse_args() -> argparse.Namespace:
@@ -109,6 +137,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--overwrite", action="store_true", help="Regenerate outputs even if they already exist.")
     parser.add_argument("--dry-run", action="store_true", help="Print the planned jobs without generating images.")
     parser.add_argument("--prepare-only", action="store_true", help="Create dated SP folders and copy source images only.")
+    parser.add_argument("--master-only", action="store_true", help="Generate only the master SKU image.")
+    parser.add_argument("--recolor-only", action="store_true", help="Generate color variants from the provided master SKU image.")
     return parser.parse_args()
 
 
@@ -170,6 +200,8 @@ def resolve_options(args: argparse.Namespace) -> RequestOptions:
     overwrite = bool(args.overwrite or parsed.get("overwrite", False))
     dry_run = bool(args.dry_run or parsed.get("dry_run", False))
     prepare_only = bool(args.prepare_only or parsed.get("prepare_only", False))
+    master_only = bool(args.master_only)
+    recolor_only = bool(args.recolor_only)
     color_count = parsed.get("color_count")
     explicit_selected_colors = parsed.get("selected_colors")
     if explicit_selected_colors:
@@ -189,6 +221,8 @@ def resolve_options(args: argparse.Namespace) -> RequestOptions:
         overwrite=overwrite,
         dry_run=dry_run,
         prepare_only=prepare_only,
+        master_only=master_only,
+        recolor_only=recolor_only,
         selected_colors=selected_colors,
         color_count=color_count,
     )
@@ -361,6 +395,65 @@ def build_jobs(
     return jobs
 
 
+def build_master_jobs(
+    images: list[Path],
+    bundles: dict[Path, OutputBundle],
+    selected_colors: tuple[str, ...],
+) -> list[Job]:
+    color_map = {color.suffix: color for color in COLORS}
+    fallback_color = color_map.get(selected_colors[0]) if selected_colors else COLORS[0]
+    jobs: list[Job] = []
+
+    for index, image_path in enumerate(images, start=1):
+        color = color_map.get(infer_color_from_path(image_path) or "", fallback_color)
+        bundle = bundles[image_path]
+        jobs.append(
+            Job(
+                index=index,
+                image_path=image_path,
+                color=color,
+                output_path=bundle.sku_dir / f"{color.file_name}.png",
+                bundle=bundle,
+            )
+        )
+
+    return jobs
+
+
+def build_recolor_jobs(
+    images: list[Path],
+    bundles: dict[Path, OutputBundle],
+    selected_colors: tuple[str, ...],
+) -> list[Job]:
+    color_map = {color.suffix: color for color in COLORS}
+    selected = [color_map[suffix] for suffix in selected_colors if suffix in color_map]
+    if not selected:
+        selected = list(COLORS)
+
+    jobs: list[Job] = []
+    index = 1
+    for image_path in images:
+        source_color_suffix = infer_color_from_path(image_path)
+        colors = [color for color in selected if color.suffix != source_color_suffix]
+        if not colors:
+            colors = selected
+
+        bundle = bundles[image_path]
+        for color in colors:
+            jobs.append(
+                Job(
+                    index=index,
+                    image_path=image_path,
+                    color=color,
+                    output_path=bundle.sku_dir / f"{color.file_name}.png",
+                    bundle=bundle,
+                )
+            )
+            index += 1
+
+    return jobs
+
+
 def build_master_prompt(color: ColorSpec) -> str:
     return (
         "Use the uploaded image as a lifestyle scene and material reference.\n"
@@ -379,12 +472,31 @@ def build_master_prompt(color: ColorSpec) -> str:
         "Add the leather repair patch product naturally into the scene. It may be placed on the main subject, "
         "in front of the main subject, or leaning against the main subject. Choose one natural placement only. "
         "The placement should look realistic, relaxed, and commercially composed, not pasted on or repetitive.\n"
+        "If a leather repair roll is visible, it must have real physical contact with the main subject. Do not let the "
+        "roll float, hover, or appear visually detached. A believable contact shadow and local "
+        "occlusion shadow must appear exactly at the touching area so the contact reads as real physical contact.\n"
         "The SKU image must show at most ONE leather repair roll. If a leather repair roll is visible, it must be "
         "exactly one single roll only. Do not generate two rolls, three rolls, multiple rolls, stacked rolls, "
         "parallel rolls, bundled rolls, repeated rolls, or several color samples in the same image.\n"
         "If a leather repair roll is visible, keep it elegant, compact, fully rolled, and realistic. The roll size, "
         "angle, position, distance from the subject, and visible paper core must be clearly established in this "
         "master image and must be suitable for later color-only variants.\n"
+        "STRICT ROLL SPECIFICATION: every visible roll must be a high-quality PU leather repair roll kept in a fully "
+        "rolled state. Never unfold it, bend it, fold it, distort it, or deform it. The overall silhouette must stay "
+        "as a standard cylindrical roll.\n"
+        "The roll must clearly use a dual-layer structure: the front side is the premium PU leather layer, and the back "
+        "side is a kraft paper release liner. The release liner must remain tightly attached to the leather layer.\n"
+        "The outer leather surface must show clear, shallow, fine, even lychee-grain leather texture with low contrast. "
+        "The overall surface should read as smooth and refined first, with the grain becoming visible at closer viewing "
+        "distance.\n"
+        "The leather must present a rich oily leather finish, strong natural specular highlights, broad bright specular "
+        "reflections across the curved surface, premium commercial product photography gloss, visible light flow across "
+        "the surface, and bright high surface brightness without overexposure. The highlights may be pronounced but must "
+        "stay natural, clean, even, and transparent without washing out the leather texture.\n"
+        "Avoid dark, gray, matte, powdery, dry, rough, low-gloss, frosted, rubber-like, plastic-like, or non-reflective "
+        "surfaces. Avoid deep embossing, coarse pebble grain, oversized pores, chalky finish, or patent-leather mirror "
+        "reflections. Do not add leather grain to the paper core, release liner, background, props, or any non-leather "
+        "object.\n"
         "Only change leather-repair-related color areas to the target color:\n"
         "- the original main leather surface or upholstered surface\n"
         "- the repair demonstration surface\n"
@@ -416,6 +528,22 @@ def build_recolor_prompt(color: ColorSpec) -> str:
         "- any repair demonstration leather surface\n"
         "Do not recolor non-leather materials such as wood, marble, metal, glass, walls, floor, plants, curtains, "
         "decorations, paper core, or background objects.\n"
+        "STRICT ROLL SPECIFICATION: preserve the exact roll specification established in the master image. Every visible "
+        "roll must remain a high-quality PU leather repair roll kept in a fully rolled state. Do not unfold, bend, fold, "
+        "deform, or redesign the roll. Keep the overall roll as a standard cylindrical form.\n"
+        "Preserve the dual-layer structure exactly as shown in the master image: the front side is the premium PU leather "
+        "layer, and the back side is the kraft paper release liner. The release liner must remain tightly attached to the "
+        "leather and must not be recolored into a leather surface.\n"
+        "Keep clear, shallow, fine, even litchi leather grain on the visible PU leather surface. The grain must stay "
+        "low-contrast, while the leather overall still reads as smooth and refined first.\n"
+        "Keep the rich oily leather finish, strong natural specular highlights, broad bright specular reflections, premium "
+        "commercial product photography sheen, visible light flow across the curved surface, and high surface brightness "
+        "without overexposure, whitening, or loss of grain detail.\n"
+        "Avoid dark, gray, matte, powdery, dry, rough, low-gloss, frosted, rubber-like, plastic-like, or non-reflective "
+        "surfaces. Avoid deep embossing, coarse pebble grain, oversized pores, chalky texture, or patent-leather mirror "
+        "reflections.\n"
+        "Do not add litchi grain or leather-like gloss to the paper core, release liner, background, props, or any "
+        "non-leather object.\n"
         "Do not add or remove objects. Do not add text, icons, logos, watermarks, labels, or overlays. "
         "Do not redraw the scene. Do not move the roll or patch. Do not resize anything.\n"
         "Final result must be a strict color-only SKU variant that matches the master image in every detail "
@@ -618,6 +746,76 @@ def execute_jobs(jobs: list[Job], options: RequestOptions) -> list[dict[str, Any
     return [results_by_index[index] for index in sorted(results_by_index)]
 
 
+def execute_master_jobs(jobs: list[Job], options: RequestOptions) -> list[dict[str, Any]]:
+    results_by_index: dict[int, dict[str, Any]] = {}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=options.concurrency) as executor:
+        future_to_job = {
+            executor.submit(
+                run_job,
+                job,
+                options.image2_script,
+                options.retries,
+                options.overwrite,
+                job.image_path,
+                build_master_prompt(job.color),
+                "master",
+            ): job
+            for job in jobs
+        }
+        for future in concurrent.futures.as_completed(future_to_job):
+            job = future_to_job[future]
+            try:
+                results_by_index[job.index] = future.result()
+            except Exception as exc:  # noqa: BLE001
+                results_by_index[job.index] = {
+                    "index": job.index,
+                    "source_image": str(job.image_path),
+                    "source_copy_path": str(job.bundle.source_copy_path),
+                    "sp_dir": str(job.bundle.sp_dir),
+                    "color": job.color.suffix,
+                    "stage": "master",
+                    "status": "failed",
+                    "error": str(exc),
+                }
+
+    return [results_by_index[index] for index in sorted(results_by_index)]
+
+
+def execute_recolor_jobs(jobs: list[Job], options: RequestOptions) -> list[dict[str, Any]]:
+    results_by_index: dict[int, dict[str, Any]] = {}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=options.concurrency) as executor:
+        future_to_job = {
+            executor.submit(
+                run_job,
+                job,
+                options.image2_script,
+                options.retries,
+                options.overwrite,
+                job.image_path,
+                build_recolor_prompt(job.color),
+                "recolor",
+            ): job
+            for job in jobs
+        }
+        for future in concurrent.futures.as_completed(future_to_job):
+            job = future_to_job[future]
+            try:
+                results_by_index[job.index] = future.result()
+            except Exception as exc:  # noqa: BLE001
+                results_by_index[job.index] = {
+                    "index": job.index,
+                    "source_image": str(job.image_path),
+                    "source_copy_path": str(job.bundle.source_copy_path),
+                    "sp_dir": str(job.bundle.sp_dir),
+                    "color": job.color.suffix,
+                    "stage": "recolor",
+                    "status": "failed",
+                    "error": str(exc),
+                }
+
+    return [results_by_index[index] for index in sorted(results_by_index)]
+
+
 def serialize_bundle(image_path: Path, bundle: OutputBundle) -> dict[str, str]:
     return {
         "source_image": str(image_path),
@@ -635,7 +833,15 @@ def main() -> int:
         options = resolve_options(args)
         images = list_input_images(options.input_dir)
         bundles = ensure_output_bundles(images, options.output_dir, options.overwrite)
-        jobs = build_jobs(images, bundles, options.selected_colors)
+        if options.master_only:
+            jobs = build_master_jobs(images, bundles, options.selected_colors)
+            mode_name = "master_generated"
+        elif options.recolor_only:
+            jobs = build_recolor_jobs(images, bundles, options.selected_colors)
+            mode_name = "recolor_generated"
+        else:
+            jobs = build_jobs(images, bundles, options.selected_colors)
+            mode_name = "generated"
 
         if options.dry_run:
             print(
@@ -692,12 +898,17 @@ def main() -> int:
             )
             return 0
 
-        results = execute_jobs(jobs, options)
+        if options.master_only:
+            results = execute_master_jobs(jobs, options)
+        elif options.recolor_only:
+            results = execute_recolor_jobs(jobs, options)
+        else:
+            results = execute_jobs(jobs, options)
         failed = [result for result in results if result.get("status") == "failed"]
         print(
             json.dumps(
                 {
-                    "mode": "generated",
+                    "mode": mode_name,
                     "input_dir": str(options.input_dir),
                     "output_dir": str(options.output_dir),
                     "dated_root": str(get_dated_root(options.output_dir).resolve()),

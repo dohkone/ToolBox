@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.IO;
 using System.Windows.Input;
 using ImageKeeper.App.Utilities;
@@ -109,20 +108,33 @@ public sealed class ImageItemViewModel : ViewModelBase
 
     private void OpenFile()
     {
-        Process.Start(new ProcessStartInfo
+        try
         {
-            FileName = FilePath,
-            UseShellExecute = true
-        });
+            ShellOpenHelper.OpenFile(FilePath);
+        }
+        catch (Exception ex)
+        {
+            System.Windows.MessageBox.Show(
+                $"打开文件失败：{ex.Message}",
+                "提示",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Warning);
+        }
     }
 
     private void OpenContainingFolder()
     {
-        Process.Start(new ProcessStartInfo
+        try
         {
-            FileName = "explorer.exe",
-            Arguments = $"/select,\"{FilePath}\"",
-            UseShellExecute = true
-        });
+            ShellOpenHelper.RevealInFolder(FilePath);
+        }
+        catch (Exception ex)
+        {
+            System.Windows.MessageBox.Show(
+                $"打开所在目录失败：{ex.Message}",
+                "提示",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Warning);
+        }
     }
 }
