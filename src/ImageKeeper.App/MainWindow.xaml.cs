@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
@@ -31,6 +33,7 @@ public partial class MainWindow : Window
             CreateProductSheetService(),
             CreateTemplateGenerationService(),
             CreateSpBatchService(),
+            CreateSkuOptimizeService(),
             CreateMiaoshouPublishService(),
             CreateAutoPublishStateService(),
             CreateCardSizeInfoService(),
@@ -79,33 +82,6 @@ public partial class MainWindow : Window
         await _viewModel.RefreshCurrentPageAsync();
     }
 
-    private void TemplateSubjectInput_OnKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
-    {
-        if (e.Key != Key.Enter)
-        {
-            return;
-        }
-
-        _viewModel.CommitTemplateSubjectTagCommand.Execute(null);
-        e.Handled = true;
-    }
-
-    private void TemplateSubjectInput_OnLostFocus(object sender, RoutedEventArgs e)
-    {
-        _viewModel.CommitTemplateSubjectTagCommand.Execute(null);
-    }
-
-    private void TemplateSubjectInput_OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
-    {
-        if (e.NewValue is not true || sender is not System.Windows.Controls.TextBox textBox)
-        {
-            return;
-        }
-
-        textBox.Focus();
-        textBox.SelectAll();
-    }
-
     private static IFolderScanService CreateFolderScanService()
     {
         return new FolderScanService();
@@ -137,7 +113,7 @@ public partial class MainWindow : Window
 
     private static ITemplateGenerationService CreateTemplateGenerationService()
     {
-        var scriptPath = ResolveToolPath("template-random-generate", "random_generate_from_template.py");
+        var scriptPath = ResolveToolPath("template-random-generate", "random_generate_from_template_v2.py");
         return new TemplateGenerationService(ResolvePythonExecutable(), scriptPath);
     }
 
@@ -145,6 +121,12 @@ public partial class MainWindow : Window
     {
         var scriptPath = ResolveToolPath("sp-batch", "SP_Batch.py");
         return new SpBatchService(ResolvePythonExecutable(), scriptPath);
+    }
+
+    private static ISkuOptimizeService CreateSkuOptimizeService()
+    {
+        var scriptPath = ResolveToolPath("sku-optimize", "sku_optimize.py");
+        return new SkuOptimizeService(ResolvePythonExecutable(), scriptPath);
     }
 
     private static IMiaoshouPublishService CreateMiaoshouPublishService()
@@ -413,6 +395,32 @@ public partial class MainWindow : Window
         }
     }
 
+    private void SkuOptimizeSourceCard_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (IsFromButton(e.OriginalSource))
+        {
+            return;
+        }
+
+        if (sender is FrameworkElement { DataContext: GeneratedImageResultCardViewModel card })
+        {
+            _viewModel.HandleSkuOptimizeSourceImageCardClick(card, e.ClickCount);
+            e.Handled = true;
+        }
+    }
+
+    private void TemplateSubjectInput_OnLostFocus(object sender, RoutedEventArgs e)
+    {
+        if (_viewModel.CommitTemplateSubjectTagCommand.CanExecute(null))
+        {
+            _viewModel.CommitTemplateSubjectTagCommand.Execute(null);
+        }
+        else if (_viewModel.CancelTemplateSubjectTagCommand.CanExecute(null))
+        {
+            _viewModel.CancelTemplateSubjectTagCommand.Execute(null);
+        }
+    }
+
     private void ReviewImageCard_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (e.ClickCount < 2 || IsFromButton(e.OriginalSource))
@@ -474,6 +482,80 @@ public partial class MainWindow : Window
         var files = GetDroppedImageFiles(e.Data);
         var hasFiles = files.Count > 0;
         _viewModel.SetSpBatchStagingDropTarget(hasFiles);
+        e.Effects = hasFiles ? System.Windows.DragDropEffects.Copy : System.Windows.DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private void SpBatchMasterArea_OnDragEnter(object sender, System.Windows.DragEventArgs e)
+    {
+        HandleSpBatchMasterDragState(e);
+    }
+
+    private void SpBatchMasterArea_OnDragOver(object sender, System.Windows.DragEventArgs e)
+    {
+        HandleSpBatchMasterDragState(e);
+    }
+
+    private void SpBatchMasterArea_OnDragLeave(object sender, System.Windows.DragEventArgs e)
+    {
+        _viewModel.SetSpBatchMasterDropTarget(false);
+        e.Handled = true;
+    }
+
+    private void SpBatchMasterArea_OnDrop(object sender, System.Windows.DragEventArgs e)
+    {
+        _viewModel.SetSpBatchMasterDropTarget(false);
+        var files = GetDroppedImageFiles(e.Data);
+        if (files.Count > 0)
+        {
+            _viewModel.AddDroppedImagesToSpBatchMaster(files);
+        }
+
+        e.Handled = true;
+    }
+
+    private void HandleSpBatchMasterDragState(System.Windows.DragEventArgs e)
+    {
+        var files = GetDroppedImageFiles(e.Data);
+        var hasFiles = files.Count > 0;
+        _viewModel.SetSpBatchMasterDropTarget(hasFiles);
+        e.Effects = hasFiles ? System.Windows.DragDropEffects.Copy : System.Windows.DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private void SkuOptimizeStagingArea_OnDragEnter(object sender, System.Windows.DragEventArgs e)
+    {
+        HandleSkuOptimizeStagingDragState(e);
+    }
+
+    private void SkuOptimizeStagingArea_OnDragOver(object sender, System.Windows.DragEventArgs e)
+    {
+        HandleSkuOptimizeStagingDragState(e);
+    }
+
+    private void SkuOptimizeStagingArea_OnDragLeave(object sender, System.Windows.DragEventArgs e)
+    {
+        _viewModel.SetSkuOptimizeStagingDropTarget(false);
+        e.Handled = true;
+    }
+
+    private void SkuOptimizeStagingArea_OnDrop(object sender, System.Windows.DragEventArgs e)
+    {
+        _viewModel.SetSkuOptimizeStagingDropTarget(false);
+        var files = GetDroppedImageFiles(e.Data);
+        if (files.Count > 0)
+        {
+            _viewModel.AddDroppedImagesToSkuOptimize(files);
+        }
+
+        e.Handled = true;
+    }
+
+    private void HandleSkuOptimizeStagingDragState(System.Windows.DragEventArgs e)
+    {
+        var files = GetDroppedImageFiles(e.Data);
+        var hasFiles = files.Count > 0;
+        _viewModel.SetSkuOptimizeStagingDropTarget(hasFiles);
         e.Effects = hasFiles ? System.Windows.DragDropEffects.Copy : System.Windows.DragDropEffects.None;
         e.Handled = true;
     }

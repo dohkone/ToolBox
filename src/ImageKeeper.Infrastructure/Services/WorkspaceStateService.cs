@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using ImageKeeper.Core.Models;
 using ImageKeeper.Core.Services;
 
@@ -5,32 +7,29 @@ namespace ImageKeeper.Infrastructure.Services;
 
 public sealed class WorkspaceStateService : IWorkspaceStateService
 {
-    private readonly Dictionary<Guid, RootCardState> _states = new();
+	private readonly Dictionary<Guid, RootCardState> _states = new Dictionary<Guid, RootCardState>();
 
-    public RootCardState GetOrCreateCardState(Guid rootNodeId)
-    {
-        if (_states.TryGetValue(rootNodeId, out var state))
-        {
-            return state;
-        }
+	public RootCardState GetOrCreateCardState(Guid rootNodeId)
+	{
+		if (_states.TryGetValue(rootNodeId, out RootCardState value))
+		{
+			return value;
+		}
+		value = new RootCardState
+		{
+			RootNodeId = rootNodeId
+		};
+		_states[rootNodeId] = value;
+		return value;
+	}
 
-        state = new RootCardState
-        {
-            RootNodeId = rootNodeId
-        };
-        _states[rootNodeId] = state;
-        return state;
-    }
+	public void SetCollapsed(Guid rootNodeId, bool isCollapsed)
+	{
+		GetOrCreateCardState(rootNodeId).IsCollapsed = isCollapsed;
+	}
 
-    public void SetCollapsed(Guid rootNodeId, bool isCollapsed)
-    {
-        var state = GetOrCreateCardState(rootNodeId);
-        state.IsCollapsed = isCollapsed;
-    }
-
-    public void SetSelectedNode(Guid rootNodeId, Guid? selectedNodeId)
-    {
-        var state = GetOrCreateCardState(rootNodeId);
-        state.SelectedNodeId = selectedNodeId;
-    }
+	public void SetSelectedNode(Guid rootNodeId, Guid? selectedNodeId)
+	{
+		GetOrCreateCardState(rootNodeId).SelectedNodeId = selectedNodeId;
+	}
 }

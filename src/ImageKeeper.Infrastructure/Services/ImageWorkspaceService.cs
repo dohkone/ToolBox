@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using ImageKeeper.Core.Models;
 using ImageKeeper.Core.Services;
 
@@ -5,68 +7,64 @@ namespace ImageKeeper.Infrastructure.Services;
 
 public sealed class ImageWorkspaceService : IImageWorkspaceService
 {
-    public NodeCounts CalculateCounts(FolderNode node)
-    {
-        var total = node.Images.Count;
-        var selected = node.Images.Count(i => i.IsSelected);
-        return new NodeCounts
-        {
-            Total = total,
-            Selected = selected
-        };
-    }
+	public NodeCounts CalculateCounts(FolderNode node)
+	{
+		int count = node.Images.Count;
+		int selected = node.Images.Count((ImageItem i) => i.IsSelected);
+		return new NodeCounts
+		{
+			Total = count,
+			Selected = selected
+		};
+	}
 
-    public NodeCounts CalculateCounts(IEnumerable<FolderNode> nodes)
-    {
-        var total = 0;
-        var selected = 0;
+	public NodeCounts CalculateCounts(IEnumerable<FolderNode> nodes)
+	{
+		int num = 0;
+		int num2 = 0;
+		foreach (FolderNode node in nodes)
+		{
+			NodeCounts nodeCounts = CalculateCountsRecursive(node);
+			num += nodeCounts.Total;
+			num2 += nodeCounts.Selected;
+		}
+		return new NodeCounts
+		{
+			Total = num,
+			Selected = num2
+		};
+	}
 
-        foreach (var node in nodes)
-        {
-            var counts = CalculateCountsRecursive(node);
-            total += counts.Total;
-            selected += counts.Selected;
-        }
+	public void SetSelectionState(FolderNode node, bool isSelected)
+	{
+		foreach (ImageItem image in node.Images)
+		{
+			image.IsSelected = isSelected;
+		}
+	}
 
-        return new NodeCounts
-        {
-            Total = total,
-            Selected = selected
-        };
-    }
+	public void InvertSelection(FolderNode node)
+	{
+		foreach (ImageItem image in node.Images)
+		{
+			image.IsSelected = !image.IsSelected;
+		}
+	}
 
-    public void SetSelectionState(FolderNode node, bool isSelected)
-    {
-        foreach (var image in node.Images)
-        {
-            image.IsSelected = isSelected;
-        }
-    }
-
-    public void InvertSelection(FolderNode node)
-    {
-        foreach (var image in node.Images)
-        {
-            image.IsSelected = !image.IsSelected;
-        }
-    }
-
-    private static NodeCounts CalculateCountsRecursive(FolderNode node)
-    {
-        var total = node.Images.Count;
-        var selected = node.Images.Count(i => i.IsSelected);
-
-        foreach (var child in node.Children)
-        {
-            var childCounts = CalculateCountsRecursive(child);
-            total += childCounts.Total;
-            selected += childCounts.Selected;
-        }
-
-        return new NodeCounts
-        {
-            Total = total,
-            Selected = selected
-        };
-    }
+	private static NodeCounts CalculateCountsRecursive(FolderNode node)
+	{
+		int num = node.Images.Count;
+		int num2 = node.Images.Count((ImageItem i) => i.IsSelected);
+		foreach (FolderNode child in node.Children)
+		{
+			NodeCounts nodeCounts = CalculateCountsRecursive(child);
+			num += nodeCounts.Total;
+			num2 += nodeCounts.Selected;
+		}
+		return new NodeCounts
+		{
+			Total = num,
+			Selected = num2
+		};
+	}
 }

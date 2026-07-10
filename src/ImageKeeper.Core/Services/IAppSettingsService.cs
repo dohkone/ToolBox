@@ -4,7 +4,7 @@ namespace ImageKeeper.Core.Services;
 
 public interface IAppSettingsService
 {
-    AppUserPathsState LoadUserPaths();
+	AppUserPathsState LoadUserPaths();
 
-    void SaveUserPaths(AppUserPathsState state);
+	void SaveUserPaths(AppUserPathsState state);
 }

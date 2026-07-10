@@ -1,1192 +1,1375 @@
-﻿using System.Collections.ObjectModel;
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
+using System.Windows.Media;
 using ImageKeeper.Core.Models;
 using ImageKeeper.Core.Services;
 using ImageKeeper.Core.Utilities;
-using Media = System.Windows.Media;
+using Microsoft.Win32;
 
 namespace ImageKeeper.App.ViewModels;
 
 public sealed class RootCardViewModel : ViewModelBase
 {
-    private const int ImagePageSize = 60;
-
-    private readonly FolderNodeViewModel _rootNode;
-    private readonly IImageWorkspaceService _workspaceService;
-    private readonly IWorkspaceStateService _workspaceStateService;
-    private readonly RootCardState _cardState;
-    private readonly RelayCommand _invertSelectionCommand;
-    private readonly RelayCommand _selectAllCommand;
-    private readonly RelayCommand _clearSelectionCommand;
-    private readonly RelayCommand _collapseCommand;
-    private readonly RelayCommand _expandCommand;
-    private readonly AsyncRelayCommand _addImagesCommand;
-    private readonly AsyncRelayCommand _openCardSizeDialogCommand;
-    private readonly AsyncRelayCommand _copyMainToDetailCommand;
-    private readonly AsyncRelayCommand _moveSelectedCommand;
-    private readonly AsyncRelayCommand _autoPublishCommand;
-    private readonly RelayCommand _toggleExpandCommand;
-    private readonly RelayCommand _selectNodeCommand;
-    private readonly RelayCommand _loadMoreImagesCommand;
-    private readonly IProductSheetService? _productSheetService;
-    private readonly Func<bool>? _isAutoPublishBusyProvider;
-    private readonly Func<Func<Task>, Task>? _runExclusiveAsync;
-    private readonly Func<RootCardViewModel, AutoPublishStatus, string, Task>? _setAutoPublishStatusAsync;
-    private readonly Func<RootCardViewModel, Task>? _runAutoPublishCardAsync;
-    private readonly Func<RootCardViewModel, Task>? _openCardSizeDialogAsync;
-    private readonly Action? _batchSelectionChanged;
-    private FolderNodeViewModel? _selectedNode;
-    private bool _isCollapsed;
-    private bool _isActive;
-    private bool _isDropTarget;
-    private bool _isBatchSelected;
-    private int _totalCount;
-    private int _selectedCount;
-    private int _loadedImageCount;
-    private string _backupFolder;
-    private AutoPublishStatus _autoPublishStatus = AutoPublishStatus.NotPublished;
-    private string _autoPublishLastError = string.Empty;
-    private string _sizeText = string.Empty;
-    private string _sizeRawInput = string.Empty;
-    private bool _hasStaleSizeImage;
-
-    public RootCardViewModel(
-        FolderNode rootNode,
-        IImageWorkspaceService workspaceService,
-        IWorkspaceStateService workspaceStateService,
-        string backupFolder,
-        IProductSheetService? productSheetService = null,
-        Func<bool>? isAutoPublishBusyProvider = null,
-        Func<Func<Task>, Task>? runExclusiveAsync = null,
-        Func<RootCardViewModel, AutoPublishStatus, string, Task>? setAutoPublishStatusAsync = null,
-        Func<RootCardViewModel, Task>? runAutoPublishCardAsync = null,
-        Func<RootCardViewModel, Task>? openCardSizeDialogAsync = null,
-        Action? batchSelectionChanged = null)
-    {
-        _workspaceService = workspaceService;
-        _workspaceStateService = workspaceStateService;
-        _backupFolder = backupFolder;
-        _productSheetService = productSheetService;
-        _isAutoPublishBusyProvider = isAutoPublishBusyProvider;
-        _runExclusiveAsync = runExclusiveAsync;
-        _setAutoPublishStatusAsync = setAutoPublishStatusAsync;
-        _runAutoPublishCardAsync = runAutoPublishCardAsync;
-        _openCardSizeDialogAsync = openCardSizeDialogAsync;
-        _batchSelectionChanged = batchSelectionChanged;
-        _rootNode = new FolderNodeViewModel(rootNode);
-        _cardState = _workspaceStateService.GetOrCreateCardState(rootNode.Id);
-        _isCollapsed = _cardState.IsCollapsed;
-
-        _invertSelectionCommand = new RelayCommand(_ => InvertSelection(), _ => SelectedNode is not null && TotalImageCount > 0);
-        _selectAllCommand = new RelayCommand(_ => SetSelectionState(true), _ => SelectedNode is not null && TotalImageCount > 0);
-        _clearSelectionCommand = new RelayCommand(_ => SetSelectionState(false), _ => SelectedNode is not null && TotalImageCount > 0);
-        _collapseCommand = new RelayCommand(_ => SetCollapsed(true));
-        _expandCommand = new RelayCommand(_ =>
-        {
-            SetCollapsed(false);
-            Activate();
-        });
-        _addImagesCommand = new AsyncRelayCommand(_ => AddImagesAsync(), _ => SelectedNode is not null);
-        _openCardSizeDialogCommand = new AsyncRelayCommand(_ => OpenCardSizeDialogAsync(), _ => CanOpenCardSizeDialog());
-        _copyMainToDetailCommand = new AsyncRelayCommand(_ => CopyMainToDetailAsync(), _ => CanCopyMainToDetail());
-        _moveSelectedCommand = new AsyncRelayCommand(_ => MoveSelectedAsync(), _ => SelectedNode is not null && SelectedCount > 0);
-        _autoPublishCommand = new AsyncRelayCommand(_ => AutoPublishAsync(), _ => CanAutoPublish());
-        _toggleExpandCommand = new RelayCommand(node => ToggleExpand(node as FolderNodeViewModel), node => node is FolderNodeViewModel folderNode && folderNode.HasChildren);
-        _selectNodeCommand = new RelayCommand(node => SelectNode(node as FolderNodeViewModel), node => node is FolderNodeViewModel);
-        _loadMoreImagesCommand = new RelayCommand(_ => LoadMoreImages(), _ => HasMoreImages);
-
-        RebuildVisibleNodes();
-        RestoreOrSelectDefaultNode(activateCard: false);
-    }
-
-    public event Action<PreviewRequest?>? PreviewRequested;
-
-    public event Action<string>? StatusChanged;
-
-    public event Action<RootCardViewModel>? Activated;
-
-    public event Action<RootCardViewModel>? SelectionContextChanged;
-
-    public event Action<RootCardViewModel, IReadOnlyList<string>>? ImageFilesAdded;
-
-    public string DisplayName => _rootNode.DisplayName;
+	private const int ImagePageSize = 60;
 
-    public string RootFolderPath => _rootNode.FolderPath;
+	private readonly FolderNodeViewModel _rootNode;
 
-    public string AutoPublishKeyPath => GetSpRootFolder() ?? RootFolderPath;
+	private readonly IImageWorkspaceService _workspaceService;
 
-    public ObservableCollection<FolderNodeViewModel> VisibleNodes { get; } = [];
+	private readonly IWorkspaceStateService _workspaceStateService;
 
-    public ObservableCollection<ImageItemViewModel> CurrentImages { get; } = [];
+	private readonly RootCardState _cardState;
 
-    public RelayCommand InvertSelectionCommand => _invertSelectionCommand;
+	private readonly RelayCommand _invertSelectionCommand;
 
-    public RelayCommand SelectAllCommand => _selectAllCommand;
+	private readonly RelayCommand _selectAllCommand;
 
-    public RelayCommand ClearSelectionCommand => _clearSelectionCommand;
+	private readonly RelayCommand _clearSelectionCommand;
 
-    public RelayCommand CollapseCommand => _collapseCommand;
+	private readonly RelayCommand _collapseCommand;
 
-    public RelayCommand ExpandCommand => _expandCommand;
+	private readonly RelayCommand _expandCommand;
 
-    public AsyncRelayCommand AddImagesCommand => _addImagesCommand;
-
-    public AsyncRelayCommand OpenCardSizeDialogCommand => _openCardSizeDialogCommand;
+	private readonly AsyncRelayCommand _addImagesCommand;
 
-    public AsyncRelayCommand CopyMainToDetailCommand => _copyMainToDetailCommand;
-
-    public AsyncRelayCommand MoveSelectedCommand => _moveSelectedCommand;
-
-    public AsyncRelayCommand AutoPublishCommand => _autoPublishCommand;
-
-    public RelayCommand ToggleExpandCommand => _toggleExpandCommand;
-
-    public RelayCommand SelectNodeCommand => _selectNodeCommand;
-
-    public RelayCommand LoadMoreImagesCommand => _loadMoreImagesCommand;
-
-    public FolderNodeViewModel RootNode => _rootNode;
-
-    public IReadOnlyList<FolderNodeViewModel> ChildFolders => _rootNode.Children;
-
-    public FolderNodeViewModel? SelectedNode
-    {
-        get => _selectedNode;
-        private set
-        {
-            if (!SetProperty(ref _selectedNode, value))
-            {
-                return;
-            }
-
-            OnPropertyChanged(nameof(CurrentFolderTitle));
-            OnPropertyChanged(nameof(CurrentFolderPath));
-            OnPropertyChanged(nameof(CurrentFolderMetaText));
-            OnPropertyChanged(nameof(HasImages));
-            OnPropertyChanged(nameof(ContentEmptyText));
-            OnPropertyChanged(nameof(AutoPublishKeyPath));
-            OnPropertyChanged(nameof(CollapsedSummaryText));
-            OnPropertyChanged(nameof(CollapsedPathText));
-            RefreshCurrentImages();
-        }
-    }
-
-    public bool IsCollapsed
-    {
-        get => _isCollapsed;
-        private set
-        {
-            if (!SetProperty(ref _isCollapsed, value))
-            {
-                return;
-            }
-
-            OnPropertyChanged(nameof(CollapsedSummaryText));
-            OnPropertyChanged(nameof(CollapsedPathText));
-            OnPropertyChanged(nameof(CanBatchSelect));
-
-            if (!value)
-            {
-                IsBatchSelected = false;
-            }
-
-            _batchSelectionChanged?.Invoke();
-        }
-    }
-
-    public bool IsBatchSelected
-    {
-        get => _isBatchSelected;
-        set
-        {
-            if (!SetProperty(ref _isBatchSelected, value))
-            {
-                return;
-            }
-
-            _batchSelectionChanged?.Invoke();
-        }
-    }
-
-    public bool IsActive
-    {
-        get => _isActive;
-        set
-        {
-            if (!SetProperty(ref _isActive, value))
-            {
-                return;
-            }
-
-            OnPropertyChanged(nameof(CardBorderBrush));
-        }
-    }
-
-    public bool IsDropTarget
-    {
-        get => _isDropTarget;
-        private set
-        {
-            if (!SetProperty(ref _isDropTarget, value))
-            {
-                return;
-            }
-
-            OnPropertyChanged(nameof(ContentBorderBrush));
-            OnPropertyChanged(nameof(ContentBackgroundBrush));
-        }
-    }
-
-    public string BackupFolder
-    {
-        get => _backupFolder;
-        private set => SetProperty(ref _backupFolder, value);
-    }
-
-    public int TotalCount
-    {
-        get => _totalCount;
-        private set
-        {
-            if (SetProperty(ref _totalCount, value))
-            {
-                OnPropertyChanged(nameof(CountsText));
-                OnPropertyChanged(nameof(SelectionSummaryText));
-                OnPropertyChanged(nameof(UnselectedCount));
-            }
-        }
-    }
-
-    public int SelectedCount
-    {
-        get => _selectedCount;
-        private set
-        {
-            if (SetProperty(ref _selectedCount, value))
-            {
-                OnPropertyChanged(nameof(CountsText));
-                OnPropertyChanged(nameof(SelectionSummaryText));
-                OnPropertyChanged(nameof(UnselectedCount));
-                _moveSelectedCommand.RaiseCanExecuteChanged();
-            }
-        }
-    }
-
-    public int UnselectedCount => TotalCount - SelectedCount;
-
-    public int LoadedImageCount
-    {
-        get => _loadedImageCount;
-        private set
-        {
-            if (!SetProperty(ref _loadedImageCount, value))
-            {
-                return;
-            }
-
-            OnPropertyChanged(nameof(ImageLoadSummaryText));
-            OnPropertyChanged(nameof(HasMoreImages));
-            _loadMoreImagesCommand.RaiseCanExecuteChanged();
-        }
-    }
-
-    public int TotalImageCount => SelectedNode?.Model.Images.Count ?? 0;
-
-    public bool HasMoreImages => LoadedImageCount < TotalImageCount;
-
-    public string ImageLoadSummaryText => TotalImageCount == 0
-        ? "当前目录没有图片"
-        : $"已显示 {LoadedImageCount} / 共 {TotalImageCount} 张";
-
-    public string CurrentFolderTitle => SelectedNode?.DisplayName ?? DisplayName;
-
-    public string CurrentFolderPath => SelectedNode?.FolderPath ?? RootFolderPath;
-
-    public string CurrentFolderHeaderText => string.IsNullOrWhiteSpace(CurrentFolderPath)
-        ? CurrentFolderTitle
-        : $"{CurrentFolderTitle}  {CurrentFolderPath}";
-
-    public string CurrentFolderMetaText => SelectedNode is null
-        ? "从左侧目录选择一个文件夹后，这里显示该目录下的图片。"
-        : CurrentFolderPath;
-
-    public string CountsText => $"共 {TotalCount} 张 / 已选中 {SelectedCount} 张 / 未选中 {UnselectedCount} 张";
-
-    public string SelectionSummaryText => SelectedNode is null
-        ? "请选择左侧目录中的文件夹。"
-        : $"当前目录：{CurrentFolderTitle}，共 {TotalCount} 张，已选中 {SelectedCount} 张，未选中 {UnselectedCount} 张";
-
-    public bool HasImages => CurrentImages.Count > 0;
-
-    public string ContentEmptyText => SelectedNode is null
-        ? "从左侧目录选择一个文件夹后，这里会显示该目录下的图片。"
-        : "当前文件夹没有图片。可以点击“添加图片”，或直接拖拽图片到这里。";
-
-    public string CollapsedSummaryText => $"{DisplayName}    {AutoPublishKeyPath}";
-
-    public string CollapsedPathText => AutoPublishKeyPath;
-
-    public string SizeText
-    {
-        get => _sizeText;
-        private set
-        {
-            if (!SetProperty(ref _sizeText, value))
-            {
-                return;
-            }
-
-            OnPropertyChanged(nameof(HasSizeText));
-            OnPropertyChanged(nameof(SizeSummaryText));
-            OnPropertyChanged(nameof(SizeStatusForeground));
-        }
-    }
-
-    public string SizeRawInput
-    {
-        get => _sizeRawInput;
-        private set => SetProperty(ref _sizeRawInput, value);
-    }
-
-    public bool HasSizeText => !string.IsNullOrWhiteSpace(SizeText);
-
-    public bool HasStaleSizeImage
-    {
-        get => _hasStaleSizeImage;
-        private set
-        {
-            if (!SetProperty(ref _hasStaleSizeImage, value))
-            {
-                return;
-            }
-
-            OnPropertyChanged(nameof(SizeSummaryText));
-            OnPropertyChanged(nameof(SizeStatusForeground));
-        }
-    }
-
-    public string SizeSummaryText
-    {
-        get
-        {
-            if (HasStaleSizeImage)
-            {
-                return "尺寸：需重新录入";
-            }
-
-            return HasSizeText
-                ? $"尺寸：{SizeText.Replace(Environment.NewLine, " ")}"
-                : "尺寸：未录入";
-        }
-    }
-
-    public Media.Brush SizeStatusForeground => HasSizeText && !HasStaleSizeImage
-        ? new Media.SolidColorBrush(Media.Color.FromRgb(96, 98, 102))
-        : new Media.SolidColorBrush(Media.Color.FromRgb(245, 108, 108));
-
-    public bool IsAutoPublishBusy => _isAutoPublishBusyProvider?.Invoke() ?? false;
-
-    public bool CanBatchSelect => IsCollapsed && !string.IsNullOrWhiteSpace(GetSpRootFolder());
-
-    public AutoPublishStatus AutoPublishStatus
-    {
-        get => _autoPublishStatus;
-        private set
-        {
-            if (!SetProperty(ref _autoPublishStatus, value))
-            {
-                return;
-            }
-
-            OnPropertyChanged(nameof(AutoPublishStatusText));
-            OnPropertyChanged(nameof(AutoPublishStatusForeground));
-            OnPropertyChanged(nameof(AutoPublishStatusBackground));
-            OnPropertyChanged(nameof(AutoPublishStatusBorderBrush));
-        }
-    }
-
-    public string AutoPublishLastError
-    {
-        get => _autoPublishLastError;
-        private set => SetProperty(ref _autoPublishLastError, value);
-    }
-
-    public string AutoPublishStatusText => AutoPublishStatus switch
-    {
-        AutoPublishStatus.Publishing => "上架中",
-        AutoPublishStatus.Success => "上架成功",
-        AutoPublishStatus.Failed => "上架失败",
-        _ => "未上架"
-    };
-
-    public Media.Brush AutoPublishStatusForeground => AutoPublishStatus switch
-    {
-        AutoPublishStatus.Publishing => new Media.SolidColorBrush(Media.Color.FromRgb(45, 106, 227)),
-        AutoPublishStatus.Success => new Media.SolidColorBrush(Media.Color.FromRgb(103, 194, 58)),
-        AutoPublishStatus.Failed => new Media.SolidColorBrush(Media.Color.FromRgb(245, 108, 108)),
-        _ => new Media.SolidColorBrush(Media.Color.FromRgb(124, 138, 165))
-    };
-
-    public Media.Brush AutoPublishStatusBackground => AutoPublishStatus switch
-    {
-        AutoPublishStatus.Publishing => new Media.SolidColorBrush(Media.Color.FromRgb(234, 241, 255)),
-        AutoPublishStatus.Success => new Media.SolidColorBrush(Media.Color.FromRgb(240, 249, 235)),
-        AutoPublishStatus.Failed => new Media.SolidColorBrush(Media.Color.FromRgb(254, 240, 240)),
-        _ => new Media.SolidColorBrush(Media.Color.FromRgb(246, 248, 252))
-    };
-
-    public Media.Brush AutoPublishStatusBorderBrush => AutoPublishStatus switch
-    {
-        AutoPublishStatus.Publishing => new Media.SolidColorBrush(Media.Color.FromRgb(159, 190, 255)),
-        AutoPublishStatus.Success => new Media.SolidColorBrush(Media.Color.FromRgb(205, 231, 176)),
-        AutoPublishStatus.Failed => new Media.SolidColorBrush(Media.Color.FromRgb(252, 196, 196)),
-        _ => new Media.SolidColorBrush(Media.Color.FromRgb(217, 225, 236))
-    };
-
-    public Media.Brush CardBorderBrush => IsActive
-        ? new Media.SolidColorBrush(Media.Color.FromRgb(159, 190, 255))
-        : new Media.SolidColorBrush(Media.Color.FromRgb(217, 225, 236));
-
-    public Media.Brush ContentBorderBrush => IsDropTarget
-        ? new Media.SolidColorBrush(Media.Color.FromRgb(45, 106, 227))
-        : new Media.SolidColorBrush(Media.Color.FromRgb(217, 225, 236));
-
-    public Media.Brush ContentBackgroundBrush => IsDropTarget
-        ? new Media.SolidColorBrush(Media.Color.FromRgb(238, 244, 255))
-        : new Media.SolidColorBrush(Media.Color.FromRgb(255, 255, 255));
-
-    public void SetBackupFolder(string backupFolder)
-    {
-        BackupFolder = backupFolder;
-    }
-
-    public void NotifyAutoPublishStateChanged()
-    {
-        OnPropertyChanged(nameof(IsAutoPublishBusy));
-        _autoPublishCommand.RaiseCanExecuteChanged();
-        _batchSelectionChanged?.Invoke();
-    }
-
-    public void ApplyAutoPublishRecord(AutoPublishCardRecord? record)
-    {
-        AutoPublishStatus = record?.Status ?? AutoPublishStatus.NotPublished;
-        AutoPublishLastError = record?.LastError ?? string.Empty;
-    }
-
-    public void ApplyCardSizeInfo(CardSizeInfoRecord? record, bool hasStaleSizeImage = false)
-    {
-        SizeText = hasStaleSizeImage ? string.Empty : record?.SizeText ?? string.Empty;
-        SizeRawInput = hasStaleSizeImage ? record?.SizeRawInput ?? string.Empty : record?.SizeRawInput ?? string.Empty;
-        HasStaleSizeImage = hasStaleSizeImage;
-    }
-
-    public void SetAutoPublishStatus(AutoPublishStatus status, string lastError = "")
-    {
-        AutoPublishStatus = status;
-        AutoPublishLastError = lastError;
-    }
-
-    public void InvertSelectionFromToolbar()
-    {
-        Activate();
-        InvertSelection();
-    }
-
-    public void Activate()
-    {
-        Activated?.Invoke(this);
-    }
-
-    public void RestoreOrSelectDefaultNode(bool activateCard)
-    {
-        var targetNode = FindNodeById(_cardState.SelectedNodeId)
-            ?? FindFirstNodeWithImages(ChildFolders)
-            ?? ChildFolders.FirstOrDefault()
-            ?? _rootNode;
-
-        SelectNode(targetNode, activateCard);
-    }
-
-    public FolderNodeViewModel? GetFirstNodeWithImages()
-    {
-        return FindFirstNodeWithImages(ChildFolders) ?? (_rootNode.Model.Images.Count > 0 ? _rootNode : null);
-    }
-
-    public bool CanAcceptDrop(IReadOnlyList<string> files)
-    {
-        return files.Count > 0
-            && SelectedNode is not null
-            && Directory.Exists(CurrentFolderPath);
-    }
-
-    public void SetDropTarget(bool isActive)
-    {
-        IsDropTarget = isActive;
-    }
-
-    private bool CanAutoPublish()
-    {
-        return _productSheetService is not null
-            && _runExclusiveAsync is not null
-            && _runAutoPublishCardAsync is not null
-            && !IsAutoPublishBusy
-            && !string.IsNullOrWhiteSpace(GetSpRootFolder());
-    }
-
-    private bool CanOpenCardSizeDialog()
-    {
-        return _openCardSizeDialogAsync is not null
-            && !string.IsNullOrWhiteSpace(GetSpRootFolder());
-    }
-
-    private bool CanCopyMainToDetail()
-    {
-        var spRootFolder = GetSpRootFolder();
-        if (string.IsNullOrWhiteSpace(spRootFolder))
-        {
-            return false;
-        }
-
-        return Directory.Exists(Path.Combine(spRootFolder, "main"));
-    }
-
-    public async Task<string> RunAutoPublishInternalAsync(IReadOnlyList<string>? manualSizes = null)
-    {
-        var task = await PrepareAutoPublishDataAsync(manualSizes);
-        var message = string.IsNullOrWhiteSpace(task.ProductsJsonPath)
-            ? "上架 JSON 已生成。"
-            : task.ProductsJsonPath;
-        StatusChanged?.Invoke($"自动上架准备完成：{Path.GetFileName(task.SpRootFolder)}。{message}");
-        return message;
-    }
-
-    public async Task<ProductSheetTask> PrepareAutoPublishDataAsync(IReadOnlyList<string>? manualSizes = null)
-    {
-        var spRootFolder = GetSpRootFolder();
-        if (string.IsNullOrWhiteSpace(spRootFolder) || _productSheetService is null)
-        {
-            throw new InvalidOperationException("当前卡片未解析到 SP 根目录，无法自动上架。");
-        }
-
-        var validationError = ValidateAutoPublishInput(spRootFolder);
-        if (validationError is not null)
-        {
-            throw new InvalidOperationException(validationError);
-        }
-
-        Activate();
-        NotifyAutoPublishStateChanged();
-
-        try
-        {
-            StatusChanged?.Invoke($"开始准备上架数据：{Path.GetFileName(spRootFolder)}");
-            var task = await _productSheetService.GenerateAsync(spRootFolder, manualSizes);
-            if (task.Status == "Completed")
-            {
-                StatusChanged?.Invoke($"上架数据准备完成：{Path.GetFileName(spRootFolder)}");
-                return task;
-            }
-
-            throw new InvalidOperationException($"自动上架失败：{Path.GetFileName(spRootFolder)}");
-        }
-        catch (Exception ex)
-        {
-            StatusChanged?.Invoke($"自动上架失败：{ex.Message}");
-            throw;
-        }
-        finally
-        {
-            NotifyAutoPublishStateChanged();
-        }
-    }
-
-    private async Task AutoPublishAsync()
-    {
-        var runAutoPublishCardAsync = _runAutoPublishCardAsync;
-        if (_productSheetService is null || _runExclusiveAsync is null || runAutoPublishCardAsync is null)
-        {
-            StatusChanged?.Invoke("当前卡片未解析到 SP 根目录，无法自动上架。");
-            return;
-        }
-
-        await runAutoPublishCardAsync(this);
-    }
-
-    private async Task OpenCardSizeDialogAsync()
-    {
-        if (_openCardSizeDialogAsync is null)
-        {
-            StatusChanged?.Invoke("当前卡片未接入尺寸录入功能。");
-            return;
-        }
-
-        var spRootFolder = GetSpRootFolder();
-        if (string.IsNullOrWhiteSpace(spRootFolder))
-        {
-            throw new InvalidOperationException("当前卡片未解析到 SP 根目录，无法手动录入尺寸。");
-        }
-
-        var mainFolder = Path.Combine(spRootFolder, "main");
-        if (!Directory.Exists(mainFolder))
-        {
-            throw new InvalidOperationException($"未找到 main 文件夹：{mainFolder}");
-        }
-
-        var hasSizeImage = Directory.EnumerateFiles(mainFolder, "2-*.png", SearchOption.TopDirectoryOnly).Any();
-        if (!hasSizeImage)
-        {
-            throw new InvalidOperationException($"当前 main 文件夹下没有尺寸图：{mainFolder}");
-        }
-
-        Activate();
-        await _openCardSizeDialogAsync(this);
-    }
-
-    private string? GetSpRootFolder()
-    {
-        return SpRootResolver.Resolve(RootFolderPath)
-            ?? SpRootResolver.Resolve(CurrentFolderPath);
-    }
-
-    private static string? ValidateAutoPublishInput(string spRootFolder)
-    {
-        var mainFolder = Path.Combine(spRootFolder, "main");
-        if (!Directory.Exists(mainFolder))
-        {
-            return $"自动上架前置校验失败：{mainFolder} 不存在。";
-        }
-
-        var sizeImageExists = Directory.EnumerateFiles(mainFolder, "2-*.png", SearchOption.TopDirectoryOnly).Any();
-        if (!sizeImageExists)
-        {
-            return $"自动上架前置校验失败：{mainFolder} 下缺少 2-*.png 尺寸图。";
-        }
-
-        return null;
-    }
-
-    public async Task AddImageFilesAsync(IReadOnlyList<string> sourceFiles, bool showStatusMessage = true)
-    {
-        if (SelectedNode is null || sourceFiles.Count == 0)
-        {
-            return;
-        }
-
-        Activate();
-
-        var targetFolder = SelectedNode.FolderPath;
-        var copiedFiles = await Task.Run(() =>
-        {
-            var createdFiles = new List<string>();
-            foreach (var sourcePath in sourceFiles)
-            {
-                var destinationPath = GetUniquePath(targetFolder, Path.GetFileName(sourcePath));
-                File.Copy(sourcePath, destinationPath, overwrite: false);
-                createdFiles.Add(destinationPath);
-            }
-
-            return createdFiles;
-        });
-
-        foreach (var filePath in copiedFiles)
-        {
-            var fileInfo = new FileInfo(filePath);
-            var model = new ImageItem
-            {
-                FilePath = fileInfo.FullName,
-                FileName = fileInfo.Name,
-                FileSize = fileInfo.Length,
-                LastWriteTime = fileInfo.LastWriteTime
-            };
-            SelectedNode.Model.Images.Add(model);
-        }
-
-        SelectedNode.Model.Images.Sort((left, right) => StringComparer.OrdinalIgnoreCase.Compare(left.FileName, right.FileName));
-        RefreshCurrentImages(loadAll: true);
-        UpdateCounts();
-
-        if (copiedFiles.Count > 0)
-        {
-            RaisePreviewForPath(copiedFiles[0]);
-        }
-
-        if (showStatusMessage)
-        {
-            StatusChanged?.Invoke($"已向 {SelectedNode.DisplayName} 添加 {copiedFiles.Count} 张图片。");
-        }
-
-        if (copiedFiles.Count > 0)
-        {
-            ImageFilesAdded?.Invoke(this, copiedFiles);
-        }
-    }
-
-    private void ToggleExpand(FolderNodeViewModel? node)
-    {
-        if (node is null || !node.HasChildren)
-        {
-            return;
-        }
-
-        node.IsExpanded = !node.IsExpanded;
-        RebuildVisibleNodes();
-    }
-
-    private void SelectNode(FolderNodeViewModel? node, bool activateCard = true)
-    {
-        if (node is null)
-        {
-            return;
-        }
-
-        foreach (var visibleNode in EnumerateAll(_rootNode))
-        {
-            visibleNode.IsSelected = false;
-        }
-
-        node.IsSelected = true;
-        ExpandNodeAncestors(node);
-        RebuildVisibleNodes();
-        SelectedNode = node;
-        _workspaceStateService.SetSelectedNode(_rootNode.Id, node.Id);
-        UpdateCounts();
-
-        if (activateCard)
-        {
-            Activate();
-        }
-    }
-
-    private void InvertSelection()
-    {
-        if (SelectedNode is null)
-        {
-            return;
-        }
-
-        _workspaceService.InvertSelection(SelectedNode.Model);
-        foreach (var image in CurrentImages)
-        {
-            image.IsSelected = image.Model.IsSelected;
-        }
-
-        UpdateCounts();
-    }
-
-    private void SetSelectionState(bool isSelected)
-    {
-        if (SelectedNode is null)
-        {
-            return;
-        }
-
-        _workspaceService.SetSelectionState(SelectedNode.Model, isSelected);
-        foreach (var image in CurrentImages)
-        {
-            image.SyncSelectionStateFromModel();
-        }
-
-        UpdateCounts();
-    }
-
-    private void SetCollapsed(bool collapsed)
-    {
-        IsCollapsed = collapsed;
-        _workspaceStateService.SetCollapsed(_rootNode.Id, collapsed);
-    }
-
-    private async Task AddImagesAsync()
-    {
-        if (SelectedNode is null)
-        {
-            return;
-        }
-
-        Activate();
-
-        var dialog = new Microsoft.Win32.OpenFileDialog
-        {
-            Title = "选择要添加到当前目录的图片",
-            InitialDirectory = SelectedNode.FolderPath,
-            Multiselect = true,
-            Filter = "图片文件|*.jpg;*.jpeg;*.png;*.bmp;*.gif;*.tif;*.tiff;*.webp;*.jfif"
-        };
-
-        if (dialog.ShowDialog() != true)
-        {
-            return;
-        }
-
-        await AddImageFilesAsync(dialog.FileNames, showStatusMessage: true);
-    }
-
-    private async Task CopyMainToDetailAsync()
-    {
-        var spRootFolder = GetSpRootFolder();
-        if (string.IsNullOrWhiteSpace(spRootFolder))
-        {
-            StatusChanged?.Invoke("当前卡片未解析到 SP 根目录，无法复制 main 到 detail。");
-            return;
-        }
-
-        Activate();
-
-        var mainFolder = Path.Combine(spRootFolder, "main");
-        var detailFolder = Path.Combine(spRootFolder, "detail");
-        if (!Directory.Exists(mainFolder))
-        {
-            StatusChanged?.Invoke($"复制失败：{mainFolder} 不存在。");
-            return;
-        }
-
-        Directory.CreateDirectory(detailFolder);
-
-        var copiedFiles = await Task.Run(() =>
-        {
-            var result = new List<string>();
-            foreach (var sourcePath in Directory.EnumerateFiles(mainFolder, "*", SearchOption.TopDirectoryOnly)
-                         .Where(IsSupportedImageFile))
-            {
-                var destinationPath = Path.Combine(detailFolder, Path.GetFileName(sourcePath));
-                File.Copy(sourcePath, destinationPath, overwrite: true);
-                result.Add(destinationPath);
-            }
-
-            return result;
-        });
-
-        var refreshedDetailNode = RefreshNodeImages(detailFolder);
-        refreshedDetailNode?.RefreshImageCount();
-        UpdateCounts();
-
-        if (SelectedNode is not null
-            && string.Equals(
-                Path.GetFullPath(SelectedNode.FolderPath),
-                Path.GetFullPath(detailFolder),
-                StringComparison.OrdinalIgnoreCase))
-        {
-            RefreshCurrentImages(loadAll: true);
-            OnPropertyChanged(nameof(HasImages));
-            OnPropertyChanged(nameof(ContentEmptyText));
-            OnPropertyChanged(nameof(CurrentFolderMetaText));
-            if (CurrentImages.Count > 0)
-            {
-                RaisePreviewForPath(CurrentImages[0].FilePath);
-            }
-        }
-
-        StatusChanged?.Invoke($"已复制 main 到 detail，共 {copiedFiles.Count} 张图片，同名文件已覆盖。");
-    }
-
-    private async Task MoveSelectedAsync()
-    {
-        if (SelectedNode is null)
-        {
-            return;
-        }
-
-        Activate();
-
-        var selectedItems = CurrentImages.Where(image => image.IsSelected).ToList();
-        if (selectedItems.Count == 0)
-        {
-            return;
-        }
-
-        Directory.CreateDirectory(BackupFolder);
-
-        var movedPaths = await Task.Run(() =>
-        {
-            var result = new List<ImageItemViewModel>();
-            foreach (var item in selectedItems)
-            {
-                var destinationPath = GetUniquePath(BackupFolder, item.FileName);
-                File.Move(item.FilePath, destinationPath);
-                result.Add(item);
-            }
-
-            return result;
-        });
-
-        foreach (var movedItem in movedPaths)
-        {
-            SelectedNode.Model.Images.Remove(movedItem.Model);
-            CurrentImages.Remove(movedItem);
-        }
-
-        LoadedImageCount = CurrentImages.Count;
-        UpdateCounts();
-        PreviewRequested?.Invoke(null);
-        StatusChanged?.Invoke($"已移动 {movedPaths.Count} 张图片到备份目录。");
-    }
-
-    private void RebuildVisibleNodes()
-    {
-        VisibleNodes.Clear();
-        foreach (var node in EnumerateVisible(_rootNode))
-        {
-            VisibleNodes.Add(node);
-        }
-    }
-
-    private IEnumerable<FolderNodeViewModel> EnumerateVisible(FolderNodeViewModel node)
-    {
-        yield return node;
-
-        if (!node.IsExpanded)
-        {
-            yield break;
-        }
-
-        foreach (var child in node.Children)
-        {
-            foreach (var descendant in EnumerateVisible(child))
-            {
-                yield return descendant;
-            }
-        }
-    }
-
-    private IEnumerable<FolderNodeViewModel> EnumerateAll(FolderNodeViewModel node)
-    {
-        yield return node;
-
-        foreach (var child in node.Children)
-        {
-            foreach (var descendant in EnumerateAll(child))
-            {
-                yield return descendant;
-            }
-        }
-    }
-
-    private static void ExpandNodeAncestors(FolderNodeViewModel? node)
-    {
-        var current = node;
-        while (current is not null)
-        {
-            current.IsExpanded = true;
-            current = FindParent(current);
-        }
-    }
-
-    private static FolderNodeViewModel? FindParent(FolderNodeViewModel node)
-    {
-        return node.Model.Parent is null ? null : FindNode(node, node.Model.Parent.Id);
-    }
-
-    private static FolderNodeViewModel? FindNode(FolderNodeViewModel current, Guid targetId)
-    {
-        if (current.Id == targetId)
-        {
-            return current;
-        }
-
-        foreach (var child in current.Children)
-        {
-            var match = FindNode(child, targetId);
-            if (match is not null)
-            {
-                return match;
-            }
-        }
-
-        return null;
-    }
-
-    private FolderNodeViewModel? RefreshNodeImages(string folderPath)
-    {
-        var targetNode = FindNodeByFolderPath(_rootNode, folderPath);
-        if (targetNode is null || !Directory.Exists(folderPath))
-        {
-            return null;
-        }
-
-        targetNode.Model.Images.Clear();
-        foreach (var fileInfo in new DirectoryInfo(folderPath)
-                     .EnumerateFiles()
-                     .Where(file => IsSupportedImageFile(file.FullName))
-                     .OrderBy(file => file.Name, StringComparer.OrdinalIgnoreCase))
-        {
-            targetNode.Model.Images.Add(new ImageItem
-            {
-                FilePath = fileInfo.FullName,
-                FileName = fileInfo.Name,
-                FileSize = fileInfo.Length,
-                LastWriteTime = fileInfo.LastWriteTime
-            });
-        }
-
-        return targetNode;
-    }
-
-    private static FolderNodeViewModel? FindNodeByFolderPath(FolderNodeViewModel current, string folderPath)
-    {
-        var normalizedTarget = Path.GetFullPath(folderPath);
-        if (string.Equals(Path.GetFullPath(current.FolderPath), normalizedTarget, StringComparison.OrdinalIgnoreCase))
-        {
-            return current;
-        }
-
-        foreach (var child in current.Children)
-        {
-            var match = FindNodeByFolderPath(child, folderPath);
-            if (match is not null)
-            {
-                return match;
-            }
-        }
-
-        return null;
-    }
-
-    private FolderNodeViewModel? FindNodeById(Guid? nodeId)
-    {
-        return nodeId.HasValue ? FindNode(_rootNode, nodeId.Value) : null;
-    }
-
-    private static FolderNodeViewModel? FindFirstNodeWithImages(IEnumerable<FolderNodeViewModel> nodes)
-    {
-        foreach (var node in nodes)
-        {
-            if (node.Model.Images.Count > 0)
-            {
-                return node;
-            }
-
-            if (node.Children.Count > 0)
-            {
-                var childMatch = FindFirstNodeWithImages(node.Children);
-                if (childMatch is not null)
-                {
-                    return childMatch;
-                }
-            }
-        }
-
-        return nodes.FirstOrDefault();
-    }
-
-    private void RefreshCurrentImages(bool loadAll = false)
-    {
-        CurrentImages.Clear();
-
-        if (SelectedNode is null)
-        {
-            LoadedImageCount = 0;
-            UpdateCounts();
-            return;
-        }
-
-        var images = SelectedNode.Model.Images;
-        var targetCount = loadAll ? images.Count : Math.Min(images.Count, ImagePageSize);
-
-        for (var index = 0; index < targetCount; index++)
-        {
-            CurrentImages.Add(CreateImageViewModel(images[index]));
-        }
-
-        LoadedImageCount = CurrentImages.Count;
-        UpdateCounts();
-    }
-
-    private void LoadMoreImages()
-    {
-        if (SelectedNode is null || !HasMoreImages)
-        {
-            return;
-        }
-
-        var images = SelectedNode.Model.Images;
-        var nextCount = Math.Min(images.Count, LoadedImageCount + ImagePageSize);
-        for (var index = LoadedImageCount; index < nextCount; index++)
-        {
-            CurrentImages.Add(CreateImageViewModel(images[index]));
-        }
-
-        LoadedImageCount = CurrentImages.Count;
-        OnPropertyChanged(nameof(HasImages));
-    }
-
-    private ImageItemViewModel CreateImageViewModel(ImageItem model)
-    {
-        return new ImageItemViewModel(
-            model,
-            _ => UpdateCounts(),
-            image =>
-            {
-                Activate();
-                PreviewRequested?.Invoke(new PreviewRequest
-                {
-                    FilePath = image.FilePath,
-                    FileName = image.FileName,
-                    FolderPath = CurrentFolderPath,
-                    FileSize = image.Model.FileSize
-                });
-            });
-    }
-
-    private void RaisePreviewForPath(string filePath)
-    {
-        var fileInfo = new FileInfo(filePath);
-        PreviewRequested?.Invoke(new PreviewRequest
-        {
-            FilePath = fileInfo.FullName,
-            FileName = fileInfo.Name,
-            FolderPath = CurrentFolderPath,
-            FileSize = fileInfo.Exists ? fileInfo.Length : 0
-        });
-    }
-
-    private void UpdateCounts()
-    {
-        if (SelectedNode is null)
-        {
-            TotalCount = 0;
-            SelectedCount = 0;
-        }
-        else
-        {
-            var counts = _workspaceService.CalculateCounts(SelectedNode.Model);
-            TotalCount = counts.Total;
-            SelectedCount = counts.Selected;
-        }
-
-        OnPropertyChanged(nameof(HasImages));
-        OnPropertyChanged(nameof(ContentEmptyText));
-        OnPropertyChanged(nameof(TotalImageCount));
-        OnPropertyChanged(nameof(ImageLoadSummaryText));
-        OnPropertyChanged(nameof(HasMoreImages));
-        OnPropertyChanged(nameof(CountsText));
-        _invertSelectionCommand.RaiseCanExecuteChanged();
-        _selectAllCommand.RaiseCanExecuteChanged();
-        _clearSelectionCommand.RaiseCanExecuteChanged();
-        _addImagesCommand.RaiseCanExecuteChanged();
-        _copyMainToDetailCommand.RaiseCanExecuteChanged();
-        _loadMoreImagesCommand.RaiseCanExecuteChanged();
-        SelectionContextChanged?.Invoke(this);
-    }
-
-    private static string GetUniquePath(string folderPath, string fileName)
-    {
-        var baseName = Path.GetFileNameWithoutExtension(fileName);
-        var extension = Path.GetExtension(fileName);
-        var candidate = Path.Combine(folderPath, fileName);
-        var index = 1;
-
-        while (File.Exists(candidate))
-        {
-            candidate = Path.Combine(folderPath, $"{baseName} ({index}){extension}");
-            index++;
-        }
-
-        return candidate;
-    }
-
-    private static bool IsSupportedImageFile(string filePath)
-    {
-        var extension = Path.GetExtension(filePath).ToLowerInvariant();
-        return extension is ".jpg" or ".jpeg" or ".png" or ".bmp" or ".gif" or ".tif" or ".tiff" or ".webp" or ".jfif";
-    }
+	private readonly AsyncRelayCommand _openCardSizeDialogCommand;
+
+	private readonly AsyncRelayCommand _copyMainToDetailCommand;
+
+	private readonly AsyncRelayCommand _moveSelectedCommand;
+
+	private readonly AsyncRelayCommand _autoPublishCommand;
+
+	private readonly RelayCommand _toggleExpandCommand;
+
+	private readonly RelayCommand _selectNodeCommand;
+
+	private readonly RelayCommand _loadMoreImagesCommand;
+
+	private readonly IProductSheetService? _productSheetService;
+
+	private readonly Func<bool>? _isAutoPublishBusyProvider;
+
+	private readonly Func<Func<Task>, Task>? _runExclusiveAsync;
+
+	private readonly Func<RootCardViewModel, AutoPublishStatus, string, Task>? _setAutoPublishStatusAsync;
+
+	private readonly Func<RootCardViewModel, Task>? _runAutoPublishCardAsync;
+
+	private readonly Func<RootCardViewModel, Task>? _openCardSizeDialogAsync;
+
+	private readonly Action? _batchSelectionChanged;
+
+	private FolderNodeViewModel? _selectedNode;
+
+	private bool _isCollapsed;
+
+	private bool _isActive;
+
+	private bool _isDropTarget;
+
+	private bool _isBatchSelected;
+
+	private int _totalCount;
+
+	private int _selectedCount;
+
+	private int _loadedImageCount;
+
+	private string _backupFolder;
+
+	private AutoPublishStatus _autoPublishStatus;
+
+	private string _autoPublishLastError = string.Empty;
+
+	private string _sizeText = string.Empty;
+
+	private string _sizeRawInput = string.Empty;
+
+	private bool _hasStaleSizeImage;
+
+	public string DisplayName => _rootNode.DisplayName;
+
+	public string RootFolderPath => _rootNode.FolderPath;
+
+	public string AutoPublishKeyPath => GetSpRootFolder() ?? RootFolderPath;
+
+	public ObservableCollection<FolderNodeViewModel> VisibleNodes { get; } = new ObservableCollection<FolderNodeViewModel>();
+
+	public ObservableCollection<ImageItemViewModel> CurrentImages { get; } = new ObservableCollection<ImageItemViewModel>();
+
+	public RelayCommand InvertSelectionCommand => _invertSelectionCommand;
+
+	public RelayCommand SelectAllCommand => _selectAllCommand;
+
+	public RelayCommand ClearSelectionCommand => _clearSelectionCommand;
+
+	public RelayCommand CollapseCommand => _collapseCommand;
+
+	public RelayCommand ExpandCommand => _expandCommand;
+
+	public AsyncRelayCommand AddImagesCommand => _addImagesCommand;
+
+	public AsyncRelayCommand OpenCardSizeDialogCommand => _openCardSizeDialogCommand;
+
+	public AsyncRelayCommand CopyMainToDetailCommand => _copyMainToDetailCommand;
+
+	public AsyncRelayCommand MoveSelectedCommand => _moveSelectedCommand;
+
+	public AsyncRelayCommand AutoPublishCommand => _autoPublishCommand;
+
+	public RelayCommand ToggleExpandCommand => _toggleExpandCommand;
+
+	public RelayCommand SelectNodeCommand => _selectNodeCommand;
+
+	public RelayCommand LoadMoreImagesCommand => _loadMoreImagesCommand;
+
+	public FolderNodeViewModel RootNode => _rootNode;
+
+	public IReadOnlyList<FolderNodeViewModel> ChildFolders => _rootNode.Children;
+
+	public FolderNodeViewModel? SelectedNode
+	{
+		get
+		{
+			return _selectedNode;
+		}
+		private set
+		{
+			if (SetProperty(ref _selectedNode, value, "SelectedNode"))
+			{
+				OnPropertyChanged("CurrentFolderTitle");
+				OnPropertyChanged("CurrentFolderPath");
+				OnPropertyChanged("CurrentFolderMetaText");
+				OnPropertyChanged("HasImages");
+				OnPropertyChanged("ContentEmptyText");
+				OnPropertyChanged("AutoPublishKeyPath");
+				OnPropertyChanged("CollapsedSummaryText");
+				OnPropertyChanged("CollapsedPathText");
+				RefreshCurrentImages();
+			}
+		}
+	}
+
+	public bool IsCollapsed
+	{
+		get
+		{
+			return _isCollapsed;
+		}
+		private set
+		{
+			if (SetProperty(ref _isCollapsed, value, "IsCollapsed"))
+			{
+				OnPropertyChanged("CollapsedSummaryText");
+				OnPropertyChanged("CollapsedPathText");
+				OnPropertyChanged("CanBatchSelect");
+				if (!value)
+				{
+					IsBatchSelected = false;
+				}
+				_batchSelectionChanged?.Invoke();
+			}
+		}
+	}
+
+	public bool IsBatchSelected
+	{
+		get
+		{
+			return _isBatchSelected;
+		}
+		set
+		{
+			if (SetProperty(ref _isBatchSelected, value, "IsBatchSelected"))
+			{
+				_batchSelectionChanged?.Invoke();
+			}
+		}
+	}
+
+	public bool IsActive
+	{
+		get
+		{
+			return _isActive;
+		}
+		set
+		{
+			if (SetProperty(ref _isActive, value, "IsActive"))
+			{
+				OnPropertyChanged("CardBorderBrush");
+			}
+		}
+	}
+
+	public bool IsDropTarget
+	{
+		get
+		{
+			return _isDropTarget;
+		}
+		private set
+		{
+			if (SetProperty(ref _isDropTarget, value, "IsDropTarget"))
+			{
+				OnPropertyChanged("ContentBorderBrush");
+				OnPropertyChanged("ContentBackgroundBrush");
+			}
+		}
+	}
+
+	public string BackupFolder
+	{
+		get
+		{
+			return _backupFolder;
+		}
+		private set
+		{
+			SetProperty(ref _backupFolder, value, "BackupFolder");
+		}
+	}
+
+	public int TotalCount
+	{
+		get
+		{
+			return _totalCount;
+		}
+		private set
+		{
+			if (SetProperty(ref _totalCount, value, "TotalCount"))
+			{
+				OnPropertyChanged("CountsText");
+				OnPropertyChanged("SelectionSummaryText");
+				OnPropertyChanged("UnselectedCount");
+			}
+		}
+	}
+
+	public int SelectedCount
+	{
+		get
+		{
+			return _selectedCount;
+		}
+		private set
+		{
+			if (SetProperty(ref _selectedCount, value, "SelectedCount"))
+			{
+				OnPropertyChanged("CountsText");
+				OnPropertyChanged("SelectionSummaryText");
+				OnPropertyChanged("UnselectedCount");
+				_moveSelectedCommand.RaiseCanExecuteChanged();
+			}
+		}
+	}
+
+	public int UnselectedCount => TotalCount - SelectedCount;
+
+	public int LoadedImageCount
+	{
+		get
+		{
+			return _loadedImageCount;
+		}
+		private set
+		{
+			if (SetProperty(ref _loadedImageCount, value, "LoadedImageCount"))
+			{
+				OnPropertyChanged("ImageLoadSummaryText");
+				OnPropertyChanged("HasMoreImages");
+				_loadMoreImagesCommand.RaiseCanExecuteChanged();
+			}
+		}
+	}
+
+	public int TotalImageCount => SelectedNode?.Model.Images.Count ?? 0;
+
+	public bool HasMoreImages => LoadedImageCount < TotalImageCount;
+
+	public string ImageLoadSummaryText
+	{
+		get
+		{
+			if (TotalImageCount != 0)
+			{
+				return $"已显示 {LoadedImageCount} / 共 {TotalImageCount} 张";
+			}
+			return "当前目录没有图片";
+		}
+	}
+
+	public string CurrentFolderTitle => SelectedNode?.DisplayName ?? DisplayName;
+
+	public string CurrentFolderPath => SelectedNode?.FolderPath ?? RootFolderPath;
+
+	public string CurrentFolderHeaderText
+	{
+		get
+		{
+			if (!string.IsNullOrWhiteSpace(CurrentFolderPath))
+			{
+				return CurrentFolderTitle + "  " + CurrentFolderPath;
+			}
+			return CurrentFolderTitle;
+		}
+	}
+
+	public string CurrentFolderMetaText
+	{
+		get
+		{
+			if (SelectedNode != null)
+			{
+				return CurrentFolderPath;
+			}
+			return "从左侧目录选择一个文件夹后，这里显示该目录下的图片。";
+		}
+	}
+
+	public string CountsText => $"共 {TotalCount} 张 / 已选中 {SelectedCount} 张 / 未选中 {UnselectedCount} 张";
+
+	public string SelectionSummaryText
+	{
+		get
+		{
+			if (SelectedNode != null)
+			{
+				return $"当前目录：{CurrentFolderTitle}，共 {TotalCount} 张，已选中 {SelectedCount} 张，未选中 {UnselectedCount} 张";
+			}
+			return "请选择左侧目录中的文件夹。";
+		}
+	}
+
+	public bool HasImages => CurrentImages.Count > 0;
+
+	public string ContentEmptyText
+	{
+		get
+		{
+			if (SelectedNode != null)
+			{
+				return "当前文件夹没有图片。可以点击“添加图片”，或直接拖拽图片到这里。";
+			}
+			return "从左侧目录选择一个文件夹后，这里会显示该目录下的图片。";
+		}
+	}
+
+	public string CollapsedSummaryText => DisplayName + "    " + AutoPublishKeyPath;
+
+	public string CollapsedPathText => AutoPublishKeyPath;
+
+	public string SizeText
+	{
+		get
+		{
+			return _sizeText;
+		}
+		private set
+		{
+			if (SetProperty(ref _sizeText, value, "SizeText"))
+			{
+				OnPropertyChanged("HasSizeText");
+				OnPropertyChanged("SizeSummaryText");
+				OnPropertyChanged("SizeStatusForeground");
+			}
+		}
+	}
+
+	public string SizeRawInput
+	{
+		get
+		{
+			return _sizeRawInput;
+		}
+		private set
+		{
+			SetProperty(ref _sizeRawInput, value, "SizeRawInput");
+		}
+	}
+
+	public bool HasSizeText => !string.IsNullOrWhiteSpace(SizeText);
+
+	public bool HasStaleSizeImage
+	{
+		get
+		{
+			return _hasStaleSizeImage;
+		}
+		private set
+		{
+			if (SetProperty(ref _hasStaleSizeImage, value, "HasStaleSizeImage"))
+			{
+				OnPropertyChanged("SizeSummaryText");
+				OnPropertyChanged("SizeStatusForeground");
+			}
+		}
+	}
+
+	public string SizeSummaryText
+	{
+		get
+		{
+			if (HasStaleSizeImage)
+			{
+				return "尺寸：需重新录入";
+			}
+			if (!HasSizeText)
+			{
+				return "尺寸：未录入";
+			}
+			return "尺寸：" + SizeText.Replace(Environment.NewLine, " ");
+		}
+	}
+
+	public Brush SizeStatusForeground
+	{
+		get
+		{
+			if (!HasSizeText || HasStaleSizeImage)
+			{
+				return new SolidColorBrush(Color.FromRgb(245, 108, 108));
+			}
+			return new SolidColorBrush(Color.FromRgb(96, 98, 102));
+		}
+	}
+
+	public bool IsAutoPublishBusy => _isAutoPublishBusyProvider?.Invoke() ?? false;
+
+	public bool CanBatchSelect
+	{
+		get
+		{
+			if (IsCollapsed)
+			{
+				return !string.IsNullOrWhiteSpace(GetSpRootFolder());
+			}
+			return false;
+		}
+	}
+
+	public AutoPublishStatus AutoPublishStatus
+	{
+		get
+		{
+			return _autoPublishStatus;
+		}
+		private set
+		{
+			if (SetProperty(ref _autoPublishStatus, value, "AutoPublishStatus"))
+			{
+				OnPropertyChanged("AutoPublishStatusText");
+				OnPropertyChanged("AutoPublishStatusForeground");
+				OnPropertyChanged("AutoPublishStatusBackground");
+				OnPropertyChanged("AutoPublishStatusBorderBrush");
+			}
+		}
+	}
+
+	public string AutoPublishLastError
+	{
+		get
+		{
+			return _autoPublishLastError;
+		}
+		private set
+		{
+			SetProperty(ref _autoPublishLastError, value, "AutoPublishLastError");
+		}
+	}
+
+	public string AutoPublishStatusText => AutoPublishStatus switch
+	{
+		AutoPublishStatus.Publishing => "上架中", 
+		AutoPublishStatus.Success => "上架成功", 
+		AutoPublishStatus.Failed => "上架失败", 
+		_ => "未上架", 
+	};
+
+	public Brush AutoPublishStatusForeground => AutoPublishStatus switch
+	{
+		AutoPublishStatus.Publishing => new SolidColorBrush(Color.FromRgb(45, 106, 227)), 
+		AutoPublishStatus.Success => new SolidColorBrush(Color.FromRgb(103, 194, 58)), 
+		AutoPublishStatus.Failed => new SolidColorBrush(Color.FromRgb(245, 108, 108)), 
+		_ => new SolidColorBrush(Color.FromRgb(124, 138, 165)), 
+	};
+
+	public Brush AutoPublishStatusBackground => AutoPublishStatus switch
+	{
+		AutoPublishStatus.Publishing => new SolidColorBrush(Color.FromRgb(234, 241, byte.MaxValue)), 
+		AutoPublishStatus.Success => new SolidColorBrush(Color.FromRgb(240, 249, 235)), 
+		AutoPublishStatus.Failed => new SolidColorBrush(Color.FromRgb(254, 240, 240)), 
+		_ => new SolidColorBrush(Color.FromRgb(246, 248, 252)), 
+	};
+
+	public Brush AutoPublishStatusBorderBrush => AutoPublishStatus switch
+	{
+		AutoPublishStatus.Publishing => new SolidColorBrush(Color.FromRgb(159, 190, byte.MaxValue)), 
+		AutoPublishStatus.Success => new SolidColorBrush(Color.FromRgb(205, 231, 176)), 
+		AutoPublishStatus.Failed => new SolidColorBrush(Color.FromRgb(252, 196, 196)), 
+		_ => new SolidColorBrush(Color.FromRgb(217, 225, 236)), 
+	};
+
+	public Brush CardBorderBrush
+	{
+		get
+		{
+			if (!IsActive)
+			{
+				return new SolidColorBrush(Color.FromRgb(217, 225, 236));
+			}
+			return new SolidColorBrush(Color.FromRgb(159, 190, byte.MaxValue));
+		}
+	}
+
+	public Brush ContentBorderBrush
+	{
+		get
+		{
+			if (!IsDropTarget)
+			{
+				return new SolidColorBrush(Color.FromRgb(217, 225, 236));
+			}
+			return new SolidColorBrush(Color.FromRgb(45, 106, 227));
+		}
+	}
+
+	public Brush ContentBackgroundBrush
+	{
+		get
+		{
+			if (!IsDropTarget)
+			{
+				return new SolidColorBrush(Color.FromRgb(byte.MaxValue, byte.MaxValue, byte.MaxValue));
+			}
+			return new SolidColorBrush(Color.FromRgb(238, 244, byte.MaxValue));
+		}
+	}
+
+	public event Action<PreviewRequest?>? PreviewRequested;
+
+	public event Action<string>? StatusChanged;
+
+	public event Action<RootCardViewModel>? Activated;
+
+	public event Action<RootCardViewModel>? SelectionContextChanged;
+
+	public event Action<RootCardViewModel, IReadOnlyList<string>>? ImageFilesAdded;
+
+	public RootCardViewModel(FolderNode rootNode, IImageWorkspaceService workspaceService, IWorkspaceStateService workspaceStateService, string backupFolder, IProductSheetService? productSheetService = null, Func<bool>? isAutoPublishBusyProvider = null, Func<Func<Task>, Task>? runExclusiveAsync = null, Func<RootCardViewModel, AutoPublishStatus, string, Task>? setAutoPublishStatusAsync = null, Func<RootCardViewModel, Task>? runAutoPublishCardAsync = null, Func<RootCardViewModel, Task>? openCardSizeDialogAsync = null, Action? batchSelectionChanged = null)
+	{
+		_workspaceService = workspaceService;
+		_workspaceStateService = workspaceStateService;
+		_backupFolder = backupFolder;
+		_productSheetService = productSheetService;
+		_isAutoPublishBusyProvider = isAutoPublishBusyProvider;
+		_runExclusiveAsync = runExclusiveAsync;
+		_setAutoPublishStatusAsync = setAutoPublishStatusAsync;
+		_runAutoPublishCardAsync = runAutoPublishCardAsync;
+		_openCardSizeDialogAsync = openCardSizeDialogAsync;
+		_batchSelectionChanged = batchSelectionChanged;
+		_rootNode = new FolderNodeViewModel(rootNode);
+		_cardState = _workspaceStateService.GetOrCreateCardState(rootNode.Id);
+		_isCollapsed = _cardState.IsCollapsed;
+		_invertSelectionCommand = new RelayCommand(delegate
+		{
+			InvertSelection();
+		}, (object? _) => SelectedNode != null && TotalImageCount > 0);
+		_selectAllCommand = new RelayCommand(delegate
+		{
+			SetSelectionState(isSelected: true);
+		}, (object? _) => SelectedNode != null && TotalImageCount > 0);
+		_clearSelectionCommand = new RelayCommand(delegate
+		{
+			SetSelectionState(isSelected: false);
+		}, (object? _) => SelectedNode != null && TotalImageCount > 0);
+		_collapseCommand = new RelayCommand(delegate
+		{
+			SetCollapsed(collapsed: true);
+		});
+		_expandCommand = new RelayCommand(delegate
+		{
+			SetCollapsed(collapsed: false);
+			Activate();
+		});
+		_addImagesCommand = new AsyncRelayCommand((object? _) => AddImagesAsync(), (object? _) => SelectedNode != null);
+		_openCardSizeDialogCommand = new AsyncRelayCommand((object? _) => OpenCardSizeDialogAsync(), (object? _) => CanOpenCardSizeDialog());
+		_copyMainToDetailCommand = new AsyncRelayCommand((object? _) => CopyMainToDetailAsync(), (object? _) => CanCopyMainToDetail());
+		_moveSelectedCommand = new AsyncRelayCommand((object? _) => MoveSelectedAsync(), (object? _) => SelectedNode != null && SelectedCount > 0);
+		_autoPublishCommand = new AsyncRelayCommand((object? _) => AutoPublishAsync(), (object? _) => CanAutoPublish());
+		_toggleExpandCommand = new RelayCommand(delegate(object? node)
+		{
+			ToggleExpand(node as FolderNodeViewModel);
+		}, (object? node) => node is FolderNodeViewModel folderNodeViewModel && folderNodeViewModel.HasChildren);
+		_selectNodeCommand = new RelayCommand(delegate(object? node)
+		{
+			SelectNode(node as FolderNodeViewModel);
+		}, (object? node) => node is FolderNodeViewModel);
+		_loadMoreImagesCommand = new RelayCommand(delegate
+		{
+			LoadMoreImages();
+		}, (object? _) => HasMoreImages);
+		RebuildVisibleNodes();
+		RestoreOrSelectDefaultNode(activateCard: false);
+	}
+
+	public void SetBackupFolder(string backupFolder)
+	{
+		BackupFolder = backupFolder;
+	}
+
+	public void NotifyAutoPublishStateChanged()
+	{
+		OnPropertyChanged("IsAutoPublishBusy");
+		_autoPublishCommand.RaiseCanExecuteChanged();
+		_batchSelectionChanged?.Invoke();
+	}
+
+	public void ApplyAutoPublishRecord(AutoPublishCardRecord? record)
+	{
+		AutoPublishStatus = record?.Status ?? AutoPublishStatus.NotPublished;
+		AutoPublishLastError = record?.LastError ?? string.Empty;
+	}
+
+	public void ApplyCardSizeInfo(CardSizeInfoRecord? record, bool hasStaleSizeImage = false)
+	{
+		SizeText = (hasStaleSizeImage ? string.Empty : (record?.SizeText ?? string.Empty));
+		SizeRawInput = ((!hasStaleSizeImage) ? (record?.SizeRawInput ?? string.Empty) : (record?.SizeRawInput ?? string.Empty));
+		HasStaleSizeImage = hasStaleSizeImage;
+	}
+
+	public void SetAutoPublishStatus(AutoPublishStatus status, string lastError = "")
+	{
+		AutoPublishStatus = status;
+		AutoPublishLastError = lastError;
+	}
+
+	public void InvertSelectionFromToolbar()
+	{
+		Activate();
+		InvertSelection();
+	}
+
+	public void Activate()
+	{
+		this.Activated?.Invoke(this);
+	}
+
+	public void RestoreOrSelectDefaultNode(bool activateCard)
+	{
+		FolderNodeViewModel node = FindNodeById(_cardState.SelectedNodeId) ?? FindFirstNodeWithImages(ChildFolders) ?? ChildFolders.FirstOrDefault() ?? _rootNode;
+		SelectNode(node, activateCard);
+	}
+
+	public FolderNodeViewModel? GetFirstNodeWithImages()
+	{
+		FolderNodeViewModel folderNodeViewModel = FindFirstNodeWithImages(ChildFolders);
+		if (folderNodeViewModel == null)
+		{
+			if (_rootNode.Model.Images.Count <= 0)
+			{
+				return null;
+			}
+			folderNodeViewModel = _rootNode;
+		}
+		return folderNodeViewModel;
+	}
+
+	public bool CanAcceptDrop(IReadOnlyList<string> files)
+	{
+		if (files.Count > 0 && SelectedNode != null)
+		{
+			return Directory.Exists(CurrentFolderPath);
+		}
+		return false;
+	}
+
+	public void SetDropTarget(bool isActive)
+	{
+		IsDropTarget = isActive;
+	}
+
+	private bool CanAutoPublish()
+	{
+		if (_productSheetService != null && _runExclusiveAsync != null && _runAutoPublishCardAsync != null && !IsAutoPublishBusy)
+		{
+			return !string.IsNullOrWhiteSpace(GetSpRootFolder());
+		}
+		return false;
+	}
+
+	private bool CanOpenCardSizeDialog()
+	{
+		if (_openCardSizeDialogAsync != null)
+		{
+			return !string.IsNullOrWhiteSpace(GetSpRootFolder());
+		}
+		return false;
+	}
+
+	private bool CanCopyMainToDetail()
+	{
+		string spRootFolder = GetSpRootFolder();
+		if (string.IsNullOrWhiteSpace(spRootFolder))
+		{
+			return false;
+		}
+		return Directory.Exists(Path.Combine(spRootFolder, "main"));
+	}
+
+	public async Task<string> RunAutoPublishInternalAsync(IReadOnlyList<string>? manualSizes = null)
+	{
+		ProductSheetTask productSheetTask = await PrepareAutoPublishDataAsync(manualSizes);
+		string text = (string.IsNullOrWhiteSpace(productSheetTask.ProductsJsonPath) ? "上架 JSON 已生成。" : productSheetTask.ProductsJsonPath);
+		this.StatusChanged?.Invoke("自动上架准备完成：" + Path.GetFileName(productSheetTask.SpRootFolder) + "。" + text);
+		return text;
+	}
+
+	public async Task<ProductSheetTask> PrepareAutoPublishDataAsync(IReadOnlyList<string>? manualSizes = null)
+	{
+		string spRootFolder = GetSpRootFolder();
+		if (string.IsNullOrWhiteSpace(spRootFolder) || _productSheetService == null)
+		{
+			throw new InvalidOperationException("当前卡片未解析到 SP 根目录，无法自动上架。");
+		}
+		string text = ValidateAutoPublishInput(spRootFolder);
+		if (text != null)
+		{
+			throw new InvalidOperationException(text);
+		}
+		Activate();
+		NotifyAutoPublishStateChanged();
+		try
+		{
+			this.StatusChanged?.Invoke("开始准备上架数据：" + Path.GetFileName(spRootFolder));
+			ProductSheetTask productSheetTask = await _productSheetService.GenerateAsync(spRootFolder, manualSizes);
+			if (productSheetTask.Status == "Completed")
+			{
+				this.StatusChanged?.Invoke("上架数据准备完成：" + Path.GetFileName(spRootFolder));
+				return productSheetTask;
+			}
+			throw new InvalidOperationException("自动上架失败：" + Path.GetFileName(spRootFolder));
+		}
+		catch (Exception ex)
+		{
+			this.StatusChanged?.Invoke("自动上架失败：" + ex.Message);
+			throw;
+		}
+		finally
+		{
+			NotifyAutoPublishStateChanged();
+		}
+	}
+
+	private async Task AutoPublishAsync()
+	{
+		Func<RootCardViewModel, Task> runAutoPublishCardAsync = _runAutoPublishCardAsync;
+		if (_productSheetService == null || _runExclusiveAsync == null || runAutoPublishCardAsync == null)
+		{
+			this.StatusChanged?.Invoke("当前卡片未解析到 SP 根目录，无法自动上架。");
+		}
+		else
+		{
+			await runAutoPublishCardAsync(this);
+		}
+	}
+
+	private async Task OpenCardSizeDialogAsync()
+	{
+		if (_openCardSizeDialogAsync == null)
+		{
+			this.StatusChanged?.Invoke("当前卡片未接入尺寸录入功能。");
+			return;
+		}
+		string? spRootFolder = GetSpRootFolder();
+		if (string.IsNullOrWhiteSpace(spRootFolder))
+		{
+			throw new InvalidOperationException("当前卡片未解析到 SP 根目录，无法手动录入尺寸。");
+		}
+		string text = Path.Combine(spRootFolder, "main");
+		if (!Directory.Exists(text))
+		{
+			throw new InvalidOperationException("未找到 main 文件夹：" + text);
+		}
+		if (!Directory.EnumerateFiles(text, "2-*.png", SearchOption.TopDirectoryOnly).Any())
+		{
+			throw new InvalidOperationException("当前 main 文件夹下没有尺寸图：" + text);
+		}
+		Activate();
+		await _openCardSizeDialogAsync(this);
+	}
+
+	private string? GetSpRootFolder()
+	{
+		return SpRootResolver.Resolve(RootFolderPath) ?? SpRootResolver.Resolve(CurrentFolderPath);
+	}
+
+	private static string? ValidateAutoPublishInput(string spRootFolder)
+	{
+		string text = Path.Combine(spRootFolder, "main");
+		if (!Directory.Exists(text))
+		{
+			return "自动上架前置校验失败：" + text + " 不存在。";
+		}
+		if (!Directory.EnumerateFiles(text, "2-*.png", SearchOption.TopDirectoryOnly).Any())
+		{
+			return "自动上架前置校验失败：" + text + " 下缺少 2-*.png 尺寸图。";
+		}
+		return null;
+	}
+
+	public async Task AddImageFilesAsync(IReadOnlyList<string> sourceFiles, bool showStatusMessage = true)
+	{
+		if (SelectedNode == null || sourceFiles.Count == 0)
+		{
+			return;
+		}
+		Activate();
+		string targetFolder = SelectedNode.FolderPath;
+		List<string> list = await Task.Run(delegate
+		{
+			List<string> list2 = new List<string>();
+			foreach (string sourceFile in sourceFiles)
+			{
+				string uniquePath = GetUniquePath(targetFolder, Path.GetFileName(sourceFile));
+				File.Copy(sourceFile, uniquePath, overwrite: false);
+				list2.Add(uniquePath);
+			}
+			return list2;
+		});
+		foreach (string item2 in list)
+		{
+			FileInfo fileInfo = new FileInfo(item2);
+			ImageItem item = new ImageItem
+			{
+				FilePath = fileInfo.FullName,
+				FileName = fileInfo.Name,
+				FileSize = fileInfo.Length,
+				LastWriteTime = fileInfo.LastWriteTime
+			};
+			SelectedNode.Model.Images.Add(item);
+		}
+		SelectedNode.Model.Images.Sort((ImageItem left, ImageItem right) => StringComparer.OrdinalIgnoreCase.Compare(left.FileName, right.FileName));
+		RefreshCurrentImages(loadAll: true);
+		UpdateCounts();
+		if (list.Count > 0)
+		{
+			RaisePreviewForPath(list[0]);
+		}
+		if (showStatusMessage)
+		{
+			this.StatusChanged?.Invoke($"已向 {SelectedNode.DisplayName} 添加 {list.Count} 张图片。");
+		}
+		if (list.Count > 0)
+		{
+			this.ImageFilesAdded?.Invoke(this, list);
+		}
+	}
+
+	private void ToggleExpand(FolderNodeViewModel? node)
+	{
+		if (node != null && node.HasChildren)
+		{
+			node.IsExpanded = !node.IsExpanded;
+			RebuildVisibleNodes();
+		}
+	}
+
+	private void SelectNode(FolderNodeViewModel? node, bool activateCard = true)
+	{
+		if (node == null)
+		{
+			return;
+		}
+		foreach (FolderNodeViewModel item in EnumerateAll(_rootNode))
+		{
+			item.IsSelected = false;
+		}
+		node.IsSelected = true;
+		ExpandNodeAncestors(node);
+		RebuildVisibleNodes();
+		SelectedNode = node;
+		_workspaceStateService.SetSelectedNode(_rootNode.Id, node.Id);
+		UpdateCounts();
+		if (activateCard)
+		{
+			Activate();
+		}
+	}
+
+	private void InvertSelection()
+	{
+		if (SelectedNode == null)
+		{
+			return;
+		}
+		_workspaceService.InvertSelection(SelectedNode.Model);
+		foreach (ImageItemViewModel currentImage in CurrentImages)
+		{
+			currentImage.IsSelected = currentImage.Model.IsSelected;
+		}
+		UpdateCounts();
+	}
+
+	private void SetSelectionState(bool isSelected)
+	{
+		if (SelectedNode == null)
+		{
+			return;
+		}
+		_workspaceService.SetSelectionState(SelectedNode.Model, isSelected);
+		foreach (ImageItemViewModel currentImage in CurrentImages)
+		{
+			currentImage.SyncSelectionStateFromModel();
+		}
+		UpdateCounts();
+	}
+
+	private void SetCollapsed(bool collapsed)
+	{
+		IsCollapsed = collapsed;
+		_workspaceStateService.SetCollapsed(_rootNode.Id, collapsed);
+	}
+
+	private async Task AddImagesAsync()
+	{
+		if (SelectedNode != null)
+		{
+			Activate();
+			OpenFileDialog openFileDialog = new OpenFileDialog
+			{
+				Title = "选择要添加到当前目录的图片",
+				InitialDirectory = SelectedNode.FolderPath,
+				Multiselect = true,
+				Filter = "图片文件|*.jpg;*.jpeg;*.png;*.bmp;*.gif;*.tif;*.tiff;*.webp;*.jfif"
+			};
+			if (openFileDialog.ShowDialog() == true)
+			{
+				await AddImageFilesAsync(openFileDialog.FileNames);
+			}
+		}
+	}
+
+	private async Task CopyMainToDetailAsync()
+	{
+		string spRootFolder = GetSpRootFolder();
+		if (string.IsNullOrWhiteSpace(spRootFolder))
+		{
+			this.StatusChanged?.Invoke("当前卡片未解析到 SP 根目录，无法复制 main 到 detail。");
+			return;
+		}
+		Activate();
+		string mainFolder = Path.Combine(spRootFolder, "main");
+		string detailFolder = Path.Combine(spRootFolder, "detail");
+		if (!Directory.Exists(mainFolder))
+		{
+			this.StatusChanged?.Invoke("复制失败：" + mainFolder + " 不存在。");
+			return;
+		}
+		Directory.CreateDirectory(detailFolder);
+		List<string> list = await Task.Run(delegate
+		{
+			List<string> list2 = new List<string>();
+			foreach (string item in Directory.EnumerateFiles(mainFolder, "*", SearchOption.TopDirectoryOnly).Where(IsSupportedImageFile))
+			{
+				string text = Path.Combine(detailFolder, Path.GetFileName(item));
+				File.Copy(item, text, overwrite: true);
+				list2.Add(text);
+			}
+			return list2;
+		});
+		RefreshNodeImages(detailFolder)?.RefreshImageCount();
+		UpdateCounts();
+		if (SelectedNode != null && string.Equals(Path.GetFullPath(SelectedNode.FolderPath), Path.GetFullPath(detailFolder), StringComparison.OrdinalIgnoreCase))
+		{
+			RefreshCurrentImages(loadAll: true);
+			OnPropertyChanged("HasImages");
+			OnPropertyChanged("ContentEmptyText");
+			OnPropertyChanged("CurrentFolderMetaText");
+			if (CurrentImages.Count > 0)
+			{
+				RaisePreviewForPath(CurrentImages[0].FilePath);
+			}
+		}
+		this.StatusChanged?.Invoke($"已复制 main 到 detail，共 {list.Count} 张图片，同名文件已覆盖。");
+	}
+
+	private async Task MoveSelectedAsync()
+	{
+		if (SelectedNode == null)
+		{
+			return;
+		}
+		Activate();
+		List<ImageItemViewModel> selectedItems = CurrentImages.Where((ImageItemViewModel image) => image.IsSelected).ToList();
+		if (selectedItems.Count == 0)
+		{
+			return;
+		}
+		Directory.CreateDirectory(BackupFolder);
+		List<ImageItemViewModel> list = await Task.Run(delegate
+		{
+			List<ImageItemViewModel> list2 = new List<ImageItemViewModel>();
+			foreach (ImageItemViewModel item in selectedItems)
+			{
+				string uniquePath = GetUniquePath(BackupFolder, item.FileName);
+				File.Move(item.FilePath, uniquePath);
+				list2.Add(item);
+			}
+			return list2;
+		});
+		foreach (ImageItemViewModel item2 in list)
+		{
+			SelectedNode.Model.Images.Remove(item2.Model);
+			CurrentImages.Remove(item2);
+		}
+		LoadedImageCount = CurrentImages.Count;
+		UpdateCounts();
+		this.PreviewRequested?.Invoke(null);
+		this.StatusChanged?.Invoke($"已移动 {list.Count} 张图片到备份目录。");
+	}
+
+	private void RebuildVisibleNodes()
+	{
+		VisibleNodes.Clear();
+		foreach (FolderNodeViewModel item in EnumerateVisible(_rootNode))
+		{
+			VisibleNodes.Add(item);
+		}
+	}
+
+	private IEnumerable<FolderNodeViewModel> EnumerateVisible(FolderNodeViewModel node)
+	{
+		yield return node;
+		if (!node.IsExpanded)
+		{
+			yield break;
+		}
+		foreach (FolderNodeViewModel child in node.Children)
+		{
+			foreach (FolderNodeViewModel item in EnumerateVisible(child))
+			{
+				yield return item;
+			}
+		}
+	}
+
+	private IEnumerable<FolderNodeViewModel> EnumerateAll(FolderNodeViewModel node)
+	{
+		yield return node;
+		foreach (FolderNodeViewModel child in node.Children)
+		{
+			foreach (FolderNodeViewModel item in EnumerateAll(child))
+			{
+				yield return item;
+			}
+		}
+	}
+
+	private static void ExpandNodeAncestors(FolderNodeViewModel? node)
+	{
+		for (FolderNodeViewModel folderNodeViewModel = node; folderNodeViewModel != null; folderNodeViewModel = FindParent(folderNodeViewModel))
+		{
+			folderNodeViewModel.IsExpanded = true;
+		}
+	}
+
+	private static FolderNodeViewModel? FindParent(FolderNodeViewModel node)
+	{
+		if (node.Model.Parent != null)
+		{
+			return FindNode(node, node.Model.Parent.Id);
+		}
+		return null;
+	}
+
+	private static FolderNodeViewModel? FindNode(FolderNodeViewModel current, Guid targetId)
+	{
+		if (current.Id == targetId)
+		{
+			return current;
+		}
+		foreach (FolderNodeViewModel child in current.Children)
+		{
+			FolderNodeViewModel folderNodeViewModel = FindNode(child, targetId);
+			if (folderNodeViewModel != null)
+			{
+				return folderNodeViewModel;
+			}
+		}
+		return null;
+	}
+
+	private FolderNodeViewModel? RefreshNodeImages(string folderPath)
+	{
+		FolderNodeViewModel folderNodeViewModel = FindNodeByFolderPath(_rootNode, folderPath);
+		if (folderNodeViewModel == null || !Directory.Exists(folderPath))
+		{
+			return null;
+		}
+		folderNodeViewModel.Model.Images.Clear();
+		foreach (FileInfo item in (from file in new DirectoryInfo(folderPath).EnumerateFiles()
+			where IsSupportedImageFile(file.FullName)
+			select file).OrderBy<FileInfo, string>((FileInfo file) => file.Name, StringComparer.OrdinalIgnoreCase))
+		{
+			folderNodeViewModel.Model.Images.Add(new ImageItem
+			{
+				FilePath = item.FullName,
+				FileName = item.Name,
+				FileSize = item.Length,
+				LastWriteTime = item.LastWriteTime
+			});
+		}
+		return folderNodeViewModel;
+	}
+
+	private static FolderNodeViewModel? FindNodeByFolderPath(FolderNodeViewModel current, string folderPath)
+	{
+		string fullPath = Path.GetFullPath(folderPath);
+		if (string.Equals(Path.GetFullPath(current.FolderPath), fullPath, StringComparison.OrdinalIgnoreCase))
+		{
+			return current;
+		}
+		foreach (FolderNodeViewModel child in current.Children)
+		{
+			FolderNodeViewModel folderNodeViewModel = FindNodeByFolderPath(child, folderPath);
+			if (folderNodeViewModel != null)
+			{
+				return folderNodeViewModel;
+			}
+		}
+		return null;
+	}
+
+	private FolderNodeViewModel? FindNodeById(Guid? nodeId)
+	{
+		if (!nodeId.HasValue)
+		{
+			return null;
+		}
+		return FindNode(_rootNode, nodeId.Value);
+	}
+
+	private static FolderNodeViewModel? FindFirstNodeWithImages(IEnumerable<FolderNodeViewModel> nodes)
+	{
+		foreach (FolderNodeViewModel node in nodes)
+		{
+			if (node.Model.Images.Count > 0)
+			{
+				return node;
+			}
+			if (node.Children.Count > 0)
+			{
+				FolderNodeViewModel folderNodeViewModel = FindFirstNodeWithImages(node.Children);
+				if (folderNodeViewModel != null)
+				{
+					return folderNodeViewModel;
+				}
+			}
+		}
+		return nodes.FirstOrDefault();
+	}
+
+	private void RefreshCurrentImages(bool loadAll = false)
+	{
+		CurrentImages.Clear();
+		if (SelectedNode == null)
+		{
+			LoadedImageCount = 0;
+			UpdateCounts();
+			return;
+		}
+		List<ImageItem> images = SelectedNode.Model.Images;
+		int num = (loadAll ? images.Count : Math.Min(images.Count, 60));
+		for (int i = 0; i < num; i++)
+		{
+			CurrentImages.Add(CreateImageViewModel(images[i]));
+		}
+		LoadedImageCount = CurrentImages.Count;
+		UpdateCounts();
+	}
+
+	private void LoadMoreImages()
+	{
+		if (SelectedNode != null && HasMoreImages)
+		{
+			List<ImageItem> images = SelectedNode.Model.Images;
+			int num = Math.Min(images.Count, LoadedImageCount + 60);
+			for (int i = LoadedImageCount; i < num; i++)
+			{
+				CurrentImages.Add(CreateImageViewModel(images[i]));
+			}
+			LoadedImageCount = CurrentImages.Count;
+			OnPropertyChanged("HasImages");
+		}
+	}
+
+	private ImageItemViewModel CreateImageViewModel(ImageItem model)
+	{
+		return new ImageItemViewModel(model, delegate
+		{
+			UpdateCounts();
+		}, delegate(ImageItemViewModel image)
+		{
+			Activate();
+			this.PreviewRequested?.Invoke(new PreviewRequest
+			{
+				FilePath = image.FilePath,
+				FileName = image.FileName,
+				FolderPath = CurrentFolderPath,
+				FileSize = image.Model.FileSize
+			});
+		});
+	}
+
+	private void RaisePreviewForPath(string filePath)
+	{
+		FileInfo fileInfo = new FileInfo(filePath);
+		this.PreviewRequested?.Invoke(new PreviewRequest
+		{
+			FilePath = fileInfo.FullName,
+			FileName = fileInfo.Name,
+			FolderPath = CurrentFolderPath,
+			FileSize = (fileInfo.Exists ? fileInfo.Length : 0)
+		});
+	}
+
+	private void UpdateCounts()
+	{
+		if (SelectedNode == null)
+		{
+			TotalCount = 0;
+			SelectedCount = 0;
+		}
+		else
+		{
+			NodeCounts nodeCounts = _workspaceService.CalculateCounts(SelectedNode.Model);
+			TotalCount = nodeCounts.Total;
+			SelectedCount = nodeCounts.Selected;
+		}
+		OnPropertyChanged("HasImages");
+		OnPropertyChanged("ContentEmptyText");
+		OnPropertyChanged("TotalImageCount");
+		OnPropertyChanged("ImageLoadSummaryText");
+		OnPropertyChanged("HasMoreImages");
+		OnPropertyChanged("CountsText");
+		_invertSelectionCommand.RaiseCanExecuteChanged();
+		_selectAllCommand.RaiseCanExecuteChanged();
+		_clearSelectionCommand.RaiseCanExecuteChanged();
+		_addImagesCommand.RaiseCanExecuteChanged();
+		_copyMainToDetailCommand.RaiseCanExecuteChanged();
+		_loadMoreImagesCommand.RaiseCanExecuteChanged();
+		this.SelectionContextChanged?.Invoke(this);
+	}
+
+	private static string GetUniquePath(string folderPath, string fileName)
+	{
+		string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(fileName);
+		string extension = Path.GetExtension(fileName);
+		string text = Path.Combine(folderPath, fileName);
+		int num = 1;
+		while (File.Exists(text))
+		{
+			text = Path.Combine(folderPath, $"{fileNameWithoutExtension} ({num}){extension}");
+			num++;
+		}
+		return text;
+	}
+
+	private static bool IsSupportedImageFile(string filePath)
+	{
+		string text = Path.GetExtension(filePath).ToLowerInvariant();
+		if (text != null)
+		{
+			int length = text.Length;
+			if (length != 4)
+			{
+				if (length == 5)
+				{
+					switch (text[2])
+					{
+					case 'p':
+						break;
+					case 'i':
+						goto IL_00df;
+					case 'e':
+						goto IL_00ee;
+					case 'f':
+						goto IL_00fd;
+					default:
+						goto IL_010e;
+					}
+					if (text == ".jpeg")
+					{
+						goto IL_010a;
+					}
+				}
+			}
+			else
+			{
+				char c = text[1];
+				if ((uint)c <= 103u)
+				{
+					if (c != 'b')
+					{
+						if (c == 'g' && text == ".gif")
+						{
+							goto IL_010a;
+						}
+					}
+					else if (text == ".bmp")
+					{
+						goto IL_010a;
+					}
+				}
+				else if (c != 'j')
+				{
+					if (c != 'p')
+					{
+						if (c == 't' && text == ".tif")
+						{
+							goto IL_010a;
+						}
+					}
+					else if (text == ".png")
+					{
+						goto IL_010a;
+					}
+				}
+				else if (text == ".jpg")
+				{
+					goto IL_010a;
+				}
+			}
+		}
+		goto IL_010e;
+		IL_010a:
+		return true;
+		IL_010e:
+		return false;
+		IL_00ee:
+		if (text == ".webp")
+		{
+			goto IL_010a;
+		}
+		goto IL_010e;
+		IL_00df:
+		if (text == ".tiff")
+		{
+			goto IL_010a;
+		}
+		goto IL_010e;
+		IL_00fd:
+		if (text == ".jfif")
+		{
+			goto IL_010a;
+		}
+		goto IL_010e;
+	}
 }
-

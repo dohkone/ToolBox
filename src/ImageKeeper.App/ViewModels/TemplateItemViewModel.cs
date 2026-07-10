@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using System.Windows;
 using System.Windows.Input;
@@ -8,125 +9,180 @@ namespace ImageKeeper.App.ViewModels;
 
 public sealed class TemplateItemViewModel : ViewModelBase
 {
-    private bool _isSelected;
-    private string? _subjectSummaryOverride;
+	private bool _isSelected;
 
-    public TemplateItemViewModel(TemplateItemRecord model, string? subjectSummaryOverride = null)
-    {
-        Model = model;
-        _subjectSummaryOverride = subjectSummaryOverride;
-        OpenPreviewImageCommand = new RelayCommand(_ => OpenPreviewImage(), _ => HasPreviewImage);
-    }
+	private string? _subjectSummaryOverride;
 
-    public TemplateItemRecord Model { get; private set; }
+	public TemplateItemRecord Model { get; private set; }
 
-    public long Id => Model.Id;
+	public long Id => Model.Id;
 
-    public TemplateCategory Category => Model.Category;
+	public TemplateCategory Category => Model.Category;
 
-    public string Name => Model.Name;
+	public string Name => Model.Name;
 
-    public string Content => Model.Content;
+	public string Content => Model.Content;
 
-    public string Subject => Model.Subject;
+	public string Subject => Model.Subject;
 
-    public string PreviewImagePath => Model.PreviewImagePath;
+	public string PreviewImagePath => Model.PreviewImagePath;
 
-    public ImageTemplateType ImageType => Model.ImageType;
+	public ImageTemplateType ImageType => Model.ImageType;
 
-    public string ImageTypeText => ImageType switch
-    {
-        ImageTemplateType.SceneImage => "场景图",
-        ImageTemplateType.CompareImage => "对比图",
-        _ => "主图"
-    };
+	public string ImageTypeText => ImageType switch
+	{
+		ImageTemplateType.SceneImage => "场景图", 
+		ImageTemplateType.CompareImage => "对比图", 
+		_ => "主图", 
+	};
 
-    public bool HasPreviewImage => !string.IsNullOrWhiteSpace(PreviewImagePath) && File.Exists(PreviewImagePath);
+	public bool HasPreviewImage
+	{
+		get
+		{
+			if (!string.IsNullOrWhiteSpace(PreviewImagePath))
+			{
+				return File.Exists(PreviewImagePath);
+			}
+			return false;
+		}
+	}
 
-    public bool IsEnabled => Model.IsEnabled;
+	public bool IsEnabled => Model.IsEnabled;
 
-    public string EnabledText => IsEnabled ? "启用" : "停用";
+	public string EnabledText
+	{
+		get
+		{
+			if (!IsEnabled)
+			{
+				return "停用";
+			}
+			return "启用";
+		}
+	}
 
-    public string EnabledBadgeBackground => IsEnabled ? "#67C23A" : "#909399";
+	public string EnabledBadgeBackground
+	{
+		get
+		{
+			if (!IsEnabled)
+			{
+				return "#909399";
+			}
+			return "#67C23A";
+		}
+	}
 
-    public string EnabledBadgeBorder => IsEnabled ? "#67C23A" : "#909399";
+	public string EnabledBadgeBorder
+	{
+		get
+		{
+			if (!IsEnabled)
+			{
+				return "#909399";
+			}
+			return "#67C23A";
+		}
+	}
 
-    public string EnabledBadgeForeground => "White";
+	public string EnabledBadgeForeground => "White";
 
-    public string CreatedAtText => Model.CreatedAt.LocalDateTime.ToString("yyyy-MM-dd HH:mm");
+	public string CreatedAtText => Model.CreatedAt.LocalDateTime.ToString("yyyy-MM-dd HH:mm");
 
-    public string UpdatedAtText => Model.UpdatedAt.LocalDateTime.ToString("yyyy-MM-dd HH:mm");
+	public string UpdatedAtText => Model.UpdatedAt.LocalDateTime.ToString("yyyy-MM-dd HH:mm");
 
-    public string ContentSummary
-    {
-        get
-        {
-            var text = Content.ReplaceLineEndings(" ").Trim();
-            return text.Length <= 80 ? text : $"{text[..80]}...";
-        }
-    }
+	public string ContentSummary
+	{
+		get
+		{
+			string text = Content.ReplaceLineEndings(" ").Trim();
+			if (text.Length > 80)
+			{
+				return text.Substring(0, 80) + "...";
+			}
+			return text;
+		}
+	}
 
-    public string SubjectSummary
-    {
-        get
-        {
-            var text = (_subjectSummaryOverride ?? Subject).ReplaceLineEndings(" ").Trim();
-            return string.IsNullOrWhiteSpace(text)
-                ? "-"
-                : text.Length <= 60 ? text : $"{text[..60]}...";
-        }
-    }
+	public string SubjectSummary
+	{
+		get
+		{
+			string text = (_subjectSummaryOverride ?? Subject).ReplaceLineEndings(" ").Trim();
+			if (!string.IsNullOrWhiteSpace(text))
+			{
+				if (text.Length > 60)
+				{
+					return text.Substring(0, 60) + "...";
+				}
+				return text;
+			}
+			return "-";
+		}
+	}
 
-    public bool IsSelected
-    {
-        get => _isSelected;
-        set => SetProperty(ref _isSelected, value);
-    }
+	public bool IsSelected
+	{
+		get
+		{
+			return _isSelected;
+		}
+		set
+		{
+			SetProperty(ref _isSelected, value, "IsSelected");
+		}
+	}
 
-    public ICommand OpenPreviewImageCommand { get; }
+	public ICommand OpenPreviewImageCommand { get; }
 
-    public void Update(TemplateItemRecord model, string? subjectSummaryOverride = null)
-    {
-        Model = model;
-        _subjectSummaryOverride = subjectSummaryOverride;
-        OnPropertyChanged(nameof(Id));
-        OnPropertyChanged(nameof(Category));
-        OnPropertyChanged(nameof(Name));
-        OnPropertyChanged(nameof(Content));
-        OnPropertyChanged(nameof(Subject));
-        OnPropertyChanged(nameof(PreviewImagePath));
-        OnPropertyChanged(nameof(ImageType));
-        OnPropertyChanged(nameof(ImageTypeText));
-        OnPropertyChanged(nameof(HasPreviewImage));
-        OnPropertyChanged(nameof(IsEnabled));
-        OnPropertyChanged(nameof(EnabledText));
-        OnPropertyChanged(nameof(EnabledBadgeBackground));
-        OnPropertyChanged(nameof(EnabledBadgeBorder));
-        OnPropertyChanged(nameof(EnabledBadgeForeground));
-        OnPropertyChanged(nameof(CreatedAtText));
-        OnPropertyChanged(nameof(UpdatedAtText));
-        OnPropertyChanged(nameof(ContentSummary));
-        OnPropertyChanged(nameof(SubjectSummary));
-    }
+	public TemplateItemViewModel(TemplateItemRecord model, string? subjectSummaryOverride = null)
+	{
+		Model = model;
+		_subjectSummaryOverride = subjectSummaryOverride;
+		OpenPreviewImageCommand = new RelayCommand(delegate
+		{
+			OpenPreviewImage();
+		}, (object? _) => HasPreviewImage);
+	}
 
-    private void OpenPreviewImage()
-    {
-        if (!HasPreviewImage)
-        {
-            return;
-        }
+	public void Update(TemplateItemRecord model, string? subjectSummaryOverride = null)
+	{
+		Model = model;
+		_subjectSummaryOverride = subjectSummaryOverride;
+		OnPropertyChanged("Id");
+		OnPropertyChanged("Category");
+		OnPropertyChanged("Name");
+		OnPropertyChanged("Content");
+		OnPropertyChanged("Subject");
+		OnPropertyChanged("PreviewImagePath");
+		OnPropertyChanged("ImageType");
+		OnPropertyChanged("ImageTypeText");
+		OnPropertyChanged("HasPreviewImage");
+		OnPropertyChanged("IsEnabled");
+		OnPropertyChanged("EnabledText");
+		OnPropertyChanged("EnabledBadgeBackground");
+		OnPropertyChanged("EnabledBadgeBorder");
+		OnPropertyChanged("EnabledBadgeForeground");
+		OnPropertyChanged("CreatedAtText");
+		OnPropertyChanged("UpdatedAtText");
+		OnPropertyChanged("ContentSummary");
+		OnPropertyChanged("SubjectSummary");
+	}
 
-        try
-        {
-            ShellOpenHelper.OpenFile(PreviewImagePath);
-        }
-        catch (Exception ex)
-        {
-            System.Windows.MessageBox.Show(
-                $"打开预览图失败：{ex.Message}",
-                "提示",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
-        }
-    }
+	private void OpenPreviewImage()
+	{
+		if (!HasPreviewImage)
+		{
+			return;
+		}
+		try
+		{
+			ShellOpenHelper.OpenFile(PreviewImagePath);
+		}
+		catch (Exception ex)
+		{
+			MessageBox.Show("打开预览图失败：" + ex.Message, "提示", MessageBoxButton.OK, MessageBoxImage.Exclamation);
+		}
+	}
 }

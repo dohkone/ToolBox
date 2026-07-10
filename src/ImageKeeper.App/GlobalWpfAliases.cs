@@ -1,0 +1,11 @@
+global using Brush = System.Windows.Media.Brush;
+global using Brushes = System.Windows.Media.Brushes;
+global using Clipboard = System.Windows.Clipboard;
+global using Color = System.Windows.Media.Color;
+global using Cursors = System.Windows.Input.Cursors;
+global using DialogResult = System.Windows.Forms.DialogResult;
+global using FolderBrowserDialog = System.Windows.Forms.FolderBrowserDialog;
+global using FontFamily = System.Windows.Media.FontFamily;
+global using MessageBox = System.Windows.MessageBox;
+global using OpenFileDialog = Microsoft.Win32.OpenFileDialog;
+global using SolidColorBrush = System.Windows.Media.SolidColorBrush;

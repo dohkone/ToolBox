@@ -1,140 +1,169 @@
+using System;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows;
 using System.Windows.Input;
+using System.Windows.Media;
 using ImageKeeper.App.Utilities;
 using ImageKeeper.Core.Models;
-using Media = System.Windows.Media;
 
 namespace ImageKeeper.App.ViewModels;
 
 public sealed class ImageItemViewModel : ViewModelBase
 {
-    private static readonly SemaphoreSlim ThumbnailGate = new(4);
-    private readonly Action<ImageItemViewModel> _selectionChanged;
-    private readonly Action<ImageItemViewModel> _previewRequested;
-    private bool _isSelected;
-    private Media.ImageSource? _thumbnailSource;
+	private static readonly SemaphoreSlim ThumbnailGate = new SemaphoreSlim(4);
 
-    public ImageItemViewModel(
-        ImageItem model,
-        Action<ImageItemViewModel> selectionChanged,
-        Action<ImageItemViewModel> previewRequested)
-    {
-        Model = model;
-        _selectionChanged = selectionChanged;
-        _previewRequested = previewRequested;
-        _isSelected = model.IsSelected;
-        PreviewCommand = new RelayCommand(_ => _previewRequested(this));
-        OpenFileCommand = new RelayCommand(_ => OpenFile(), _ => File.Exists(FilePath));
-        OpenContainingFolderCommand = new RelayCommand(_ => OpenContainingFolder(), _ => File.Exists(FilePath));
-        CopyPathCommand = new RelayCommand(_ => System.Windows.Clipboard.SetText(FilePath), _ => !string.IsNullOrWhiteSpace(FilePath));
-        LoadThumbnailAsync();
-    }
+	private readonly Action<ImageItemViewModel> _selectionChanged;
 
-    public ImageItem Model { get; }
+	private readonly Action<ImageItemViewModel> _previewRequested;
 
-    public string FilePath => Model.FilePath;
+	private bool _isSelected;
 
-    public string FileName => Model.FileName;
+	private ImageSource? _thumbnailSource;
 
-    public ICommand PreviewCommand { get; }
+	public ImageItem Model { get; }
 
-    public ICommand OpenFileCommand { get; }
+	public string FilePath => Model.FilePath;
 
-    public ICommand OpenContainingFolderCommand { get; }
+	public string FileName => Model.FileName;
 
-    public ICommand CopyPathCommand { get; }
+	public ICommand PreviewCommand { get; }
 
-    public Media.ImageSource? ThumbnailSource
-    {
-        get => _thumbnailSource;
-        private set => SetProperty(ref _thumbnailSource, value);
-    }
+	public ICommand OpenFileCommand { get; }
 
-    public bool IsSelected
-    {
-        get => _isSelected;
-        set
-        {
-            if (!SetProperty(ref _isSelected, value))
-            {
-                return;
-            }
+	public ICommand OpenContainingFolderCommand { get; }
 
-            Model.IsSelected = value;
-            OnPropertyChanged(nameof(CardBackground));
-            OnPropertyChanged(nameof(CardBorderBrush));
-            _selectionChanged(this);
-        }
-    }
+	public ICommand CopyPathCommand { get; }
 
-    public Media.Brush CardBackground => IsSelected
-        ? new Media.SolidColorBrush(Media.Color.FromRgb(238, 238, 238))
-        : Media.Brushes.White;
+	public ImageSource? ThumbnailSource
+	{
+		get
+		{
+			return _thumbnailSource;
+		}
+		private set
+		{
+			SetProperty(ref _thumbnailSource, value, "ThumbnailSource");
+		}
+	}
 
-    public Media.Brush CardBorderBrush => IsSelected
-        ? Media.Brushes.Transparent
-        : new Media.SolidColorBrush(Media.Color.FromRgb(217, 225, 236));
+	public bool IsSelected
+	{
+		get
+		{
+			return _isSelected;
+		}
+		set
+		{
+			if (SetProperty(ref _isSelected, value, "IsSelected"))
+			{
+				Model.IsSelected = value;
+				OnPropertyChanged("CardBackground");
+				OnPropertyChanged("CardBorderBrush");
+				_selectionChanged(this);
+			}
+		}
+	}
 
-    public void SyncSelectionStateFromModel()
-    {
-        if (_isSelected == Model.IsSelected)
-        {
-            return;
-        }
+	public Brush CardBackground
+	{
+		get
+		{
+			if (!IsSelected)
+			{
+				return Brushes.White;
+			}
+			return new SolidColorBrush(Color.FromRgb(238, 238, 238));
+		}
+	}
 
-        _isSelected = Model.IsSelected;
-        OnPropertyChanged(nameof(IsSelected));
-        OnPropertyChanged(nameof(CardBackground));
-        OnPropertyChanged(nameof(CardBorderBrush));
-    }
+	public Brush CardBorderBrush
+	{
+		get
+		{
+			if (!IsSelected)
+			{
+				return new SolidColorBrush(Color.FromRgb(217, 225, 236));
+			}
+			return Brushes.Transparent;
+		}
+	}
 
-    private async void LoadThumbnailAsync()
-    {
-        await ThumbnailGate.WaitAsync();
+	public ImageItemViewModel(ImageItem model, Action<ImageItemViewModel> selectionChanged, Action<ImageItemViewModel> previewRequested)
+	{
+		Model = model;
+		_selectionChanged = selectionChanged;
+		_previewRequested = previewRequested;
+		_isSelected = model.IsSelected;
+		PreviewCommand = new RelayCommand(delegate
+		{
+			_previewRequested(this);
+		});
+		OpenFileCommand = new RelayCommand(delegate
+		{
+			OpenFile();
+		}, (object? _) => File.Exists(FilePath));
+		OpenContainingFolderCommand = new RelayCommand(delegate
+		{
+			OpenContainingFolder();
+		}, (object? _) => File.Exists(FilePath));
+		CopyPathCommand = new RelayCommand(delegate
+		{
+			Clipboard.SetText(FilePath);
+		}, (object? _) => !string.IsNullOrWhiteSpace(FilePath));
+		LoadThumbnailAsync();
+	}
 
-        try
-        {
-            ThumbnailSource = await Task.Run(() => ImageBitmapLoader.LoadFromFile(FilePath, decodePixelWidth: 220));
-        }
-        catch
-        {
-            ThumbnailSource = null;
-        }
-        finally
-        {
-            ThumbnailGate.Release();
-        }
-    }
+	public void SyncSelectionStateFromModel()
+	{
+		if (_isSelected != Model.IsSelected)
+		{
+			_isSelected = Model.IsSelected;
+			OnPropertyChanged("IsSelected");
+			OnPropertyChanged("CardBackground");
+			OnPropertyChanged("CardBorderBrush");
+		}
+	}
 
-    private void OpenFile()
-    {
-        try
-        {
-            ShellOpenHelper.OpenFile(FilePath);
-        }
-        catch (Exception ex)
-        {
-            System.Windows.MessageBox.Show(
-                $"打开文件失败：{ex.Message}",
-                "提示",
-                System.Windows.MessageBoxButton.OK,
-                System.Windows.MessageBoxImage.Warning);
-        }
-    }
+	private async void LoadThumbnailAsync()
+	{
+		await ThumbnailGate.WaitAsync();
+		try
+		{
+			ThumbnailSource = await Task.Run(() => ImageBitmapLoader.LoadFromFile(FilePath, 220));
+		}
+		catch
+		{
+			ThumbnailSource = null;
+		}
+		finally
+		{
+			ThumbnailGate.Release();
+		}
+	}
 
-    private void OpenContainingFolder()
-    {
-        try
-        {
-            ShellOpenHelper.RevealInFolder(FilePath);
-        }
-        catch (Exception ex)
-        {
-            System.Windows.MessageBox.Show(
-                $"打开所在目录失败：{ex.Message}",
-                "提示",
-                System.Windows.MessageBoxButton.OK,
-                System.Windows.MessageBoxImage.Warning);
-        }
-    }
+	private void OpenFile()
+	{
+		try
+		{
+			ShellOpenHelper.OpenFile(FilePath);
+		}
+		catch (Exception ex)
+		{
+			MessageBox.Show("打开文件失败：" + ex.Message, "提示", MessageBoxButton.OK, MessageBoxImage.Exclamation);
+		}
+	}
+
+	private void OpenContainingFolder()
+	{
+		try
+		{
+			ShellOpenHelper.RevealInFolder(FilePath);
+		}
+		catch (Exception ex)
+		{
+			MessageBox.Show("打开所在目录失败：" + ex.Message, "提示", MessageBoxButton.OK, MessageBoxImage.Exclamation);
+		}
+	}
 }

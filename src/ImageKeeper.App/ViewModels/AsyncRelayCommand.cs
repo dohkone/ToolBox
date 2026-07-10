@@ -1,56 +1,60 @@
+using System;
+using System.Threading.Tasks;
+using System.Windows;
 using System.Windows.Input;
 
 namespace ImageKeeper.App.ViewModels;
 
 public sealed class AsyncRelayCommand : ICommand
 {
-    private readonly Func<object?, Task> _executeAsync;
-    private readonly Predicate<object?>? _canExecute;
-    private bool _isExecuting;
+	private readonly Func<object?, Task> _executeAsync;
 
-    public AsyncRelayCommand(Func<object?, Task> executeAsync, Predicate<object?>? canExecute = null)
-    {
-        _executeAsync = executeAsync;
-        _canExecute = canExecute;
-    }
+	private readonly Predicate<object?>? _canExecute;
 
-    public event EventHandler? CanExecuteChanged;
+	private bool _isExecuting;
 
-    public bool CanExecute(object? parameter)
-    {
-        return !_isExecuting && (_canExecute?.Invoke(parameter) ?? true);
-    }
+	public event EventHandler? CanExecuteChanged;
 
-    public async void Execute(object? parameter)
-    {
-        if (!CanExecute(parameter))
-        {
-            return;
-        }
+	public AsyncRelayCommand(Func<object?, Task> executeAsync, Predicate<object?>? canExecute = null)
+	{
+		_executeAsync = executeAsync;
+		_canExecute = canExecute;
+	}
 
-        try
-        {
-            _isExecuting = true;
-            RaiseCanExecuteChanged();
-            await _executeAsync(parameter);
-        }
-        catch (Exception ex)
-        {
-            System.Windows.MessageBox.Show(
-                ex.Message,
-                "操作失败",
-                System.Windows.MessageBoxButton.OK,
-                System.Windows.MessageBoxImage.Error);
-        }
-        finally
-        {
-            _isExecuting = false;
-            RaiseCanExecuteChanged();
-        }
-    }
+	public bool CanExecute(object? parameter)
+	{
+		if (!_isExecuting)
+		{
+			return _canExecute?.Invoke(parameter) ?? true;
+		}
+		return false;
+	}
 
-    public void RaiseCanExecuteChanged()
-    {
-        CanExecuteChanged?.Invoke(this, EventArgs.Empty);
-    }
+	public async void Execute(object? parameter)
+	{
+		if (!CanExecute(parameter))
+		{
+			return;
+		}
+		try
+		{
+			_isExecuting = true;
+			RaiseCanExecuteChanged();
+			await _executeAsync(parameter);
+		}
+		catch (Exception ex)
+		{
+			MessageBox.Show(ex.Message, "操作失败", MessageBoxButton.OK, MessageBoxImage.Hand);
+		}
+		finally
+		{
+			_isExecuting = false;
+			RaiseCanExecuteChanged();
+		}
+	}
+
+	public void RaiseCanExecuteChanged()
+	{
+		this.CanExecuteChanged?.Invoke(this, EventArgs.Empty);
+	}
 }

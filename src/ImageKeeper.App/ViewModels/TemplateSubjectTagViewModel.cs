@@ -2,52 +2,92 @@ namespace ImageKeeper.App.ViewModels;
 
 public sealed class TemplateSubjectTagViewModel
 {
-    private TemplateSubjectTagViewModel(long id, string text, bool isEnabled, bool isAddButton, bool isInput)
-    {
-        Id = id;
-        Text = text;
-        IsEnabled = isEnabled;
-        IsAddButton = isAddButton;
-        IsInput = isInput;
-    }
+	public long Id { get; }
 
-    public long Id { get; }
+	public string Text { get; }
 
-    public string Text { get; }
+	public bool IsEnabled { get; }
 
-    public bool IsEnabled { get; }
+	public bool IsAddButton { get; }
 
-    public bool IsAddButton { get; }
+	public bool IsInput { get; }
 
-    public bool IsInput { get; }
+	public bool IsTag => !IsAddButton && !IsInput;
 
-    public bool IsTag => !IsAddButton && !IsInput;
+	public string DisplayText
+	{
+		get
+		{
+			if (!IsEnabled)
+			{
+				return Text + "（停用）";
+			}
+			return Text;
+		}
+	}
 
-    public string DisplayText => IsEnabled ? Text : $"{Text}（停用）";
+	public string Background
+	{
+		get
+		{
+			if (!IsEnabled)
+			{
+				return "#F3F4F6";
+			}
+			return "#F4F4F5";
+		}
+	}
 
-    public string Background => IsEnabled ? "#F4F4F5" : "#F3F4F6";
+	public string BorderBrush
+	{
+		get
+		{
+			if (!IsEnabled)
+			{
+				return "#D1D5DB";
+			}
+			return "#E4E7ED";
+		}
+	}
 
-    public string BorderBrush => IsEnabled ? "#E4E7ED" : "#D1D5DB";
+	public string Foreground
+	{
+		get
+		{
+			if (!IsEnabled)
+			{
+				return "#909399";
+			}
+			return "#303133";
+		}
+	}
 
-    public string Foreground => IsEnabled ? "#303133" : "#909399";
+	private TemplateSubjectTagViewModel(long id, string text, bool isEnabled, bool isAddButton, bool isInput = false)
+	{
+		Id = id;
+		Text = text;
+		IsEnabled = isEnabled;
+		IsAddButton = isAddButton;
+		IsInput = isInput;
+	}
 
-    public static TemplateSubjectTagViewModel Create(long id, string text, bool isEnabled)
-    {
-        return new TemplateSubjectTagViewModel(id, text, isEnabled, false, false);
-    }
+	public static TemplateSubjectTagViewModel Create(long id, string text, bool isEnabled)
+	{
+		return new TemplateSubjectTagViewModel(id, text, isEnabled, isAddButton: false);
+	}
 
-    public static TemplateSubjectTagViewModel CreateTag(string text)
-    {
-        return new TemplateSubjectTagViewModel(0, text, true, false, false);
-    }
+	public static TemplateSubjectTagViewModel CreateTag(string text)
+	{
+		return Create(0L, text, isEnabled: true);
+	}
 
-    public static TemplateSubjectTagViewModel CreateAddButton()
-    {
-        return new TemplateSubjectTagViewModel(0, string.Empty, true, true, false);
-    }
+	public static TemplateSubjectTagViewModel CreateInput()
+	{
+		return new TemplateSubjectTagViewModel(0L, string.Empty, isEnabled: true, isAddButton: false, isInput: true);
+	}
 
-    public static TemplateSubjectTagViewModel CreateInput()
-    {
-        return new TemplateSubjectTagViewModel(0, string.Empty, true, false, true);
-    }
+	public static TemplateSubjectTagViewModel CreateAddButton()
+	{
+		return new TemplateSubjectTagViewModel(0L, string.Empty, isEnabled: true, isAddButton: true);
+	}
 }

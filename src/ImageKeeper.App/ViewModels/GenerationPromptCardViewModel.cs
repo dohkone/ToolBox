@@ -1,56 +1,87 @@
+using System.Threading.Tasks;
+using System.Windows;
+
 namespace ImageKeeper.App.ViewModels;
 
 public sealed class GenerationPromptCardViewModel : ViewModelBase
 {
-    private string _title = string.Empty;
-    private string _promptText = string.Empty;
-    private string _metaText = string.Empty;
-    private bool _isCopied;
-    private int _copyFeedbackVersion;
+	private string _title = string.Empty;
 
-    public GenerationPromptCardViewModel()
-    {
-        CopyPromptCommand = new RelayCommand(async _ =>
-        {
-            if (!string.IsNullOrWhiteSpace(PromptText))
-            {
-                System.Windows.Clipboard.SetText(PromptText);
-                var currentVersion = ++_copyFeedbackVersion;
-                IsCopied = true;
-                await Task.Delay(1200);
-                if (currentVersion == _copyFeedbackVersion)
-                {
-                    IsCopied = false;
-                }
-            }
-        }, _ => !string.IsNullOrWhiteSpace(PromptText));
-    }
+	private string _promptText = string.Empty;
 
-    public string Title
-    {
-        get => _title;
-        set => SetProperty(ref _title, value);
-    }
+	private string _metaText = string.Empty;
 
-    public string PromptText
-    {
-        get => _promptText;
-        set => SetProperty(ref _promptText, value);
-    }
+	private bool _isCopied;
 
-    public string MetaText
-    {
-        get => _metaText;
-        set => SetProperty(ref _metaText, value);
-    }
+	private int _copyFeedbackVersion;
 
-    public bool IsCopied
-    {
-        get => _isCopied;
-        private set => SetProperty(ref _isCopied, value);
-    }
+	public string Title
+	{
+		get
+		{
+			return _title;
+		}
+		set
+		{
+			SetProperty(ref _title, value, "Title");
+		}
+	}
 
-    public bool HasMeta => !string.IsNullOrWhiteSpace(MetaText);
+	public string PromptText
+	{
+		get
+		{
+			return _promptText;
+		}
+		set
+		{
+			SetProperty(ref _promptText, value, "PromptText");
+		}
+	}
 
-    public RelayCommand CopyPromptCommand { get; }
+	public string MetaText
+	{
+		get
+		{
+			return _metaText;
+		}
+		set
+		{
+			SetProperty(ref _metaText, value, "MetaText");
+		}
+	}
+
+	public bool IsCopied
+	{
+		get
+		{
+			return _isCopied;
+		}
+		private set
+		{
+			SetProperty(ref _isCopied, value, "IsCopied");
+		}
+	}
+
+	public bool HasMeta => !string.IsNullOrWhiteSpace(MetaText);
+
+	public RelayCommand CopyPromptCommand { get; }
+
+	public GenerationPromptCardViewModel()
+	{
+		CopyPromptCommand = new RelayCommand(async delegate
+		{
+			if (!string.IsNullOrWhiteSpace(PromptText))
+			{
+				Clipboard.SetText(PromptText);
+				int currentVersion = ++_copyFeedbackVersion;
+				IsCopied = true;
+				await Task.Delay(1200);
+				if (currentVersion == _copyFeedbackVersion)
+				{
+					IsCopied = false;
+				}
+			}
+		}, (object? _) => !string.IsNullOrWhiteSpace(PromptText));
+	}
 }

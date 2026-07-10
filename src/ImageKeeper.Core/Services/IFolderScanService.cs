@@ -1,12 +1,12 @@
+using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using ImageKeeper.Core.Models;
 
 namespace ImageKeeper.Core.Services;
 
 public interface IFolderScanService
 {
-    Task<IReadOnlyList<FolderNode>> ScanAsync(
-        string rootFolder,
-        bool recursive,
-        IProgress<FolderScanProgress>? progress = null,
-        CancellationToken cancellationToken = default);
+	Task<IReadOnlyList<FolderNode>> ScanAsync(string rootFolder, bool recursive, IProgress<FolderScanProgress>? progress = null, CancellationToken cancellationToken = default(CancellationToken));
 }

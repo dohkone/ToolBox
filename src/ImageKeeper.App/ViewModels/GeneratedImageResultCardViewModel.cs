@@ -1,131 +1,147 @@
+using System;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows;
 using System.Windows.Input;
+using System.Windows.Media;
 using ImageKeeper.App.Utilities;
-using Media = System.Windows.Media;
 
 namespace ImageKeeper.App.ViewModels;
 
 public sealed class GeneratedImageResultCardViewModel : ViewModelBase
 {
-    private static readonly SemaphoreSlim ThumbnailGate = new(4);
-    private readonly string _imagePath;
-    private readonly string _fileName;
-    private readonly Action<GeneratedImageResultCardViewModel>? _selectionChanged;
-    private readonly Action<GeneratedImageResultCardViewModel>? _removeRequested;
-    private Media.ImageSource? _thumbnailSource;
-    private bool _isSelected;
+	private static readonly SemaphoreSlim ThumbnailGate = new SemaphoreSlim(4);
 
-    public GeneratedImageResultCardViewModel(
-        string imagePath,
-        string? fileName = null,
-        bool canToggleSelection = false,
-        bool showRemoveAction = false,
-        Action<GeneratedImageResultCardViewModel>? selectionChanged = null,
-        Action<GeneratedImageResultCardViewModel>? removeRequested = null)
-    {
-        _imagePath = imagePath;
-        _fileName = string.IsNullOrWhiteSpace(fileName) ? Path.GetFileName(imagePath) : fileName;
-        CanToggleSelection = canToggleSelection;
-        ShowRemoveAction = showRemoveAction;
-        _selectionChanged = selectionChanged;
-        _removeRequested = removeRequested;
-        OpenFileCommand = new RelayCommand(_ => OpenFile(), _ => File.Exists(ImagePath));
-        ToggleSelectionCommand = new RelayCommand(_ => ToggleSelection(), _ => CanToggleSelection);
-        RemoveCommand = new RelayCommand(_ => RequestRemove(), _ => ShowRemoveAction);
-        LoadThumbnailAsync();
-    }
+	private readonly string _imagePath;
 
-    public string ImagePath => _imagePath;
+	private readonly string _fileName;
 
-    public string FileName => _fileName;
+	private readonly Action<GeneratedImageResultCardViewModel>? _selectionChanged;
 
-    public bool CanToggleSelection { get; }
+	private readonly Action<GeneratedImageResultCardViewModel>? _removeRequested;
 
-    public bool ShowRemoveAction { get; }
+	private ImageSource? _thumbnailSource;
 
-    public ICommand OpenFileCommand { get; }
+	private bool _isSelected;
 
-    public ICommand ToggleSelectionCommand { get; }
+	public string ImagePath => _imagePath;
 
-    public ICommand RemoveCommand { get; }
+	public string FileName => _fileName;
 
-    public Media.ImageSource? ThumbnailSource
-    {
-        get => _thumbnailSource;
-        private set => SetProperty(ref _thumbnailSource, value);
-    }
+	public bool CanToggleSelection { get; }
 
-    public bool IsSelected
-    {
-        get => _isSelected;
-        private set => SetProperty(ref _isSelected, value);
-    }
+	public bool ShowRemoveAction { get; }
 
-    public void HandlePrimaryClick(int clickCount)
-    {
-        if (clickCount >= 2)
-        {
-            OpenFile();
-            return;
-        }
+	public ICommand OpenFileCommand { get; }
 
-        if (CanToggleSelection)
-        {
-            ToggleSelection();
-        }
-    }
+	public ICommand ToggleSelectionCommand { get; }
 
-    public void SetSelected(bool isSelected)
-    {
-        if (!SetProperty(ref _isSelected, isSelected, nameof(IsSelected)))
-        {
-            return;
-        }
+	public ICommand RemoveCommand { get; }
 
-        _selectionChanged?.Invoke(this);
-    }
+	public ImageSource? ThumbnailSource
+	{
+		get
+		{
+			return _thumbnailSource;
+		}
+		private set
+		{
+			SetProperty(ref _thumbnailSource, value, "ThumbnailSource");
+		}
+	}
 
-    private async void LoadThumbnailAsync()
-    {
-        await ThumbnailGate.WaitAsync();
+	public bool IsSelected
+	{
+		get
+		{
+			return _isSelected;
+		}
+		private set
+		{
+			SetProperty(ref _isSelected, value, "IsSelected");
+		}
+	}
 
-        try
-        {
-            ThumbnailSource = await Task.Run(() => ImageBitmapLoader.LoadFromFile(ImagePath, decodePixelWidth: 220));
-        }
-        catch
-        {
-            ThumbnailSource = null;
-        }
-        finally
-        {
-            ThumbnailGate.Release();
-        }
-    }
+	public GeneratedImageResultCardViewModel(string imagePath, string? fileName = null, bool canToggleSelection = false, bool showRemoveAction = false, Action<GeneratedImageResultCardViewModel>? selectionChanged = null, Action<GeneratedImageResultCardViewModel>? removeRequested = null)
+	{
+		_imagePath = imagePath;
+		_fileName = (string.IsNullOrWhiteSpace(fileName) ? Path.GetFileName(imagePath) : fileName);
+		CanToggleSelection = canToggleSelection;
+		ShowRemoveAction = showRemoveAction;
+		_selectionChanged = selectionChanged;
+		_removeRequested = removeRequested;
+		OpenFileCommand = new RelayCommand(delegate
+		{
+			OpenFile();
+		}, (object? _) => File.Exists(ImagePath));
+		ToggleSelectionCommand = new RelayCommand(delegate
+		{
+			ToggleSelection();
+		}, (object? _) => CanToggleSelection);
+		RemoveCommand = new RelayCommand(delegate
+		{
+			RequestRemove();
+		}, (object? _) => ShowRemoveAction);
+		LoadThumbnailAsync();
+	}
 
-    private void ToggleSelection()
-    {
-        SetSelected(!IsSelected);
-    }
+	public void HandlePrimaryClick(int clickCount)
+	{
+		if (clickCount >= 2)
+		{
+			OpenFile();
+		}
+		else if (CanToggleSelection)
+		{
+			ToggleSelection();
+		}
+	}
 
-    private void RequestRemove()
-    {
-        _removeRequested?.Invoke(this);
-    }
+	public void SetSelected(bool isSelected)
+	{
+		if (SetProperty(ref _isSelected, isSelected, "IsSelected"))
+		{
+			_selectionChanged?.Invoke(this);
+		}
+	}
 
-    private void OpenFile()
-    {
-        try
-        {
-            ShellOpenHelper.OpenFile(ImagePath);
-        }
-        catch (Exception ex)
-        {
-            System.Windows.MessageBox.Show(
-                $"打开文件失败：{ex.Message}",
-                "提示",
-                System.Windows.MessageBoxButton.OK,
-                System.Windows.MessageBoxImage.Warning);
-        }
-    }
+	private async void LoadThumbnailAsync()
+	{
+		await ThumbnailGate.WaitAsync();
+		try
+		{
+			ThumbnailSource = await Task.Run(() => ImageBitmapLoader.LoadFromFile(ImagePath, 220));
+		}
+		catch
+		{
+			ThumbnailSource = null;
+		}
+		finally
+		{
+			ThumbnailGate.Release();
+		}
+	}
+
+	private void ToggleSelection()
+	{
+		SetSelected(!IsSelected);
+	}
+
+	private void RequestRemove()
+	{
+		_removeRequested?.Invoke(this);
+	}
+
+	private void OpenFile()
+	{
+		try
+		{
+			ShellOpenHelper.OpenFile(ImagePath);
+		}
+		catch (Exception ex)
+		{
+			MessageBox.Show("打开文件失败：" + ex.Message, "提示", MessageBoxButton.OK, MessageBoxImage.Exclamation);
+		}
+	}
 }

@@ -158,11 +158,66 @@ def infer_color_from_path(path: Path) -> ColorSpec | None:
 
 
 def build_master_prompt(length_multiplier: float, diameter_multiplier: float) -> str:
-    length_instruction = (
-        "Keep the visible roll length unchanged."
-        if length_multiplier == 0
-        else f"Increase the visible roll length until the roll appears approximately {length_multiplier:.4g} times as long as the original while keeping the diameter unchanged."
-    )
+    if length_multiplier > 0:
+        length_instruction = (
+            f"Increase the visible roll length until the roll appears approximately {length_multiplier:.4g} times longer than the original while keeping exactly the same diameter."
+        )
+        length_behavior_instruction = """
+The roll must become obviously longer.
+
+Do not make only a slight adjustment.
+
+Extend the roll only along its own longitudinal axis.
+
+Do not extend sideways.
+
+Increase the amount of rolled leather.
+
+The leather must appear naturally rolled, as if the same product were manufactured in a longer specification.
+
+For large changes such as 2x, 3x, or 4x length, fully apply the requested geometry.
+
+Do not preserve the previous short appearance.
+
+The final roll should immediately look much longer than before.
+
+Transform the roll into a longer, slim cylindrical leather repair roll.
+""".strip()
+    elif length_multiplier < 0:
+        shorten_multiplier = abs(length_multiplier)
+        length_instruction = (
+            f"Decrease the visible roll length until the roll appears approximately {shorten_multiplier:.4g} times shorter than the original while keeping exactly the same diameter."
+        )
+        length_behavior_instruction = """
+The roll must become obviously shorter.
+
+Do not make only a slight adjustment.
+
+Shorten the roll only along its own longitudinal axis.
+
+Do not compress sideways.
+
+Reduce the amount of rolled leather while keeping the roll naturally manufactured.
+
+The leather must appear naturally rolled, as if the same product were manufactured in a shorter specification.
+
+For large changes such as 2x, 3x, or 4x shorter length, fully apply the requested geometry.
+
+Do not preserve the previous long appearance.
+
+The final roll should immediately look much shorter than before.
+
+Keep the roll cylindrical and realistic after shortening.
+""".strip()
+    else:
+        length_instruction = "Keep the visible roll length unchanged."
+        length_behavior_instruction = """
+Do not change the visible roll length.
+
+Do not extend or shorten the roll.
+
+Keep the original amount of rolled leather unchanged.
+""".strip()
     diameter_instruction = (
         "Keep the current roll diameter unchanged."
         if diameter_multiplier == 0 or diameter_multiplier == 1
@@ -232,25 +287,15 @@ Only modify the geometry of every visible leather repair roll.
 
 The requested geometry change is mandatory.
 
-The roll must become obviously longer.
-
-Do not make only a slight adjustment.
-
-Extend the roll only along its own longitudinal axis.
-
-Do not extend sideways.
+{length_behavior_instruction}
 
 Keep the original roll position, angle, orientation, and perspective.
-
-Increase the amount of rolled leather.
 
 Do not stretch the leather.
 
 Do not stretch the texture.
 
 Do not stretch the leather grain.
-
-The leather must appear naturally rolled, as if the same product were manufactured in a longer specification.
 
 Keep the original leather material consistent. STRICT ROLL SPECIFICATION: every visible roll must remain a
 high-quality PU leather repair roll in a fully rolled state. Never unfold it, bend it, fold it, distort it, or
@@ -291,16 +336,6 @@ Only change the rolled leather length unless a diameter change is explicitly req
 If multiple rolls are visible, apply the same geometry change consistently to every roll.
 
 If a repair patch sheet is visible, keep it unchanged unless it must naturally connect to the modified roll.
-
-For large changes such as 2x, 3x, or 4x length, fully apply the requested geometry.
-
-Do not preserve the previous short appearance.
-
-The final roll should immediately look much longer than before.
-
-Transform the roll into a long, slim cylindrical leather repair roll.
-
-The roll should have a clearly elongated silhouette with a length-to-diameter ratio of approximately 12:1 to 16:1.
 
 {diameter_behavior_instruction}
 

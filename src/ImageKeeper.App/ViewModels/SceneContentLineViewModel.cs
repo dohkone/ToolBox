@@ -2,30 +2,50 @@ namespace ImageKeeper.App.ViewModels;
 
 public sealed class SceneContentLineViewModel : ViewModelBase
 {
-    private string _text;
-    private bool _canAdd = true;
-    private bool _canRemove;
+	private string _text;
 
-    public SceneContentLineViewModel(string text)
-    {
-        _text = text;
-    }
+	private bool _canAdd = true;
 
-    public string Text
-    {
-        get => _text;
-        set => SetProperty(ref _text, value);
-    }
+	private bool _canRemove;
 
-    public bool CanRemove
-    {
-        get => _canRemove;
-        set => SetProperty(ref _canRemove, value);
-    }
+	public string Text
+	{
+		get
+		{
+			return _text;
+		}
+		set
+		{
+			SetProperty(ref _text, value, "Text");
+		}
+	}
 
-    public bool CanAdd
-    {
-        get => _canAdd;
-        set => SetProperty(ref _canAdd, value);
-    }
+	public bool CanRemove
+	{
+		get
+		{
+			return _canRemove;
+		}
+		set
+		{
+			SetProperty(ref _canRemove, value, "CanRemove");
+		}
+	}
+
+	public bool CanAdd
+	{
+		get
+		{
+			return _canAdd;
+		}
+		set
+		{
+			SetProperty(ref _canAdd, value, "CanAdd");
+		}
+	}
+
+	public SceneContentLineViewModel(string text)
+	{
+		_text = text;
+	}
 }

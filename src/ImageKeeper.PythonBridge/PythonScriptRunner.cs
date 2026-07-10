@@ -1,54 +1,51 @@
+using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using ImageKeeper.Core.Services;
 
 namespace ImageKeeper.PythonBridge;
 
 public sealed class PythonScriptRunner : IPythonScriptRunner
 {
-    private readonly string _pythonExePath;
+	private readonly string _pythonExePath;
 
-    public PythonScriptRunner(string pythonExePath)
-    {
-        _pythonExePath = pythonExePath;
-    }
+	public PythonScriptRunner(string pythonExePath)
+	{
+		_pythonExePath = pythonExePath;
+	}
 
-    public async Task<int> RunAsync(string scriptPath, IReadOnlyList<string> arguments, CancellationToken cancellationToken = default)
-    {
-        var psi = new ProcessStartInfo
-        {
-            FileName = _pythonExePath,
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            StandardOutputEncoding = Encoding.UTF8,
-            StandardErrorEncoding = Encoding.UTF8,
-            CreateNoWindow = true
-        };
-        psi.Environment["PYTHONIOENCODING"] = "utf-8";
-        psi.Environment["PYTHONUTF8"] = "1";
-
-        psi.ArgumentList.Add(scriptPath);
-        foreach (var arg in arguments)
-        {
-            psi.ArgumentList.Add(arg);
-        }
-
-        using var process = Process.Start(psi) ?? throw new InvalidOperationException("Unable to start python process.");
-        var standardOutputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
-        var standardErrorTask = process.StandardError.ReadToEndAsync(cancellationToken);
-        await process.WaitForExitAsync(cancellationToken);
-        var standardOutput = await standardOutputTask;
-        var standardError = await standardErrorTask;
-
-        if (process.ExitCode != 0)
-        {
-            var message = string.IsNullOrWhiteSpace(standardError)
-                ? (string.IsNullOrWhiteSpace(standardOutput) ? $"Python script failed with exit code {process.ExitCode}." : standardOutput.Trim())
-                : standardError.Trim();
-            throw new InvalidOperationException(message);
-        }
-
-        return process.ExitCode;
-    }
+	public async Task<int> RunAsync(string scriptPath, IReadOnlyList<string> arguments, CancellationToken cancellationToken = default(CancellationToken))
+	{
+		ProcessStartInfo processStartInfo = new ProcessStartInfo
+		{
+			FileName = _pythonExePath,
+			UseShellExecute = false,
+			RedirectStandardOutput = true,
+			RedirectStandardError = true,
+			StandardOutputEncoding = Encoding.UTF8,
+			StandardErrorEncoding = Encoding.UTF8,
+			CreateNoWindow = true
+		};
+		processStartInfo.Environment["PYTHONIOENCODING"] = "utf-8";
+		processStartInfo.Environment["PYTHONUTF8"] = "1";
+		processStartInfo.ArgumentList.Add(scriptPath);
+		foreach (string argument in arguments)
+		{
+			processStartInfo.ArgumentList.Add(argument);
+		}
+		using Process process = Process.Start(processStartInfo) ?? throw new InvalidOperationException("Unable to start python process.");
+		Task<string> standardOutputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+		Task<string> standardErrorTask = process.StandardError.ReadToEndAsync(cancellationToken);
+		await process.WaitForExitAsync(cancellationToken);
+		string standardOutput = await standardOutputTask;
+		string text = await standardErrorTask;
+		if (process.ExitCode != 0)
+		{
+			throw new InvalidOperationException((!string.IsNullOrWhiteSpace(text)) ? text.Trim() : (string.IsNullOrWhiteSpace(standardOutput) ? $"Python script failed with exit code {process.ExitCode}." : standardOutput.Trim()));
+		}
+		return process.ExitCode;
+	}
 }
