@@ -142,6 +142,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private readonly AsyncRelayCommand _chooseTemplatePreviewCommand;
 
+	private readonly RelayCommand _openTemplateEditorPreviewCommand;
+
 	private readonly AsyncRelayCommand _importLayoutTemplatesCommand;
 
 	private readonly AsyncRelayCommand _exportLayoutTemplatesCommand;
@@ -179,6 +181,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 	private readonly RelayCommand _closeGenerationTemplatePickerCommand;
 
 	private readonly RelayCommand _selectAllGenerationTemplatesCommand;
+
+	private readonly RelayCommand _clearGenerationTemplatesCommand;
 
 	private readonly AsyncRelayCommand _chooseGenerationOutputFolderCommand;
 
@@ -510,6 +514,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	public ICommand ChooseTemplatePreviewCommand => _chooseTemplatePreviewCommand;
 
+	public ICommand OpenTemplateEditorPreviewCommand => _openTemplateEditorPreviewCommand;
+
 	public ICommand ImportLayoutTemplatesCommand => _importLayoutTemplatesCommand;
 
 	public ICommand ExportLayoutTemplatesCommand => _exportLayoutTemplatesCommand;
@@ -547,6 +553,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 	public ICommand CloseGenerationTemplatePickerCommand => _closeGenerationTemplatePickerCommand;
 
 	public ICommand SelectAllGenerationTemplatesCommand => _selectAllGenerationTemplatesCommand;
+
+	public ICommand ClearGenerationTemplatesCommand => _clearGenerationTemplatesCommand;
 
 	public ICommand ChooseGenerationOutputFolderCommand => _chooseGenerationOutputFolderCommand;
 
@@ -1476,6 +1484,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 			{
 				OnPropertyChanged("IsTemplateEditorPreviewVisible");
 				_saveTemplateCommand.RaiseCanExecuteChanged();
+				_openTemplateEditorPreviewCommand.RaiseCanExecuteChanged();
 			}
 		}
 	}
@@ -2298,6 +2307,10 @@ public sealed class MainWindowViewModel : ViewModelBase
 			SelectManagedTemplate(item as TemplateItemViewModel);
 		}, (object? item) => item is TemplateItemViewModel);
 		_chooseTemplatePreviewCommand = new AsyncRelayCommand((object? _) => ChooseTemplatePreviewAsync(), (object? _) => IsLayoutTemplateTabSelected);
+		_openTemplateEditorPreviewCommand = new RelayCommand(delegate
+		{
+			OpenTemplateEditorPreview();
+		}, (object? _) => File.Exists(TemplateEditorPreviewImagePath));
 		_importLayoutTemplatesCommand = new AsyncRelayCommand((object? _) => ImportLayoutTemplatesAsync(), (object? _) => IsLayoutTemplateTabSelected);
 		_exportLayoutTemplatesCommand = new AsyncRelayCommand((object? _) => ExportLayoutTemplatesAsync(), (object? _) => IsLayoutTemplateTabSelected);
 		_importAllTemplatesCommand = new AsyncRelayCommand((object? _) => ImportAllTemplatesAsync());
@@ -2352,6 +2365,10 @@ public sealed class MainWindowViewModel : ViewModelBase
 		_selectAllGenerationTemplatesCommand = new RelayCommand(delegate
 		{
 			SelectAllGenerationTemplates();
+		});
+		_clearGenerationTemplatesCommand = new RelayCommand(delegate
+		{
+			ClearGenerationTemplates();
 		});
 		_chooseGenerationOutputFolderCommand = new AsyncRelayCommand((object? _) => ChooseGenerationOutputFolderAsync(), (object? _) => CanEditTemplateGenerationSettings());
 		_openGenerationOutputFolderCommand = new RelayCommand(delegate
@@ -3211,6 +3228,22 @@ public sealed class MainWindowViewModel : ViewModelBase
 		}
 	}
 
+	private void OpenTemplateEditorPreview()
+	{
+		if (!File.Exists(TemplateEditorPreviewImagePath))
+		{
+			return;
+		}
+		try
+		{
+			ShellOpenHelper.OpenFile(TemplateEditorPreviewImagePath);
+		}
+		catch (Exception ex)
+		{
+			MessageBox.Show("打开预览图失败：" + ex.Message, "提示", MessageBoxButton.OK, MessageBoxImage.Exclamation);
+		}
+	}
+
 	private void NotifyTemplateCategoryChanged()
 	{
 		OnPropertyChanged("IsLayoutTemplateTabSelected");
@@ -3226,6 +3259,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		OnPropertyChanged("TemplateEditorContentLabel");
 		OnPropertyChanged("TemplateEmptyText");
 		OnPropertyChanged("IsTemplateEditorPreviewVisible");
+		_openTemplateEditorPreviewCommand.RaiseCanExecuteChanged();
 		OnPropertyChanged("IsTemplateEditorSubjectVisible");
 		OnPropertyChanged("IsTemplateEditorContentVisible");
 		OnPropertyChanged("HasTemplateSubjectTags");
@@ -3379,6 +3413,15 @@ public sealed class MainWindowViewModel : ViewModelBase
 		foreach (GenerationTemplateOptionViewModel generationTemplateOption in GenerationTemplateOptions)
 		{
 			generationTemplateOption.IsSelected = true;
+		}
+		OnPropertyChanged("GenerationTemplateSelectionText");
+	}
+
+	private void ClearGenerationTemplates()
+	{
+		foreach (GenerationTemplateOptionViewModel generationTemplateOption in GenerationTemplateOptions)
+		{
+			generationTemplateOption.IsSelected = false;
 		}
 		OnPropertyChanged("GenerationTemplateSelectionText");
 	}

@@ -1246,7 +1246,7 @@
 
                                     <Border Grid.Row="1"
                                             Margin="0,10,0,0"
-                                            Padding="10"
+                                            Padding="2,8,10,8"
                                             Background="#FFFFFF"
                                             BorderBrush="#D9E1EC"
                                             BorderThickness="1"
@@ -3757,7 +3757,7 @@
 
                                     <Border Grid.Row="3"
                                             Margin="0,14,0,0"
-                                            Padding="10"
+                                            Padding="8"
                                             HorizontalAlignment="Stretch"
                                             Background="#FAFBFD"
                                             BorderBrush="#E5EAF3"
@@ -3766,12 +3766,11 @@
                                             Visibility="{Binding IsLayoutTemplateTabSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="142" />
+                                                    <ColumnDefinition Width="78" />
                                                     <ColumnDefinition Width="*" />
                                                 </Grid.ColumnDefinitions>
-                                                <Border Width="128"
-                                                        Height="76"
-                                                        Background="#F6F7FA"
+                                                <Border Width="72"
+                                                        Height="64"
                                                         CornerRadius="8">
                                                     <Grid>
                                                         <TextBlock HorizontalAlignment="Center"
@@ -3779,20 +3778,21 @@
                                                                    Foreground="{StaticResource MutedTextBrush}"
                                                                    Text="暂无预览图"
                                                                    Visibility="{Binding IsTemplateEditorPreviewVisible, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
-                                                        <Image Margin="4"
-                                                               Stretch="UniformToFill"
+                                                        <Image Margin="2"
+                                                               Cursor="Hand"
+                                                               RenderOptions.BitmapScalingMode="Fant"
+                                                               Stretch="Uniform"
                                                                Source="{Binding TemplateEditorPreviewImagePath}"
-                                                               Visibility="{Binding IsTemplateEditorPreviewVisible, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                                               Visibility="{Binding IsTemplateEditorPreviewVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                            <Image.InputBindings>
+                                                                <MouseBinding MouseAction="LeftDoubleClick"
+                                                                              Command="{Binding OpenTemplateEditorPreviewCommand}" />
+                                                            </Image.InputBindings>
+                                                        </Image>
                                                     </Grid>
                                                 </Border>
                                                 <StackPanel Grid.Column="1"
-                                                            Margin="12,0,0,0">
-                                                    <TextBlock FontWeight="SemiBold"
-                                                               Text="布局预览图" />
-                                                    <TextBlock Margin="0,4,0,8"
-                                                               Foreground="{StaticResource MutedTextBrush}"
-                                                               Text="选择图片后会复制到本地模板资源目录，数据库只保存路径。"
-                                                               TextWrapping="Wrap" />
+                                                            Margin="8,0,0,0">
                                                     <Button HorizontalAlignment="Left"
                                                             Content="选择预览图"
                                                             Style="{StaticResource ElementSecondaryButtonStyle}"
@@ -3894,10 +3894,14 @@
                         </Border>
 
                         <StackPanel Grid.Row="2"
-                                    Margin="0,14,0,0"
-                                    HorizontalAlignment="Right"
-                                    Orientation="Horizontal">
+                                     Margin="0,14,0,0"
+                                     HorizontalAlignment="Right"
+                                     Orientation="Horizontal">
+                            <Button Content="全部取消"
+                                    Style="{StaticResource ElementSecondaryButtonStyle}"
+                                    Command="{Binding ClearGenerationTemplatesCommand}" />
                             <Button Content="全部模板"
+                                    Margin="8,0,0,0"
                                     Style="{StaticResource ElementSecondaryButtonStyle}"
                                     Command="{Binding SelectAllGenerationTemplatesCommand}" />
                             <Button Margin="8,0,0,0"
