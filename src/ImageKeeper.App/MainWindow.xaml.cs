@@ -395,6 +395,20 @@ public partial class MainWindow : Window
         }
     }
 
+    private void SpBatchMasterCard_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (IsFromButton(e.OriginalSource))
+        {
+            return;
+        }
+
+        if (sender is FrameworkElement { DataContext: GeneratedImageResultCardViewModel card })
+        {
+            card.HandlePrimaryClick(e.ClickCount);
+            e.Handled = true;
+        }
+    }
+
     private void SkuOptimizeSourceCard_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (IsFromButton(e.OriginalSource))

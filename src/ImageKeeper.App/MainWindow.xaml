@@ -1452,9 +1452,20 @@
                                                                     Margin="0,0,8,8"
                                                                     Padding="8"
                                                                     Background="White"
-                                                                    BorderBrush="#D9E1EC"
-                                                                    BorderThickness="1"
-                                                                    CornerRadius="8">
+                                                                    CornerRadius="8"
+                                                                    PreviewMouseLeftButtonDown="SpBatchMasterCard_PreviewMouseLeftButtonDown">
+                                                                <Border.Style>
+                                                                    <Style TargetType="Border">
+                                                                        <Setter Property="BorderBrush" Value="#D9E1EC" />
+                                                                        <Setter Property="BorderThickness" Value="1" />
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                                <Setter Property="BorderBrush" Value="#2F6FED" />
+                                                                                <Setter Property="BorderThickness" Value="2" />
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </Border.Style>
                                                                 <Grid>
                                                                     <Grid.RowDefinitions>
                                                                         <RowDefinition Height="Auto" />
@@ -1474,31 +1485,24 @@
                                                                                    Foreground="#909399"
                                                                                    Text="&#xE711;" />
                                                                     </Button>
-                                                                    <Button Grid.Row="1"
-                                                                            Padding="0"
-                                                                            Background="Transparent"
-                                                                            BorderThickness="0"
-                                                                            Command="{Binding OpenFileCommand}"
-                                                                            Style="{StaticResource FlatButtonStyle}">
-                                                                        <StackPanel>
-                                                                            <Border CornerRadius="8"
-                                                                                    ClipToBounds="True">
-                                                                                <Grid Width="98"
-                                                                                      Height="98"
-                                                                                      Background="{StaticResource PanelAltBrush}">
-                                                                                    <Image Stretch="UniformToFill"
-                                                                                           Source="{Binding ThumbnailSource}" />
-                                                                                </Grid>
-                                                                            </Border>
-                                                                            <TextBlock Margin="0,8,0,0"
-                                                                                       FontSize="12"
-                                                                                       LineHeight="16"
-                                                                                       MaxHeight="32"
-                                                                                       Text="{Binding FileName}"
-                                                                                       TextTrimming="CharacterEllipsis"
-                                                                                       TextWrapping="Wrap" />
-                                                                        </StackPanel>
-                                                                    </Button>
+                                                                    <StackPanel Grid.Row="1">
+                                                                        <Border CornerRadius="8"
+                                                                                ClipToBounds="True">
+                                                                            <Grid Width="98"
+                                                                                  Height="98"
+                                                                                  Background="{StaticResource PanelAltBrush}">
+                                                                                <Image Stretch="UniformToFill"
+                                                                                       Source="{Binding ThumbnailSource}" />
+                                                                            </Grid>
+                                                                        </Border>
+                                                                        <TextBlock Margin="0,8,0,0"
+                                                                                   FontSize="12"
+                                                                                   LineHeight="16"
+                                                                                   MaxHeight="32"
+                                                                                   Text="{Binding FileName}"
+                                                                                   TextTrimming="CharacterEllipsis"
+                                                                                   TextWrapping="Wrap" />
+                                                                    </StackPanel>
                                                                 </Grid>
                                                             </Border>
                                                         </DataTemplate>
@@ -1551,7 +1555,7 @@
                                                 Margin="4,0,0,0"
                                                 FontWeight="SemiBold"
                                                 Content="SKU图优化"
-                                                Command="{Binding ShowSkuOptimizeTabCommand}"
+                                                Command="{Binding SendSelectedSpBatchMasterToSkuOptimizeCommand}"
                                                 Style="{StaticResource ElementSecondaryButtonStyle}" />
                                     </Grid>
 
@@ -2270,9 +2274,27 @@
                                             <StackPanel Grid.Column="0"
                                                         Margin="0,0,8,0">
                                                 <TextBlock Margin="0,0,0,6"
-                                                           Text="长度变化（&gt;0增长，0不变，&lt;0缩短）" />
-                                                <TextBox Style="{StaticResource ElementInputTextBoxStyle}"
-                                                         Text="{Binding SkuOptimizeLengthMultiplierText, UpdateSourceTrigger=PropertyChanged}" />
+                                                           Text="长度变化（增长/缩短倍数，0为不变）" />
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel Margin="0,0,10,0"
+                                                                VerticalAlignment="Center"
+                                                                Orientation="Horizontal">
+                                                        <CheckBox VerticalAlignment="Center"
+                                                                  Content="增长"
+                                                                  IsChecked="{Binding IsSkuOptimizeLengthGrow, Mode=TwoWay}" />
+                                                        <CheckBox Margin="8,0,0,0"
+                                                                  VerticalAlignment="Center"
+                                                                  Content="缩短"
+                                                                  IsChecked="{Binding IsSkuOptimizeLengthShrink, Mode=TwoWay}" />
+                                                    </StackPanel>
+                                                    <TextBox Grid.Column="1"
+                                                             Style="{StaticResource ElementInputTextBoxStyle}"
+                                                             Text="{Binding SkuOptimizeLengthMultiplierText, UpdateSourceTrigger=PropertyChanged}" />
+                                                </Grid>
                                             </StackPanel>
                                             <StackPanel Grid.Column="1">
                                                 <TextBlock Margin="0,0,0,6"

@@ -55,24 +55,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		"深棕色",
 		"深灰色",
 		"酒红色",
-		"宝蓝色",
-		"black",
-		"offwhite",
-		"off-white",
-		"darkbrown",
-		"dark brown",
-		"darkgray",
-		"dark gray",
-		"winered",
-		"wine red",
-		"royalblue",
-		"royal blue",
-		"#0A0A0A",
-		"#F4F4F2",
-		"#261107",
-		"#C4C8CA",
-		"#722829",
-		"#2E3EA5"
+		"宝蓝色"
 	};
 
 	private readonly IFolderScanService _folderScanService;
@@ -128,6 +111,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 	private readonly RelayCommand _showSpBatchTabCommand;
 
 	private readonly RelayCommand _showSkuOptimizeTabCommand;
+
+	private readonly RelayCommand _sendSelectedSpBatchMasterToSkuOptimizeCommand;
 
 	private readonly RelayCommand _showSceneImageGenerateTabCommand;
 
@@ -363,6 +348,10 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private string _skuOptimizeLengthMultiplierText = "2";
 
+	private bool _isSkuOptimizeLengthGrow = true;
+
+	private bool _isSkuOptimizeLengthShrink;
+
 	private string _skuOptimizeDiameterMultiplierText = "0.67";
 
 	private string _skuOptimizeStatusText = "待命";
@@ -486,6 +475,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 	public ICommand ShowSpBatchTabCommand => _showSpBatchTabCommand;
 
 	public ICommand ShowSkuOptimizeTabCommand => _showSkuOptimizeTabCommand;
+
+	public ICommand SendSelectedSpBatchMasterToSkuOptimizeCommand => _sendSelectedSpBatchMasterToSkuOptimizeCommand;
 
 	public ICommand ShowSceneImageGenerateTabCommand => _showSceneImageGenerateTabCommand;
 
@@ -1184,6 +1175,54 @@ public sealed class MainWindowViewModel : ViewModelBase
 		{
 			if (SetProperty(ref _skuOptimizeLengthMultiplierText, value, "SkuOptimizeLengthMultiplierText"))
 			{
+				_runSkuOptimizeCommand.RaiseCanExecuteChanged();
+			}
+		}
+	}
+
+	public bool IsSkuOptimizeLengthGrow
+	{
+		get
+		{
+			return _isSkuOptimizeLengthGrow;
+		}
+		set
+		{
+			if (!value && !_isSkuOptimizeLengthShrink)
+			{
+				value = true;
+			}
+			if (SetProperty(ref _isSkuOptimizeLengthGrow, value, "IsSkuOptimizeLengthGrow"))
+			{
+				if (value && _isSkuOptimizeLengthShrink)
+				{
+					_isSkuOptimizeLengthShrink = false;
+					OnPropertyChanged("IsSkuOptimizeLengthShrink");
+				}
+				_runSkuOptimizeCommand.RaiseCanExecuteChanged();
+			}
+		}
+	}
+
+	public bool IsSkuOptimizeLengthShrink
+	{
+		get
+		{
+			return _isSkuOptimizeLengthShrink;
+		}
+		set
+		{
+			if (!value && !_isSkuOptimizeLengthGrow)
+			{
+				value = true;
+			}
+			if (SetProperty(ref _isSkuOptimizeLengthShrink, value, "IsSkuOptimizeLengthShrink"))
+			{
+				if (value && _isSkuOptimizeLengthGrow)
+				{
+					_isSkuOptimizeLengthGrow = false;
+					OnPropertyChanged("IsSkuOptimizeLengthGrow");
+				}
 				_runSkuOptimizeCommand.RaiseCanExecuteChanged();
 			}
 		}
@@ -2215,8 +2254,14 @@ public sealed class MainWindowViewModel : ViewModelBase
 		});
 		_showSkuOptimizeTabCommand = new RelayCommand(delegate
 		{
-			TransferSpBatchMasterToSkuOptimize();
 			SetSelectedImageGenerateTab("sku-optimize");
+		});
+		_sendSelectedSpBatchMasterToSkuOptimizeCommand = new RelayCommand(delegate
+		{
+			if (TransferSpBatchMasterToSkuOptimize(showPromptWhenMissing: true))
+			{
+				SetSelectedImageGenerateTab("sku-optimize");
+			}
 		});
 		_showSceneImageGenerateTabCommand = new RelayCommand(delegate
 		{
@@ -4858,12 +4903,18 @@ public sealed class MainWindowViewModel : ViewModelBase
 		return true;
 	}
 
-	private static bool TryParseSkuOptimizeLengthChange(string text, string fieldName, out double value)
+	private static bool TryParseSkuOptimizeLengthFactor(string text, string fieldName, bool shrink, out double value)
 	{
-		if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value))
+		if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double factor) || factor < 0.0)
 		{
-			throw new InvalidOperationException(fieldName + "必须是数字。输入正数表示增长倍数，输入 0 表示不变，输入负数表示缩短倍数。");
+			throw new InvalidOperationException(fieldName + "必须是大于或等于 0 的数字。输入 0 表示不变。");
 		}
+		if (factor == 0.0 || (shrink && factor <= 1.0))
+		{
+			value = 0.0;
+			return true;
+		}
+		value = shrink ? -(1.0 / factor) : factor;
 		return true;
 	}
 
@@ -5245,7 +5296,9 @@ public sealed class MainWindowViewModel : ViewModelBase
 		{
 			if (string.Equals(item.Stage, "master", StringComparison.OrdinalIgnoreCase))
 			{
-				SpBatchMasterImageCards.Add(new GeneratedImageResultCardViewModel(item.ImagePath, Path.GetFileName(item.ImagePath), canToggleSelection: false, showRemoveAction: true, null, OnSpBatchMasterImageRemoved));
+				GeneratedImageResultCardViewModel card = new GeneratedImageResultCardViewModel(item.ImagePath, Path.GetFileName(item.ImagePath), canToggleSelection: true, showRemoveAction: true, OnSpBatchMasterSelectionChanged, OnSpBatchMasterImageRemoved);
+				card.SetSelected(isSelected: true);
+				SpBatchMasterImageCards.Add(card);
 			}
 			else
 			{
@@ -5317,13 +5370,30 @@ public sealed class MainWindowViewModel : ViewModelBase
 		}
 	}
 
+	private void OnSpBatchMasterSelectionChanged(GeneratedImageResultCardViewModel selectedCard)
+	{
+		if (!selectedCard.IsSelected)
+		{
+			return;
+		}
+		foreach (GeneratedImageResultCardViewModel card in SpBatchMasterImageCards)
+		{
+			if (!ReferenceEquals(card, selectedCard) && card.IsSelected)
+			{
+				card.SetSelected(isSelected: false);
+			}
+		}
+	}
+
 	private void AddSpBatchMasterImage(string imagePath, string? fileName = null)
 	{
 		if (File.Exists(imagePath) && IsSupportedImageFile(imagePath))
 		{
 			ClearSpBatchMasterImageCards();
 			ClearSpBatchImageResultCards();
-			SpBatchMasterImageCards.Add(new GeneratedImageResultCardViewModel(imagePath, fileName ?? Path.GetFileName(imagePath), canToggleSelection: false, showRemoveAction: true, null, OnSpBatchMasterImageRemoved));
+			GeneratedImageResultCardViewModel card = new GeneratedImageResultCardViewModel(imagePath, fileName ?? Path.GetFileName(imagePath), canToggleSelection: true, showRemoveAction: true, OnSpBatchMasterSelectionChanged, OnSpBatchMasterImageRemoved);
+			card.SetSelected(isSelected: true);
+			SpBatchMasterImageCards.Add(card);
 			OnPropertyChanged("HasSpBatchMasterImageCards");
 			OnPropertyChanged("HasAnySpBatchResultCards");
 			OnPropertyChanged("ShouldShowSpBatchDetailCards");
@@ -5369,18 +5439,23 @@ public sealed class MainWindowViewModel : ViewModelBase
 		}
 	}
 
-	private void TransferSpBatchMasterToSkuOptimize()
+	private bool TransferSpBatchMasterToSkuOptimize(bool showPromptWhenMissing)
 	{
-		GeneratedImageResultCardViewModel masterCard = SpBatchMasterImageCards.FirstOrDefault();
+		GeneratedImageResultCardViewModel masterCard = SpBatchMasterImageCards.FirstOrDefault((GeneratedImageResultCardViewModel card) => card.IsSelected);
 		if (masterCard == null || !File.Exists(masterCard.ImagePath) || !IsSupportedImageFile(masterCard.ImagePath))
 		{
-			return;
+			if (showPromptWhenMissing)
+			{
+				MessageBox.Show("请先选中一张 SKU 母图。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+			}
+			return false;
 		}
 		SkuOptimizeSourceImageCards.Clear();
 		SkuOptimizeSourceImageCards.Add(new GeneratedImageResultCardViewModel(masterCard.ImagePath, masterCard.FileName, canToggleSelection: false, showRemoveAction: true, null, OnSkuOptimizeSourceImageRemoved));
 		OnPropertyChanged("HasSkuOptimizeSourceImageCards");
 		_runSkuOptimizeCommand.RaiseCanExecuteChanged();
 		StatusMessage = "已将 SKU 母图带入 SKU 图优化。";
+		return true;
 	}
 
 	private void SendSelectedImagesToSpBatch()
@@ -5761,7 +5836,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		{
 			throw new InvalidOperationException("请选择 SKU 图优化输出目录。");
 		}
-		if (!TryParsePositiveInt(SkuOptimizeConcurrencyText, "并发数量", out var value) || !TryParseSkuOptimizeLengthChange(SkuOptimizeLengthMultiplierText, "长度变化", out var value2) || !TryParseSkuOptimizeMultiplier(SkuOptimizeDiameterMultiplierText, "缩小直径", out var value3))
+		if (!TryParsePositiveInt(SkuOptimizeConcurrencyText, "并发数量", out var value) || !TryParseSkuOptimizeLengthFactor(SkuOptimizeLengthMultiplierText, "长度倍数", IsSkuOptimizeLengthShrink, out var value2) || !TryParseSkuOptimizeMultiplier(SkuOptimizeDiameterMultiplierText, "缩小直径", out var value3))
 		{
 			return;
 		}
