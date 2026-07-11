@@ -30,11 +30,32 @@
 
         <Style x:Key="ScrollBarThumbStyle" TargetType="Thumb">
             <Setter Property="OverridesDefaultStyle" Value="True" />
+            <Setter Property="MinHeight" Value="28" />
+            <Setter Property="MinWidth" Value="5" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Thumb">
-                        <Border Background="#EEEEEE"
-                                CornerRadius="3" />
+                        <Grid Background="Transparent">
+                            <Border x:Name="VerticalThumb"
+                                    Width="5"
+                                    Background="#4F5D6F"
+                                    CornerRadius="3"
+                                    HorizontalAlignment="Center" />
+                            <Border x:Name="HorizontalThumb"
+                                    Height="5"
+                                    Background="#4F5D6F"
+                                    CornerRadius="3"
+                                    VerticalAlignment="Center"
+                                    Visibility="Collapsed" />
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="Tag" Value="Horizontal">
+                                <Setter Property="MinHeight" Value="5" />
+                                <Setter Property="MinWidth" Value="28" />
+                                <Setter TargetName="VerticalThumb" Property="Visibility" Value="Collapsed" />
+                                <Setter TargetName="HorizontalThumb" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
@@ -43,15 +64,17 @@
         <Style TargetType="ScrollBar">
             <Setter Property="SnapsToDevicePixels" Value="True" />
             <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Width" Value="2" />
+            <Setter Property="Width" Value="8" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ScrollBar">
                         <Grid>
-                            <Border x:Name="VerticalRoot"
-                                    Margin="0,2,0,2"
-                                    Background="#EEF2F8"
-                                    CornerRadius="3">
+                            <Grid x:Name="VerticalRoot"
+                                  Margin="0,2,0,2">
+                                <Border Width="2"
+                                        Background="#D8DEE8"
+                                        CornerRadius="2"
+                                        HorizontalAlignment="Center" />
                                 <Track Name="PART_Track"
                                        IsDirectionReversed="True">
                                     <Track.DecreaseRepeatButton>
@@ -66,27 +89,30 @@
                                                       Command="ScrollBar.PageDownCommand" />
                                     </Track.IncreaseRepeatButton>
                                 </Track>
-                            </Border>
+                            </Grid>
 
-                            <Border x:Name="HorizontalRoot"
-                                    Margin="2,0,2,0"
-                                    Background="#EEF2F8"
-                                    CornerRadius="3"
-                                    Visibility="Collapsed">
+                            <Grid x:Name="HorizontalRoot"
+                                  Margin="2,0,2,0"
+                                  Visibility="Collapsed">
+                                <Border Height="2"
+                                        Background="#D8DEE8"
+                                        CornerRadius="3"
+                                        VerticalAlignment="Center" />
                                 <Track Orientation="Horizontal">
                                     <Track.DecreaseRepeatButton>
                                         <RepeatButton Style="{StaticResource ScrollBarPageButtonStyle}"
                                                       Command="ScrollBar.PageLeftCommand" />
                                     </Track.DecreaseRepeatButton>
                                     <Track.Thumb>
-                                        <Thumb Style="{StaticResource ScrollBarThumbStyle}" />
+                                        <Thumb Style="{StaticResource ScrollBarThumbStyle}"
+                                               Tag="Horizontal" />
                                     </Track.Thumb>
                                     <Track.IncreaseRepeatButton>
                                         <RepeatButton Style="{StaticResource ScrollBarPageButtonStyle}"
                                                       Command="ScrollBar.PageRightCommand" />
                                     </Track.IncreaseRepeatButton>
                                 </Track>
-                            </Border>
+                            </Grid>
                         </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="Orientation" Value="Horizontal">
@@ -100,7 +126,7 @@
             <Style.Triggers>
                 <Trigger Property="Orientation" Value="Horizontal">
                     <Setter Property="Width" Value="Auto" />
-                    <Setter Property="Height" Value="2" />
+                    <Setter Property="Height" Value="8" />
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -2945,7 +2971,10 @@
                                                     </Style.Triggers>
                                                 </Style>
                                             </Button.Style>
-                                            <TextBlock Text="主图" />
+                                            <TextBlock>
+                                                <Run Text="主图 " />
+                                                <Run Text="{Binding MainImageLayoutTemplateCount, Mode=OneWay, StringFormat=({0})}" />
+                                            </TextBlock>
                                         </Button>
                                         <Button Margin="8,0,0,0"
                                                 Padding="12,5"
@@ -2961,7 +2990,10 @@
                                                     </Style.Triggers>
                                                 </Style>
                                             </Button.Style>
-                                            <TextBlock Text="场景图" />
+                                            <TextBlock>
+                                                <Run Text="场景图 " />
+                                                <Run Text="{Binding SceneImageLayoutTemplateCount, Mode=OneWay, StringFormat=({0})}" />
+                                            </TextBlock>
                                         </Button>
                                         <Button Margin="8,0,0,0"
                                                 Padding="12,5"
@@ -2977,7 +3009,10 @@
                                                     </Style.Triggers>
                                                 </Style>
                                             </Button.Style>
-                                            <TextBlock Text="对比图" />
+                                            <TextBlock>
+                                                <Run Text="对比图 " />
+                                                <Run Text="{Binding CompareImageLayoutTemplateCount, Mode=OneWay, StringFormat=({0})}" />
+                                            </TextBlock>
                                         </Button>
                                     </WrapPanel>
                                     <StackPanel HorizontalAlignment="Right"
@@ -3885,8 +3920,12 @@
                                             <CheckBox MinWidth="116"
                                                       Margin="0,0,8,8"
                                                       Padding="8,5"
-                                                      Content="{Binding Name}"
-                                                      IsChecked="{Binding IsSelected, Mode=TwoWay}" />
+                                                      VerticalContentAlignment="Center"
+                                                      IsChecked="{Binding IsSelected, Mode=TwoWay}">
+                                                <TextBlock Margin="6,0,0,0"
+                                                           VerticalAlignment="Center"
+                                                           Text="{Binding Name}" />
+                                            </CheckBox>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>

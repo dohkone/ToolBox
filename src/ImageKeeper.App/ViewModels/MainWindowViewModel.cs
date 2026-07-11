@@ -244,6 +244,12 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private ImageTemplateType _selectedLayoutImageType;
 
+	private int _mainImageLayoutTemplateCount;
+
+	private int _sceneImageLayoutTemplateCount;
+
+	private int _compareImageLayoutTemplateCount;
+
 	private bool _isBusy;
 
 	private bool _isScanProgressIndeterminate = true;
@@ -733,6 +739,42 @@ public sealed class MainWindowViewModel : ViewModelBase
 	public bool IsSceneImageLayoutTypeSelected => _selectedLayoutImageType == ImageTemplateType.SceneImage;
 
 	public bool IsCompareImageLayoutTypeSelected => _selectedLayoutImageType == ImageTemplateType.CompareImage;
+
+	public int MainImageLayoutTemplateCount
+	{
+		get
+		{
+			return _mainImageLayoutTemplateCount;
+		}
+		private set
+		{
+			SetProperty(ref _mainImageLayoutTemplateCount, value, "MainImageLayoutTemplateCount");
+		}
+	}
+
+	public int SceneImageLayoutTemplateCount
+	{
+		get
+		{
+			return _sceneImageLayoutTemplateCount;
+		}
+		private set
+		{
+			SetProperty(ref _sceneImageLayoutTemplateCount, value, "SceneImageLayoutTemplateCount");
+		}
+	}
+
+	public int CompareImageLayoutTemplateCount
+	{
+		get
+		{
+			return _compareImageLayoutTemplateCount;
+		}
+		private set
+		{
+			SetProperty(ref _compareImageLayoutTemplateCount, value, "CompareImageLayoutTemplateCount");
+		}
+	}
 
 	public ImageTemplateType CurrentGenerationImageType
 	{
@@ -2531,12 +2573,15 @@ public sealed class MainWindowViewModel : ViewModelBase
 	private async Task LoadManagedTemplatesAsync()
 	{
 		Task<IReadOnlyList<TemplateItemRecord>> recordsTask = _templateLibraryService.GetByCategoryAsync(_selectedTemplateCategory, IsLayoutTemplateTabSelected ? new ImageTemplateType?(_selectedLayoutImageType) : ((ImageTemplateType?)null));
+		Task<IReadOnlyList<TemplateItemRecord>> layoutTemplatesTask = _templateLibraryService.GetByCategoryAsync(TemplateCategory.Layout);
 		Task<IReadOnlyList<TemplateItemRecord>> subjectTemplatesTask = _templateLibraryService.GetByCategoryAsync(TemplateCategory.Subject);
 		Task<IReadOnlyDictionary<long, IReadOnlyList<long>>> sceneBindingsTask = _templateLibraryService.GetSceneSubjectBindingsAsync();
-		await Task.WhenAll(recordsTask, subjectTemplatesTask, sceneBindingsTask);
+		await Task.WhenAll(recordsTask, layoutTemplatesTask, subjectTemplatesTask, sceneBindingsTask);
 		IReadOnlyList<TemplateItemRecord> records = await recordsTask;
+		IReadOnlyList<TemplateItemRecord> layoutTemplates = await layoutTemplatesTask;
 		IReadOnlyList<TemplateItemRecord> subjectTemplates = await subjectTemplatesTask;
 		IReadOnlyDictionary<long, IReadOnlyList<long>> readOnlyDictionary = await sceneBindingsTask;
+		UpdateLayoutTemplateCounts(layoutTemplates);
 		_subjectTemplateLookup.Clear();
 		foreach (TemplateItemRecord item in subjectTemplates)
 		{
@@ -2561,6 +2606,13 @@ public sealed class MainWindowViewModel : ViewModelBase
 	private TemplateItemViewModel CreateTemplateItemViewModel(TemplateItemRecord record)
 	{
 		return new TemplateItemViewModel(record, (record.Category == TemplateCategory.Scene) ? BuildSceneSubjectSummary(record.Id) : null);
+	}
+
+	private void UpdateLayoutTemplateCounts(IReadOnlyList<TemplateItemRecord> records)
+	{
+		MainImageLayoutTemplateCount = records.Count((TemplateItemRecord item) => item.ImageType == ImageTemplateType.MainImage);
+		SceneImageLayoutTemplateCount = records.Count((TemplateItemRecord item) => item.ImageType == ImageTemplateType.SceneImage);
+		CompareImageLayoutTemplateCount = records.Count((TemplateItemRecord item) => item.ImageType == ImageTemplateType.CompareImage);
 	}
 
 	private async Task LoadGenerationTemplateOptionsAsync()
