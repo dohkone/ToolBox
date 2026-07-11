@@ -2997,7 +2997,7 @@
                                                 Visibility="{Binding IsLayoutTemplateTabSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="90" />
+                                                    <ColumnDefinition Width="126" />
                                                     <ColumnDefinition Width="170" />
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="155" />
@@ -3064,7 +3064,7 @@
                                                                 BorderThickness="1,0,1,1">
                                                             <Grid>
                                                                 <Grid.ColumnDefinitions>
-                                                                    <ColumnDefinition Width="90" />
+                                                                    <ColumnDefinition Width="126" />
                                                                     <ColumnDefinition Width="170" />
                                                                     <ColumnDefinition Width="*" />
                                                                     <ColumnDefinition Width="155" />
@@ -3073,10 +3073,9 @@
                                                                     <ColumnDefinition Width="140" />
                                                                 </Grid.ColumnDefinitions>
 
-                                                                <Border Width="64"
-                                                                        Height="48"
+                                                                <Border Width="96"
+                                                                        Height="64"
                                                                         HorizontalAlignment="Left"
-                                                                        Background="#F6F7FA"
                                                                         CornerRadius="6">
                                                                     <Grid>
                                                                         <TextBlock HorizontalAlignment="Center"
@@ -3084,10 +3083,17 @@
                                                                                    Foreground="{StaticResource MutedTextBrush}"
                                                                                    Text="-"
                                                                                    Visibility="{Binding HasPreviewImage, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
-                                                                        <Image Margin="3"
-                                                                               Stretch="UniformToFill"
+                                                                        <Image Margin="2"
+                                                                               Cursor="Hand"
+                                                                               RenderOptions.BitmapScalingMode="Fant"
+                                                                               Stretch="Uniform"
                                                                                Source="{Binding PreviewImagePath}"
-                                                                               Visibility="{Binding HasPreviewImage, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                                                               Visibility="{Binding HasPreviewImage, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                                            <Image.InputBindings>
+                                                                                <MouseBinding MouseAction="LeftDoubleClick"
+                                                                                              Command="{Binding OpenPreviewImageCommand}" />
+                                                                            </Image.InputBindings>
+                                                                        </Image>
                                                                     </Grid>
                                                                 </Border>
 

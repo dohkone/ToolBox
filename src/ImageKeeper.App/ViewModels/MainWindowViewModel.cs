@@ -13,6 +13,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -46,6 +47,33 @@ public sealed class MainWindowViewModel : ViewModelBase
 	private const string SceneImageGenerateTab = "scene-image-generate";
 
 	private const string CompareImageGenerateTab = "compare-image-generate";
+
+	private static readonly string[] SkuMasterColorTokens =
+	{
+		"黑色",
+		"米白色",
+		"深棕色",
+		"深灰色",
+		"酒红色",
+		"宝蓝色",
+		"black",
+		"offwhite",
+		"off-white",
+		"darkbrown",
+		"dark brown",
+		"darkgray",
+		"dark gray",
+		"winered",
+		"wine red",
+		"royalblue",
+		"royal blue",
+		"#0A0A0A",
+		"#F4F4F2",
+		"#261107",
+		"#C4C8CA",
+		"#722829",
+		"#2E3EA5"
+	};
 
 	private readonly IFolderScanService _folderScanService;
 
@@ -2187,6 +2215,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		});
 		_showSkuOptimizeTabCommand = new RelayCommand(delegate
 		{
+			TransferSpBatchMasterToSkuOptimize();
 			SetSelectedImageGenerateTab("sku-optimize");
 		});
 		_showSceneImageGenerateTabCommand = new RelayCommand(delegate
@@ -3862,7 +3891,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 				ClearGeneratedImageResultCards();
 			}
 		}
-		else if (_lastExecutedGenerationPromptsOnly == true)
+		else
 		{
 			ClearGenerationPromptCards();
 		}
@@ -3904,7 +3933,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 			GenerationStatusText = "执行失败";
 			GenerationResultModeText = "模式：执行失败";
 			GenerationResultOutputText = "输出目录：" + GenerationOutputDirectory;
-			if (!string.IsNullOrWhiteSpace(ex2.Message))
+			if (HasVisibleText(ex2.Message))
 			{
 				GenerationPromptCards.Add(new GenerationPromptCardViewModel
 				{
@@ -3915,7 +3944,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 				OnPropertyChanged("HasGeneratedImageResultCards");
 				OnPropertyChanged("HasAnyGenerationResultCards");
 			}
-			StatusMessage = string.IsNullOrWhiteSpace(ex2.Message) ? "模板随机生成失败。" : "模板随机生成失败：" + ex2.Message;
+			StatusMessage = HasVisibleText(ex2.Message) ? "模板随机生成失败：" + ex2.Message : "模板随机生成失败。";
 		}
 		finally
 		{
@@ -4838,6 +4867,122 @@ public sealed class MainWindowViewModel : ViewModelBase
 		return true;
 	}
 
+	private static bool HasVisibleText(string? text)
+	{
+		return !string.IsNullOrWhiteSpace(text) && text.Any((char ch) => !char.IsWhiteSpace(ch) && !char.IsControl(ch));
+	}
+
+	private static bool HasSkuMasterColorToken(string fileName)
+	{
+		string normalizedName = NormalizeSkuMasterColorText(Path.GetFileNameWithoutExtension(fileName));
+		return SkuMasterColorTokens.Any((string token) => normalizedName.Contains(NormalizeSkuMasterColorText(token), StringComparison.OrdinalIgnoreCase));
+	}
+
+	private static string NormalizeSkuMasterColorText(string text)
+	{
+		return Regex.Replace(text, @"[\s_\-#]+", string.Empty).ToLowerInvariant();
+	}
+
+	private static string EnsureImageExtension(string fileName, string fallbackExtension)
+	{
+		if (!string.IsNullOrWhiteSpace(Path.GetExtension(fileName)))
+		{
+			return Path.GetFileName(fileName);
+		}
+		return Path.GetFileName(fileName) + (string.IsNullOrWhiteSpace(fallbackExtension) ? ".png" : fallbackExtension);
+	}
+
+	private static string CopySkuMasterImageToRenamedTempFile(string sourcePath, string fileName)
+	{
+		string directory = Path.Combine(Path.GetTempPath(), "ImageKeeper", "sku-master-renamed");
+		Directory.CreateDirectory(directory);
+		string safeName = string.Join("_", fileName.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries));
+		string targetPath = Path.Combine(directory, safeName);
+		File.Copy(sourcePath, targetPath, overwrite: true);
+		return targetPath;
+	}
+
+	private static string? ShowSkuMasterRenameDialog(string originalFileName)
+	{
+		Window dialog = new Window
+		{
+			Title = "修改 SKU 母图文件名",
+			Width = 420.0,
+			Height = 210.0,
+			WindowStartupLocation = WindowStartupLocation.CenterScreen,
+			ResizeMode = ResizeMode.NoResize,
+			Background = Brushes.White,
+			ShowInTaskbar = false
+		};
+		Grid grid = new Grid
+		{
+			Margin = new Thickness(18.0)
+		};
+		grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+		grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+		grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+		grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1.0, GridUnitType.Star) });
+		grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+		TextBlock title = new TextBlock
+		{
+			Text = "文件名需要包含颜色",
+			FontSize = 16.0,
+			FontWeight = FontWeights.SemiBold
+		};
+		grid.Children.Add(title);
+		TextBlock description = new TextBlock
+		{
+			Margin = new Thickness(0.0, 8.0, 0.0, 10.0),
+			Text = "例如：黑色.png、深棕色.png、宝蓝色.png",
+			Foreground = new SolidColorBrush(Color.FromRgb(96, 98, 102))
+		};
+		Grid.SetRow(description, 1);
+		grid.Children.Add(description);
+		TextBox input = new TextBox
+		{
+			Text = originalFileName,
+			Padding = new Thickness(8.0, 5.0, 8.0, 5.0)
+		};
+		Grid.SetRow(input, 2);
+		grid.Children.Add(input);
+		StackPanel buttons = new StackPanel
+		{
+			Orientation = Orientation.Horizontal,
+			HorizontalAlignment = HorizontalAlignment.Right
+		};
+		Button cancelButton = new Button
+		{
+			Content = "取消",
+			Width = 76.0,
+			Margin = new Thickness(0.0, 0.0, 8.0, 0.0),
+			IsCancel = true
+		};
+		Button okButton = new Button
+		{
+			Content = "确定",
+			Width = 76.0,
+			IsDefault = true
+		};
+		buttons.Children.Add(cancelButton);
+		buttons.Children.Add(okButton);
+		Grid.SetRow(buttons, 4);
+		grid.Children.Add(buttons);
+		string? result = null;
+		okButton.Click += delegate
+		{
+			result = input.Text;
+			dialog.DialogResult = true;
+		};
+		cancelButton.Click += delegate
+		{
+			dialog.DialogResult = false;
+		};
+		dialog.Content = grid;
+		input.SelectAll();
+		input.Focus();
+		return dialog.ShowDialog() == true ? result : null;
+	}
+
 	private void ApplyGenerationResult(TemplateGenerateResult result)
 	{
 		GenerationResultModeText = "模式：" + ((result.Mode == "prompts_only") ? "只出提示词" : "直接生图");
@@ -5186,14 +5331,56 @@ public sealed class MainWindowViewModel : ViewModelBase
 		}
 	}
 
+	private void AddSpBatchMasterImageWithColorNameCheck(string imagePath)
+	{
+		if (!File.Exists(imagePath) || !IsSupportedImageFile(imagePath))
+		{
+			return;
+		}
+		string displayFileName = Path.GetFileName(imagePath);
+		string targetImagePath = imagePath;
+		if (!HasSkuMasterColorToken(displayFileName))
+		{
+			string? renamedFileName = ShowSkuMasterRenameDialog(displayFileName);
+			if (string.IsNullOrWhiteSpace(renamedFileName))
+			{
+				StatusMessage = "已取消添加 SKU 母图。";
+				return;
+			}
+			displayFileName = EnsureImageExtension(renamedFileName.Trim(), Path.GetExtension(imagePath));
+			if (!HasSkuMasterColorToken(displayFileName))
+			{
+				MessageBox.Show("文件名需要包含颜色，例如：黑色.png、深棕色.png、宝蓝色.png。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+				StatusMessage = "SKU 母图文件名未包含颜色，已取消添加。";
+				return;
+			}
+			targetImagePath = CopySkuMasterImageToRenamedTempFile(imagePath, displayFileName);
+		}
+		AddSpBatchMasterImage(targetImagePath, displayFileName);
+	}
+
 	private void AddSpBatchMasterImages(IEnumerable<string> filePaths)
 	{
 		string text = filePaths.Where(File.Exists).Where(IsSupportedImageFile).FirstOrDefault();
 		if (!string.IsNullOrWhiteSpace(text))
 		{
-			AddSpBatchMasterImage(text);
+			AddSpBatchMasterImageWithColorNameCheck(text);
 			StatusMessage = "已替换 SKU 母图，后续颜色图将基于这张母图生成。";
 		}
+	}
+
+	private void TransferSpBatchMasterToSkuOptimize()
+	{
+		GeneratedImageResultCardViewModel masterCard = SpBatchMasterImageCards.FirstOrDefault();
+		if (masterCard == null || !File.Exists(masterCard.ImagePath) || !IsSupportedImageFile(masterCard.ImagePath))
+		{
+			return;
+		}
+		SkuOptimizeSourceImageCards.Clear();
+		SkuOptimizeSourceImageCards.Add(new GeneratedImageResultCardViewModel(masterCard.ImagePath, masterCard.FileName, canToggleSelection: false, showRemoveAction: true, null, OnSkuOptimizeSourceImageRemoved));
+		OnPropertyChanged("HasSkuOptimizeSourceImageCards");
+		_runSkuOptimizeCommand.RaiseCanExecuteChanged();
+		StatusMessage = "已将 SKU 母图带入 SKU 图优化。";
 	}
 
 	private void SendSelectedImagesToSpBatch()

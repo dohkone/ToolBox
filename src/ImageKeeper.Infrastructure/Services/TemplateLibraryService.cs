@@ -141,7 +141,7 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 		{
 			await connection.OpenAsync(cancellationToken);
 			SqliteCommand sqliteCommand = connection.CreateCommand();
-			sqliteCommand.CommandText = (imageType.HasValue ? "SELECT Id, Category, Name, Content, Subject, PreviewImagePath, ImageType, SortOrder, IsEnabled, CreatedAt, UpdatedAt\nFROM TemplateItems\nWHERE Category = $category AND ImageType = $imageType\nORDER BY Id ASC;" : "SELECT Id, Category, Name, Content, Subject, PreviewImagePath, ImageType, SortOrder, IsEnabled, CreatedAt, UpdatedAt\nFROM TemplateItems\nWHERE Category = $category\nORDER BY Id ASC;");
+			sqliteCommand.CommandText = (imageType.HasValue ? "SELECT Id, Category, Name, Content, Subject, PreviewImagePath, ImageType, SortOrder, IsEnabled, CreatedAt, UpdatedAt\nFROM TemplateItems\nWHERE Category = $category AND ImageType = $imageType\nORDER BY UpdatedAt DESC, Id DESC;" : "SELECT Id, Category, Name, Content, Subject, PreviewImagePath, ImageType, SortOrder, IsEnabled, CreatedAt, UpdatedAt\nFROM TemplateItems\nWHERE Category = $category\nORDER BY UpdatedAt DESC, Id DESC;");
 			sqliteCommand.Parameters.AddWithValue("$category", (int)category);
 			if (imageType.HasValue)
 			{

@@ -321,7 +321,12 @@ def write_source_metadata(sp_dir: Path, image_path: Path) -> None:
     )
 
 
-def ensure_output_bundles(images: list[Path], output_dir: Path, overwrite: bool) -> dict[Path, OutputBundle]:
+def ensure_output_bundles(
+    images: list[Path],
+    output_dir: Path,
+    overwrite: bool,
+    copy_source_to_sku: bool = False,
+) -> dict[Path, OutputBundle]:
     dated_root = get_dated_root(output_dir)
     dated_root.mkdir(parents=True, exist_ok=True)
 
@@ -350,7 +355,7 @@ def ensure_output_bundles(images: list[Path], output_dir: Path, overwrite: bool)
         for folder in (main_dir, sku_dir, detail_dir):
             folder.mkdir(parents=True, exist_ok=True)
 
-        source_copy_path = main_dir / MAIN_IMAGE_NAME
+        source_copy_path = sku_dir / image_path.name if copy_source_to_sku else main_dir / MAIN_IMAGE_NAME
         if overwrite or not source_copy_path.exists() or source_copy_path.stat().st_size == 0:
             shutil.copy2(image_path, source_copy_path)
         write_source_metadata(sp_dir, image_path)
@@ -832,7 +837,12 @@ def main() -> int:
     try:
         options = resolve_options(args)
         images = list_input_images(options.input_dir)
-        bundles = ensure_output_bundles(images, options.output_dir, options.overwrite)
+        bundles = ensure_output_bundles(
+            images,
+            options.output_dir,
+            options.overwrite,
+            copy_source_to_sku=options.recolor_only,
+        )
         if options.master_only:
             jobs = build_master_jobs(images, bundles, options.selected_colors)
             mode_name = "master_generated"
