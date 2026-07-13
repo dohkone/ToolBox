@@ -302,16 +302,26 @@ high-quality PU leather repair roll in a fully rolled state. Never unfold it, be
 deform it. The overall silhouette must remain a standard cylindrical roll.
 
 The roll must clearly preserve a dual-layer structure: the front side is the premium PU leather layer, and the back
-side is a kraft paper release liner tightly attached to the leather layer.
+side is a kraft paper release liner tightly attached to the leather layer. The two layers must have exactly the same
+visible length and must be perfectly flush along every edge. The kraft paper release liner must never extend beyond
+the PU leather edge. Do not create any paper rim, paper lip, exposed liner edge, raised liner, lifted liner, curled
+liner, protruding liner, or any protruding paper structure.
 
 The outer leather surface should show clear, shallow, fine, even lychee-grain leather texture with low contrast.
 The leather should appear smooth and refined first, with the fine grain becoming visible only at close viewing
 distance.
 
 The leather must present a rich oily leather finish, strong natural specular highlights, broad bright specular
-reflections across the curved surface, premium commercial product photography gloss, visible light flow across the
-surface, and bright high surface brightness without overexposure. The highlights may be pronounced but must remain
-natural, clean, even, and transparent without washing out the leather texture.
+reflections across the curved surface as if lit by bright natural sunlight or a large softbox, premium commercial
+product photography gloss, visible light flow across the surface, and bright high surface brightness without
+overexposure. The highlights may be pronounced but must remain natural, clean, even, transparent, and continuous
+without washing out the leather texture. The roll must look bright, dimensional, premium, tactile, and glossy like
+high-quality PU leather, not ordinary plastic reflection.
+
+SURFACE TEXTURE AND GLOSS ARE TOP PRIORITY: the roll surface must clearly show ultra-fine, shallow, uniform lychee
+leather grain and a smooth oily PU leather sheen. The final image must immediately communicate premium PU leather
+through visible fine grain, clean broad highlights, rich luster, and natural reflective light flow on the curved roll
+surface.
 
 If these qualities are weak, they may be subtly enhanced on the roll surface only, but do not change color, lighting,
 subject, background, position, angle, crop, or composition. Avoid dark, gray, matte, powdery, dry, rough, low-gloss,
@@ -446,7 +456,7 @@ def build_jobs(input_dir: Path, result_root: Path) -> list[Job]:
                     index=index,
                     source_image=source_image,
                     output_path=result_root / final_name,
-                    target_color=None if index == 1 else infer_color_from_path(Path(output_name)),
+                    target_color=None,
                 )
             )
 
@@ -458,7 +468,7 @@ def build_jobs(input_dir: Path, result_root: Path) -> list[Job]:
             index=index,
             source_image=image,
             output_path=result_root / f"{image.stem}.png",
-            target_color=None if index == 1 else infer_color_from_path(image),
+            target_color=None,
         )
         for index, image in enumerate(images, start=1)
     ]
@@ -566,30 +576,11 @@ def main() -> None:
         result_root.mkdir(parents=True, exist_ok=True)
         jobs = build_jobs(options.input_dir, result_root)
 
-        master_job = jobs[0]
-        master_result = run_master(master_job, options)
-        results: list[dict[str, Any]] = [master_result]
-
-        if master_result["status"] == "failed":
-            for job in jobs[1:]:
-                results.append(
-                    {
-                        "index": job.index,
-                        "source_image": str(job.source_image),
-                        "status": "failed",
-                        "image_path": "",
-                        "error": "Master SKU image was not generated, so this variant was not created.",
-                        "attempts": 0,
-                        "stage": "recolor",
-                    }
-                )
-        else:
-            master_image_path = Path(master_result["image_path"]).expanduser().resolve()
-            recolor_jobs = jobs[1:]
-            with concurrent.futures.ThreadPoolExecutor(max_workers=options.concurrency) as executor:
-                futures = [executor.submit(run_recolor, job, options, master_image_path) for job in recolor_jobs]
-                for future in concurrent.futures.as_completed(futures):
-                    results.append(future.result())
+        results: list[dict[str, Any]] = []
+        with concurrent.futures.ThreadPoolExecutor(max_workers=options.concurrency) as executor:
+            futures = [executor.submit(run_master, job, options) for job in jobs]
+            for future in concurrent.futures.as_completed(futures):
+                results.append(future.result())
 
         results.sort(key=lambda item: int(item["index"]))
         payload = {

@@ -88,6 +88,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private readonly AsyncRelayCommand _selectBackupFolderCommand;
 
+	private readonly RelayCommand _openCurrentFolderCommand;
+
 	private readonly RelayCommand _invertSelectionCommand;
 
 	private readonly RelayCommand _selectAllBatchCardsCommand;
@@ -382,6 +384,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private bool _isSkuOptimizeStagingDropTarget;
 
+	private Dictionary<string, string> _skuOptimizeOriginalPathByStagingPath = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
 	private RootCardViewModel? _cardSizeDialogCard;
 
 	private string _cardSizeDialogImagePath = string.Empty;
@@ -461,6 +465,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 	public ICommand ChooseFolderCommand => _chooseFolderCommand;
 
 	public ICommand SelectBackupFolderCommand => _selectBackupFolderCommand;
+
+	public ICommand OpenCurrentFolderCommand => _openCurrentFolderCommand;
 
 	public ICommand InvertSelectionCommand => _invertSelectionCommand;
 
@@ -644,6 +650,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 				ApplyAutoPublishStatusFilter();
 				NotifyAutoPublishFilterPropertiesChanged();
 				_invertSelectionCommand.RaiseCanExecuteChanged();
+				_openCurrentFolderCommand.RaiseCanExecuteChanged();
 				_selectAllBatchCardsCommand.RaiseCanExecuteChanged();
 				_clearAllBatchCardsCommand.RaiseCanExecuteChanged();
 				_generateProductSheetCommand.RaiseCanExecuteChanged();
@@ -2253,6 +2260,10 @@ public sealed class MainWindowViewModel : ViewModelBase
 		_generationTabStates["compare-image-generate"] = CreateEmptyGenerationTabState();
 		_chooseFolderCommand = new AsyncRelayCommand((object? _) => ChooseFolderAsync());
 		_selectBackupFolderCommand = new AsyncRelayCommand((object? _) => SelectBackupFolderAsync());
+		_openCurrentFolderCommand = new RelayCommand(delegate
+		{
+			OpenCurrentFolder();
+		}, (object? _) => CanOpenCurrentFolder());
 		_invertSelectionCommand = new RelayCommand(delegate
 		{
 			SelectedTab?.InvertSelection();
@@ -3374,6 +3385,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private void OnBatchSelectionChanged()
 	{
+		ApplyAutoPublishStatusFilter();
+		NotifyAutoPublishFilterPropertiesChanged();
 		OnPropertyChanged("HasBatchSelectedCards");
 		OnPropertyChanged("CanRunBatchAutoPublish");
 		_selectAllBatchCardsCommand.RaiseCanExecuteChanged();
@@ -3889,6 +3902,21 @@ public sealed class MainWindowViewModel : ViewModelBase
 	private void OpenSkuOptimizeOutputFolder()
 	{
 		TryOpenFolder(SkuOptimizeOutputDirectory, "输出目录");
+	}
+
+	private bool CanOpenCurrentFolder()
+	{
+		string? folderPath = SelectedTab?.ActiveCard?.CurrentFolderPath;
+		return !string.IsNullOrWhiteSpace(folderPath) && Directory.Exists(folderPath);
+	}
+
+	private void OpenCurrentFolder()
+	{
+		string? folderPath = SelectedTab?.ActiveCard?.CurrentFolderPath;
+		if (!string.IsNullOrWhiteSpace(folderPath))
+		{
+			TryOpenFolder(folderPath, "当前文件夹");
+		}
 	}
 
 	private void OpenTemplateLibraryFile()
@@ -4803,6 +4831,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		{
 			UpdateSummaryForTab(tab);
 			OnPropertyChanged("SelectedTab");
+			_openCurrentFolderCommand.RaiseCanExecuteChanged();
 		}
 	}
 
@@ -4812,6 +4841,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		if (SelectedTab != null)
 		{
 			UpdateSummaryForTab(SelectedTab);
+			_openCurrentFolderCommand.RaiseCanExecuteChanged();
 		}
 	}
 
@@ -5348,6 +5378,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 			OnPropertyChanged("HasAnySpBatchResultCards");
 			OnPropertyChanged("ShouldShowSpBatchDetailCards");
 			_generateSpBatchColorSkusCommand.RaiseCanExecuteChanged();
+			_sendSelectedSpBatchMasterToSkuOptimizeCommand.RaiseCanExecuteChanged();
 		}
 	}
 
@@ -5467,25 +5498,13 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private void OnSpBatchMasterSelectionChanged(GeneratedImageResultCardViewModel selectedCard)
 	{
-		if (!selectedCard.IsSelected)
-		{
-			return;
-		}
-		foreach (GeneratedImageResultCardViewModel card in SpBatchMasterImageCards)
-		{
-			if (!ReferenceEquals(card, selectedCard) && card.IsSelected)
-			{
-				card.SetSelected(isSelected: false);
-			}
-		}
+		_sendSelectedSpBatchMasterToSkuOptimizeCommand.RaiseCanExecuteChanged();
 	}
 
 	private void AddSpBatchMasterImage(string imagePath, string? fileName = null)
 	{
 		if (File.Exists(imagePath) && IsSupportedImageFile(imagePath))
 		{
-			ClearSpBatchMasterImageCards();
-			ClearSpBatchImageResultCards();
 			GeneratedImageResultCardViewModel card = new GeneratedImageResultCardViewModel(imagePath, fileName ?? Path.GetFileName(imagePath), canToggleSelection: true, showRemoveAction: true, OnSpBatchMasterSelectionChanged, OnSpBatchMasterImageRemoved);
 			card.SetSelected(isSelected: true);
 			SpBatchMasterImageCards.Add(card);
@@ -5526,18 +5545,24 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private void AddSpBatchMasterImages(IEnumerable<string> filePaths)
 	{
-		string text = filePaths.Where(File.Exists).Where(IsSupportedImageFile).FirstOrDefault();
-		if (!string.IsNullOrWhiteSpace(text))
+		IReadOnlyList<string> images = filePaths.Where(File.Exists).Where(IsSupportedImageFile).Distinct<string>(StringComparer.OrdinalIgnoreCase).ToArray();
+		if (images.Count > 0)
 		{
-			AddSpBatchMasterImageWithColorNameCheck(text);
+			ClearSpBatchImageResultCards();
+			foreach (string image in images)
+			{
+				AddSpBatchMasterImageWithColorNameCheck(image);
+			}
 			StatusMessage = "已替换 SKU 母图，后续颜色图将基于这张母图生成。";
 		}
 	}
 
 	private bool TransferSpBatchMasterToSkuOptimize(bool showPromptWhenMissing)
 	{
-		GeneratedImageResultCardViewModel masterCard = SpBatchMasterImageCards.FirstOrDefault((GeneratedImageResultCardViewModel card) => card.IsSelected);
-		if (masterCard == null || !File.Exists(masterCard.ImagePath) || !IsSupportedImageFile(masterCard.ImagePath))
+		GeneratedImageResultCardViewModel[] selectedCards = SpBatchMasterImageCards
+			.Where((GeneratedImageResultCardViewModel card) => card.IsSelected && File.Exists(card.ImagePath) && IsSupportedImageFile(card.ImagePath))
+			.ToArray();
+		if (selectedCards.Length == 0)
 		{
 			if (showPromptWhenMissing)
 			{
@@ -5546,10 +5571,13 @@ public sealed class MainWindowViewModel : ViewModelBase
 			return false;
 		}
 		SkuOptimizeSourceImageCards.Clear();
-		SkuOptimizeSourceImageCards.Add(new GeneratedImageResultCardViewModel(masterCard.ImagePath, masterCard.FileName, canToggleSelection: false, showRemoveAction: true, null, OnSkuOptimizeSourceImageRemoved));
+		foreach (GeneratedImageResultCardViewModel masterCard in selectedCards)
+		{
+			SkuOptimizeSourceImageCards.Add(new GeneratedImageResultCardViewModel(masterCard.ImagePath, masterCard.FileName, canToggleSelection: false, showRemoveAction: true, null, OnSkuOptimizeSourceImageRemoved));
+		}
 		OnPropertyChanged("HasSkuOptimizeSourceImageCards");
 		_runSkuOptimizeCommand.RaiseCanExecuteChanged();
-		StatusMessage = "已将 SKU 母图带入 SKU 图优化。";
+		StatusMessage = $"已将 {selectedCards.Length} 张 SKU 母图带入 SKU 图优化。";
 		return true;
 	}
 
@@ -5657,6 +5685,36 @@ public sealed class MainWindowViewModel : ViewModelBase
 			num++;
 		}
 		return text2;
+	}
+
+	private static string GetUniqueOutputFileName(GeneratedImageResultCardViewModel card, ISet<string> usedFileNames)
+	{
+		string fileName = Path.GetFileName(card.FileName);
+		if (string.IsNullOrWhiteSpace(fileName))
+		{
+			fileName = Path.GetFileName(card.ImagePath);
+		}
+		string text = Path.GetFileNameWithoutExtension(fileName);
+		if (string.IsNullOrWhiteSpace(text))
+		{
+			text = Path.GetFileNameWithoutExtension(card.ImagePath);
+		}
+		foreach (char oldChar in Path.GetInvalidFileNameChars())
+		{
+			text = text.Replace(oldChar, '_');
+		}
+		if (string.IsNullOrWhiteSpace(text))
+		{
+			text = "image";
+		}
+		string outputName = text + ".png";
+		int index = 2;
+		while (!usedFileNames.Add(outputName))
+		{
+			outputName = $"{text}_{index}.png";
+			index++;
+		}
+		return outputName;
 	}
 
 	private async Task RunSpBatchFromStagingAsync()
@@ -5830,6 +5888,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 	private void ApplySkuOptimizeVisualResult(SkuOptimizeResult result)
 	{
 		ApplySkuOptimizeResult(result);
+		ReplaceOriginalSkuMasterImages(result);
 		foreach (SkuOptimizeJobResult item in from item in result.Results
 			where string.Equals(item.Status, "generated", StringComparison.OrdinalIgnoreCase)
 			where !string.IsNullOrWhiteSpace(item.ImagePath) && File.Exists(item.ImagePath)
@@ -5841,6 +5900,76 @@ public sealed class MainWindowViewModel : ViewModelBase
 		OnPropertyChanged("HasSkuOptimizeImageResultCards");
 		OnPropertyChanged("HasAnySkuOptimizeResultCards");
 		OnPropertyChanged("ShouldShowSkuOptimizeDetailCards");
+	}
+
+	private void ReplaceOriginalSkuMasterImages(SkuOptimizeResult result)
+	{
+		Dictionary<string, string> replacedByOriginalPath = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+		foreach (SkuOptimizeJobResult item in result.Results)
+		{
+			if (!string.Equals(item.Status, "generated", StringComparison.OrdinalIgnoreCase) || string.IsNullOrWhiteSpace(item.SourceImage) || string.IsNullOrWhiteSpace(item.ImagePath) || !File.Exists(item.ImagePath))
+			{
+				continue;
+			}
+			string sourceFullPath = Path.GetFullPath(item.SourceImage);
+			if (!_skuOptimizeOriginalPathByStagingPath.TryGetValue(sourceFullPath, out string originalPath) || string.IsNullOrWhiteSpace(originalPath))
+			{
+				continue;
+			}
+			string originalFullPath = Path.GetFullPath(originalPath);
+			string resultFullPath = Path.GetFullPath(item.ImagePath);
+			if (string.Equals(originalFullPath, resultFullPath, StringComparison.OrdinalIgnoreCase))
+			{
+				replacedByOriginalPath[originalFullPath] = Path.GetFileName(item.ImagePath);
+				continue;
+			}
+			File.Copy(resultFullPath, originalFullPath, overwrite: true);
+			replacedByOriginalPath[originalFullPath] = Path.GetFileName(item.ImagePath);
+		}
+		if (replacedByOriginalPath.Count == 0)
+		{
+			return;
+		}
+		RefreshSkuOptimizeSourceCards(replacedByOriginalPath);
+		RefreshSpBatchMasterCards(replacedByOriginalPath);
+		StatusMessage = $"已优化并替换 {replacedByOriginalPath.Count} 张 SKU 母图。";
+	}
+
+	private void RefreshSkuOptimizeSourceCards(IReadOnlyDictionary<string, string> replacedByOriginalPath)
+	{
+		if (SkuOptimizeSourceImageCards.Count == 0)
+		{
+			return;
+		}
+		GeneratedImageResultCardViewModel[] cards = SkuOptimizeSourceImageCards.ToArray();
+		SkuOptimizeSourceImageCards.Clear();
+		foreach (GeneratedImageResultCardViewModel card in cards)
+		{
+			SkuOptimizeSourceImageCards.Add(new GeneratedImageResultCardViewModel(card.ImagePath, card.FileName, canToggleSelection: false, showRemoveAction: true, null, OnSkuOptimizeSourceImageRemoved));
+		}
+		OnPropertyChanged("HasSkuOptimizeSourceImageCards");
+		_runSkuOptimizeCommand.RaiseCanExecuteChanged();
+	}
+
+	private void RefreshSpBatchMasterCards(IReadOnlyDictionary<string, string> replacedByOriginalPath)
+	{
+		if (SpBatchMasterImageCards.Count == 0)
+		{
+			return;
+		}
+		GeneratedImageResultCardViewModel[] cards = SpBatchMasterImageCards.ToArray();
+		SpBatchMasterImageCards.Clear();
+		foreach (GeneratedImageResultCardViewModel card in cards)
+		{
+			GeneratedImageResultCardViewModel refreshedCard = new GeneratedImageResultCardViewModel(card.ImagePath, card.FileName, canToggleSelection: true, showRemoveAction: true, OnSpBatchMasterSelectionChanged, OnSpBatchMasterImageRemoved);
+			refreshedCard.SetSelected(card.IsSelected);
+			SpBatchMasterImageCards.Add(refreshedCard);
+		}
+		OnPropertyChanged("HasSpBatchMasterImageCards");
+		OnPropertyChanged("HasAnySpBatchResultCards");
+		OnPropertyChanged("ShouldShowSpBatchDetailCards");
+		_generateSpBatchColorSkusCommand.RaiseCanExecuteChanged();
+		_sendSelectedSpBatchMasterToSkuOptimizeCommand.RaiseCanExecuteChanged();
 	}
 
 	private void ClearSkuOptimizeResultCards()
@@ -5899,19 +6028,23 @@ public sealed class MainWindowViewModel : ViewModelBase
 		string text = Path.Combine(Path.GetTempPath(), "ImageKeeper", "sku-optimize-staging", DateTime.Now.ToString("yyyyMMdd_HHmmss_fff"));
 		Directory.CreateDirectory(text);
 		HashSet<string> usedFileNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+		HashSet<string> usedOutputNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 		List<object> list = new List<object>();
+		Dictionary<string, string> originalPathByStagingPath = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 		foreach (GeneratedImageResultCardViewModel skuOptimizeSourceImageCard in SkuOptimizeSourceImageCards)
 		{
 			string uniqueStagingFileName = GetUniqueStagingFileName(skuOptimizeSourceImageCard, usedFileNames);
 			string destFileName = Path.Combine(text, uniqueStagingFileName);
 			File.Copy(skuOptimizeSourceImageCard.ImagePath, destFileName, overwrite: true);
-			string output_name = Path.GetFileNameWithoutExtension(Path.GetFileName(string.IsNullOrWhiteSpace(skuOptimizeSourceImageCard.FileName) ? skuOptimizeSourceImageCard.ImagePath : skuOptimizeSourceImageCard.FileName)) + ".png";
+			string output_name = GetUniqueOutputFileName(skuOptimizeSourceImageCard, usedOutputNames);
+			originalPathByStagingPath[Path.GetFullPath(destFileName)] = skuOptimizeSourceImageCard.ImagePath;
 			list.Add(new
 			{
 				staging_name = uniqueStagingFileName,
 				output_name = output_name
 			});
 		}
+		_skuOptimizeOriginalPathByStagingPath = originalPathByStagingPath;
 		string path = Path.Combine(text, ".sku-optimize-manifest.json");
 		string contents = JsonSerializer.Serialize(new
 		{

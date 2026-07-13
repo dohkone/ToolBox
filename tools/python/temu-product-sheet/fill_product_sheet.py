@@ -17,6 +17,17 @@ DEFAULT_SOURCE = DATA_DIR / "size_specs.xlsx"
 DEFAULT_OUTPUT_DIR = Path("D:/temu_auto/excel")
 DEFAULT_ASSERT_DIR = Path("D:/temu_auto/assert")
 DEFAULT_TITLE_JSON = DATA_DIR / "title.json"
+SUPPORTED_SIZE_IMAGE_EXTENSIONS = {
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".webp",
+    ".bmp",
+    ".gif",
+    ".tif",
+    ".tiff",
+    ".jfif",
+}
 
 
 def parse_args():
@@ -113,7 +124,16 @@ def ensure_index(index_path, source_path):
 
 def extract_sizes_from_sp_dir(sp_dir):
     main_dir = Path(sp_dir) / "main"
-    candidates = sorted(main_dir.glob("2-*.png"))
+    candidates = sorted(
+        (
+            path
+            for path in main_dir.iterdir()
+            if path.is_file()
+            and path.suffix.lower() in SUPPORTED_SIZE_IMAGE_EXTENSIONS
+            and is_size_image_name(path)
+        ),
+        key=lambda path: path.name.casefold(),
+    )
     if not candidates:
         raise FileNotFoundError(f"Automatic size image not found under: {main_dir}")
 
@@ -124,6 +144,11 @@ def extract_sizes_from_sp_dir(sp_dir):
             ocr_texts.append(run_windows_ocr(variant_path))
 
     return merge_size_items_from_ocr_texts(ocr_texts)
+
+
+def is_size_image_name(image_path):
+    name = image_path.stem.casefold()
+    return name.startswith("2-") or "尺寸" in name or "size" in name
 
 
 def run_windows_ocr(image_path):

@@ -391,20 +391,25 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 		}
 		TemplateLibraryService templateLibraryService = this;
 		CancellationToken cancellationToken2 = cancellationToken;
-		HashSet<string> existingNames = new HashSet<string>((await templateLibraryService.GetByCategoryAsync(TemplateCategory.Layout, null, cancellationToken2)).Select((TemplateItemRecord item) => item.Name), StringComparer.OrdinalIgnoreCase);
+		HashSet<string> existingNames = new HashSet<string>((await templateLibraryService.GetByCategoryAsync(TemplateCategory.Layout, null, cancellationToken2)).Select(GetLayoutImportKey), StringComparer.OrdinalIgnoreCase);
 		int importedCount = 0;
 		foreach (LayoutTemplatePackageItem item in manifest.Items)
 		{
 			cancellationToken.ThrowIfCancellationRequested();
 			if (!string.IsNullOrWhiteSpace(item.Name) && !string.IsNullOrWhiteSpace(item.Content))
 			{
+				string importKey = GetLayoutImportKey(item.ImageType, item.Name);
+				if (existingNames.Contains(importKey))
+				{
+					continue;
+				}
+
 				string previewImagePath = ImportPreviewFromPackage(archive, item.PreviewFile);
-				string text = CreateImportedTemplateName(item.Name, existingNames);
-				existingNames.Add(text);
+				existingNames.Add(importKey);
 				await SaveAsync(new TemplateItemRecord
 				{
 					Category = TemplateCategory.Layout,
-					Name = text,
+					Name = item.Name.Trim(),
 					Content = item.Content,
 					Subject = string.Empty,
 					PreviewImagePath = previewImagePath,
@@ -536,6 +541,7 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 		list.AddRange(await templateLibraryService3.GetByCategoryAsync(TemplateCategory.Subject, null, cancellationToken2));
 		Dictionary<TemplateCategory, HashSet<string>> existingNames = (from item in existingItems
 			group item by item.Category).ToDictionary((IGrouping<TemplateCategory, TemplateItemRecord> group) => group.Key, (IGrouping<TemplateCategory, TemplateItemRecord> group) => new HashSet<string>(group.Select((TemplateItemRecord item) => item.Name), StringComparer.OrdinalIgnoreCase));
+		HashSet<string> existingLayoutNames = new HashSet<string>(existingItems.Where((TemplateItemRecord item) => item.Category == TemplateCategory.Layout).Select(GetLayoutImportKey), StringComparer.OrdinalIgnoreCase);
 		Dictionary<long, long> idMap = new Dictionary<long, long>();
 		int importedCount = 0;
 		foreach (AllTemplatesPackageItem packageItem in from item in manifest.Items
@@ -545,6 +551,32 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 			cancellationToken.ThrowIfCancellationRequested();
 			if (!string.IsNullOrWhiteSpace(packageItem.Name) && !string.IsNullOrWhiteSpace(packageItem.Content))
 			{
+				if (packageItem.Category == TemplateCategory.Layout)
+				{
+					string importKey = GetLayoutImportKey(packageItem.ImageType, packageItem.Name);
+					if (existingLayoutNames.Contains(importKey))
+					{
+						continue;
+					}
+
+					existingLayoutNames.Add(importKey);
+					string layoutPreviewImagePath = ImportPreviewFromPackage(archive, packageItem.PreviewFile);
+					TemplateItemRecord importedLayoutRecord = await SaveAsync(new TemplateItemRecord
+					{
+						Category = packageItem.Category,
+						Name = packageItem.Name.Trim(),
+						Content = packageItem.Content,
+						Subject = packageItem.Subject,
+						PreviewImagePath = layoutPreviewImagePath,
+						ImageType = packageItem.ImageType,
+						SortOrder = packageItem.SortOrder,
+						IsEnabled = packageItem.IsEnabled
+					}, cancellationToken);
+					idMap[packageItem.Id] = importedLayoutRecord.Id;
+					importedCount++;
+					continue;
+				}
+
 				if (!existingNames.TryGetValue(packageItem.Category, out var value))
 				{
 					value = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -730,6 +762,16 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 		string text = Path.Combine(templateAssetDirectory, $"layout_import_{DateTimeOffset.Now:yyyyMMdd_HHmmssfff}_{Guid.NewGuid():N}{value}");
 		entry.ExtractToFile(text, overwrite: true);
 		return text;
+	}
+
+	private static string GetLayoutImportKey(TemplateItemRecord item)
+	{
+		return GetLayoutImportKey(item.ImageType, item.Name);
+	}
+
+	private static string GetLayoutImportKey(ImageTemplateType imageType, string name)
+	{
+		return $"{(int)imageType}|{name.Trim()}";
 	}
 
 	private static string CreateImportedTemplateName(string name, HashSet<string> existingNames)

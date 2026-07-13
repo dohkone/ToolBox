@@ -183,6 +183,7 @@ public sealed class WorkspaceTabViewModel : ViewModelBase
 			rootCard.Activated -= OnCardActivated;
 			rootCard.SelectionContextChanged -= OnCardSelectionContextChanged;
 			rootCard.ImageFilesAdded -= OnCardImageFilesAdded;
+			rootCard.Deleted -= OnCardDeleted;
 		}
 		RootCards.Clear();
 		FilteredRootCards.Clear();
@@ -195,6 +196,7 @@ public sealed class WorkspaceTabViewModel : ViewModelBase
 			rootCardViewModel.Activated += OnCardActivated;
 			rootCardViewModel.SelectionContextChanged += OnCardSelectionContextChanged;
 			rootCardViewModel.ImageFilesAdded += OnCardImageFilesAdded;
+			rootCardViewModel.Deleted += OnCardDeleted;
 			RootCards.Add(rootCardViewModel);
 		}
 		ApplyAutoPublishStatusFilter(AutoPublishStatusFilter.All);
@@ -355,6 +357,27 @@ public sealed class WorkspaceTabViewModel : ViewModelBase
 	private void OnCardImageFilesAdded(RootCardViewModel card, IReadOnlyList<string> copiedFiles)
 	{
 		this.CardImageFilesAdded?.Invoke(card, copiedFiles);
+	}
+
+	private void OnCardDeleted(RootCardViewModel card)
+	{
+		card.PreviewRequested -= OnCardPreviewRequested;
+		card.StatusChanged -= OnCardStatusChanged;
+		card.Activated -= OnCardActivated;
+		card.SelectionContextChanged -= OnCardSelectionContextChanged;
+		card.ImageFilesAdded -= OnCardImageFilesAdded;
+		card.Deleted -= OnCardDeleted;
+		RootCards.Remove(card);
+		FilteredRootCards.Remove(card);
+		if (ActiveCard == card)
+		{
+			ActiveCard = null;
+			SetActiveCard(FilteredRootCards.FirstOrDefault() ?? RootCards.FirstOrDefault());
+		}
+		OnPropertyChanged("HasRootCards");
+		this.PreviewRequested?.Invoke(null);
+		this.SelectionContextChanged?.Invoke(this);
+		_batchSelectionChanged?.Invoke();
 	}
 
 	private void SetActiveCard(RootCardViewModel? card)

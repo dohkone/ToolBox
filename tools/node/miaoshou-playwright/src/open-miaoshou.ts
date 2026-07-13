@@ -5,6 +5,10 @@ import "dotenv/config";
 import { chromium, Locator, Page } from "playwright";
 
 type ProductJsonItem = Record<string, unknown>;
+type SkuColorItem = {
+  color: string;
+  imagePath: string;
+};
 type MiaoshouConfig = {
   baseUrl?: string;
   browserChannel?: string;
@@ -101,7 +105,6 @@ const packageSizeText = "\u5c3a\u5bf8(CM)";
 const packageSizeDialogTitleText = "\u6279\u91cf\u7f16\u8f91\u5305\u88f9\u5c3a\u5bf8";
 const weightText = "\u6bdb\u91cd";
 const weightDialogTitleText = "\u6279\u91cf\u4fee\u6539\u91cd\u91cf";
-const skuColorList = ["黑色", "米白色", "深棕色", "深灰色", "酒红色", "宝蓝色"] as const;
 const supportedImageExtensions = new Set([".jpg", ".jpeg", ".png", ".webp", ".bmp"]);
 
 function parseCliOptions(args: string[]): CliOptions {
@@ -482,6 +485,51 @@ function getSkuSizeWeightEntries(product: ProductJsonItem) {
 function getPreviewImageFolder(product: ProductJsonItem) {
   const folder = product.preview_image_folder;
   return typeof folder === "string" && folder.trim().length > 0 ? folder.trim() : "";
+}
+
+function getSkuColorItems(product: ProductJsonItem): SkuColorItem[] {
+  const previewImageFolder = getPreviewImageFolder(product);
+  if (!previewImageFolder) {
+    throw new Error("The current product item does not contain a valid preview_image_folder.");
+  }
+
+  if (!fs.existsSync(previewImageFolder)) {
+    throw new Error(`The preview_image_folder does not exist: ${previewImageFolder}`);
+  }
+
+  const usedColors = new Set<string>();
+  const duplicatedColors = new Set<string>();
+  const items = fs
+    .readdirSync(previewImageFolder, { withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .map((entry) => path.join(previewImageFolder, entry.name))
+    .filter((filePath) => supportedImageExtensions.has(path.extname(filePath).toLowerCase()))
+    .sort((left, right) => path.basename(left).localeCompare(path.basename(right), "zh-Hans-CN"))
+    .reduce<SkuColorItem[]>((result, imagePath) => {
+      const color = path.basename(imagePath, path.extname(imagePath)).trim();
+      if (!color) {
+        return result;
+      }
+
+      if (usedColors.has(color)) {
+        duplicatedColors.add(color);
+        return result;
+      }
+
+      usedColors.add(color);
+      result.push({ color, imagePath });
+      return result;
+    }, []);
+
+  if (items.length === 0) {
+    throw new Error(`No supported SKU color image files were found in preview_image_folder: ${previewImageFolder}`);
+  }
+
+  if (duplicatedColors.size > 0) {
+    console.log(`Skipped duplicated SKU color files: ${Array.from(duplicatedColors).join(", ")}`);
+  }
+
+  return items;
 }
 
 function getPreviewImagePathByColor(product: ProductJsonItem, skuColor: string) {
@@ -2201,7 +2249,7 @@ async function configureProductDescription(page: Page, productItem: ProductJsonI
   console.log("Product description editor dialog closed");
 }
 
-async function addSalesOptionsBySkuColorCount(page: Page) {
+async function addSalesOptionsBySkuColors(page: Page, skuColorItems: SkuColorItem[]) {
   await clickSalesAttributesNav(page);
   await waitForBlockingLayersToClear(page);
   await page.waitForTimeout(500);
@@ -2223,7 +2271,7 @@ async function addSalesOptionsBySkuColorCount(page: Page) {
   const colorSpecContent = skuPropertyContents.nth(0);
   await colorSpecContent.waitFor({ state: "visible", timeout: 20_000 });
 
-  for (let index = 0; index < skuColorList.length; index += 1) {
+  for (let index = 0; index < skuColorItems.length; index += 1) {
     const addOptionButton = colorSpecContent
       .locator("button")
       .filter({ has: page.locator(`span:text-is("${addOptionText}")`) })
@@ -2231,19 +2279,20 @@ async function addSalesOptionsBySkuColorCount(page: Page) {
 
     await addOptionButton.waitFor({ state: "visible", timeout: 20_000 });
     await clickLocatorLowConflict(addOptionButton, page);
-    console.log(`Clicked ${addOptionText} for color ${index + 1}/${skuColorList.length}`);
+    console.log(`Clicked ${addOptionText} for color ${index + 1}/${skuColorItems.length}`);
     await page.waitForTimeout(300);
   }
 
   const optionInputs = colorSpecContent.locator('.spec-box-container .spec-item input.jx-input__inner');
   const optionInputCount = await optionInputs.count();
-  if (optionInputCount < skuColorList.length) {
+  if (optionInputCount < skuColorItems.length) {
     throw new Error(
-      `Expected at least ${skuColorList.length} color option inputs, but only found ${optionInputCount}.`,
+      `Expected at least ${skuColorItems.length} color option inputs, but only found ${optionInputCount}.`,
     );
   }
 
-  for (const [index, colorText] of skuColorList.entries()) {
+  for (const [index, item] of skuColorItems.entries()) {
+    const colorText = item.color;
     const input = optionInputs.nth(index);
     await input.waitFor({ state: "visible", timeout: 20_000 });
     await clickLocatorLowConflict(input, page);
@@ -2255,7 +2304,7 @@ async function addSalesOptionsBySkuColorCount(page: Page) {
       throw new Error(`Sales option ${index + 1} did not retain the expected value '${colorText}'.`);
     }
 
-    console.log(`Input color option ${index + 1}/${skuColorList.length}: ${colorText}`);
+    console.log(`Input color option ${index + 1}/${skuColorItems.length}: ${colorText}`);
     await page.waitForTimeout(200);
   }
 }
@@ -2748,11 +2797,12 @@ async function waitForSkuPreviewAssignment(batchUploadDialog: Locator, skuColor:
   return null;
 }
 
-async function uploadSkuPreviewImagesFromDialog(page: Page, productItem: ProductJsonItem) {
+async function uploadSkuPreviewImagesFromDialog(page: Page, skuColorItems: SkuColorItem[]) {
   const batchUploadDialog = await getBatchUploadDialog(page);
 
-  for (const [index, skuColor] of skuColorList.entries()) {
-    const previewImagePath = getPreviewImagePathByColor(productItem, skuColor);
+  for (const [index, item] of skuColorItems.entries()) {
+    const skuColor = item.color;
+    const previewImagePath = item.imagePath;
     console.log(`Uploading SKU preview image for ${skuColor}: ${previewImagePath}`);
 
     let uploadSucceeded = false;
@@ -3769,6 +3819,9 @@ async function clearPictureIndexCurrentPage(page: Page) {
 }
 
 async function prepareCreateProductFlow(page: Page, productItem: ProductJsonItem) {
+  const skuColorItems = getSkuColorItems(productItem);
+  console.log(`SKU colors for current product: ${skuColorItems.map((item) => item.color).join(", ")}`);
+
   await clickVisibleButtonByName(page, createProductText);
   console.log(`Clicked ${createProductText}`);
 
@@ -3814,12 +3867,12 @@ async function prepareCreateProductFlow(page: Page, productItem: ProductJsonItem
   await waitForBlockingLayersToClear(page);
   await page.waitForTimeout(800);
   await uploadMainCarouselImages(page, productItem);
-  await addSalesOptionsBySkuColorCount(page);
+  await addSalesOptionsBySkuColors(page, skuColorItems);
   await addSizeOptionsFromSkuSizeList(page, productItem);
   await clickFirstSkuHeaderCheckbox(page);
   await clickPreviewImageBatchButton(page);
   await clickBatchUploadImageOption(page);
-  await uploadSkuPreviewImagesFromDialog(page, productItem);
+  await uploadSkuPreviewImagesFromDialog(page, skuColorItems);
   await confirmBatchUploadDialog(page);
   await clickSupplyPriceBatchButton(page);
   await configureSupplyPriceBatchDialogFromCompleteHtml(page, productItem);
@@ -3849,7 +3902,6 @@ async function runCollectBoxFlow(page: Page, jsonInstance: ProductJsonItem[]) {
   }
 
   logMessage(`Loaded ${jsonInstance.length} products from ${productsJsonPath}`);
-  logMessage(`SKU colors: ${skuColorList.join(", ")}`);
   const results: Array<Record<string, unknown>> = [];
   let shouldResetBeforeNextProduct = false;
 

@@ -511,9 +511,22 @@
                             BorderThickness="1"
                             CornerRadius="10">
                         <StackPanel>
-                            <TextBlock FontSize="14"
-                                       FontWeight="SemiBold"
-                                       Text="{Binding LoadedFolderText}" />
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock VerticalAlignment="Center"
+                                           FontSize="14"
+                                           FontWeight="SemiBold"
+                                           Text="{Binding LoadedFolderText}" />
+                                <Button Width="42"
+                                        Height="22"
+                                        MinWidth="0"
+                                        MinHeight="0"
+                                        Margin="8,0,0,0"
+                                        Padding="0"
+                                        VerticalAlignment="Center"
+                                        FontSize="12"
+                                        Content="打开"
+                                        Command="{Binding OpenCurrentFolderCommand}" />
+                            </StackPanel>
                             <TextBlock Margin="0,2,0,2"
                                        Foreground="{StaticResource MutedTextBrush}"
                                        Text="{Binding SelectionSummaryText}" />
@@ -674,15 +687,33 @@
                                                                 <Grid>
                                                                     <Grid.ColumnDefinitions>
                                                                         <ColumnDefinition Width="Auto" />
+                                                                        <ColumnDefinition Width="Auto" />
                                                                         <ColumnDefinition Width="*" />
                                                                         <ColumnDefinition Width="Auto" />
                                                                     </Grid.ColumnDefinitions>
                                                                     <CheckBox Grid.Column="0"
-                                                                              Margin="0,0,12,0"
+                                                                              Margin="0,0,8,0"
                                                                               VerticalAlignment="Center"
                                                                               IsChecked="{Binding IsBatchSelected, Mode=TwoWay}"
                                                                               Visibility="{Binding CanBatchSelect, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                                                     <Button Grid.Column="1"
+                                                                            Width="26"
+                                                                            Height="26"
+                                                                            MinWidth="26"
+                                                                            Margin="0,0,12,0"
+                                                                            Padding="0"
+                                                                            VerticalAlignment="Center"
+                                                                            Background="#F56C6C"
+                                                                            BorderBrush="#F56C6C"
+                                                                            Foreground="White"
+                                                                            Style="{StaticResource ElementSecondaryButtonStyle}"
+                                                                            Command="{Binding DeleteCardCommand}"
+                                                                            ToolTip="删除当前链接卡片并将图片放回备份目录">
+                                                                        <TextBlock FontFamily="Segoe MDL2 Assets"
+                                                                                   FontSize="12"
+                                                                                   Text="&#xE74D;" />
+                                                                    </Button>
+                                                                    <Button Grid.Column="2"
                                                                             MinWidth="0"
                                                                             HorizontalContentAlignment="Stretch"
                                                                             Style="{StaticResource FlatButtonStyle}"
@@ -732,7 +763,7 @@
                                                                                        ToolTip="{Binding SizeSummaryText}" />
                                                                         </Grid>
                                                                     </Button>
-                                                                    <StackPanel Grid.Column="2"
+                                                                    <StackPanel Grid.Column="3"
                                                                                 Orientation="Horizontal">
                                                                         <Button Margin="0,0,8,0"
                                                                                 Content="自动上架"
@@ -754,7 +785,25 @@
                                                             CornerRadius="10"
                                                             Visibility="{Binding IsCollapsed, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
                                                         <Grid>
-                                                            <Grid Visibility="{Binding IsCollapsed, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                                                            <Button Width="26"
+                                                                    Height="26"
+                                                                    MinWidth="26"
+                                                                    Padding="0"
+                                                                    HorizontalAlignment="Left"
+                                                                    VerticalAlignment="Top"
+                                                                    Panel.ZIndex="2"
+                                                                    Background="#F56C6C"
+                                                                    BorderBrush="#F56C6C"
+                                                                    Foreground="White"
+                                                                    Style="{StaticResource ElementSecondaryButtonStyle}"
+                                                                    Command="{Binding DeleteCardCommand}"
+                                                                    ToolTip="删除当前链接卡片并将图片放回备份目录">
+                                                                <TextBlock FontFamily="Segoe MDL2 Assets"
+                                                                           FontSize="12"
+                                                                           Text="&#xE74D;" />
+                                                            </Button>
+                                                            <Grid Margin="30,0,0,0"
+                                                                  Visibility="{Binding IsCollapsed, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
                                                             <Grid.ColumnDefinitions>
                                                                 <ColumnDefinition Width="190" />
                                                                 <ColumnDefinition Width="1" />
@@ -1409,9 +1458,25 @@
                                                  Text="{Binding SpBatchConcurrencyText, UpdateSourceTrigger=PropertyChanged}" />
                                         <Button Margin="0,10,0,0"
                                                 FontWeight="SemiBold"
-                                                Content="{Binding SpBatchButtonText}"
-                                                Command="{Binding RunSpBatchMasterCommand}"
-                                                Style="{StaticResource ElementActionButtonStyle}" />
+                                                Content="{Binding SpBatchButtonText}">
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource ElementActionButtonStyle}">
+                                                    <Setter Property="Command" Value="{Binding RunSpBatchMasterCommand}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsSpBatchMasterRunning}" Value="True">
+                                                            <Setter Property="Command" Value="{Binding StopSpBatchCommand}" />
+                                                            <Setter Property="Background" Value="#F56C6C" />
+                                                            <Setter Property="BorderBrush" Value="#F56C6C" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsSpBatchStopping}" Value="True">
+                                                            <Setter Property="Command" Value="{x:Null}" />
+                                                            <Setter Property="Background" Value="#E6A23C" />
+                                                            <Setter Property="BorderBrush" Value="#E6A23C" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
                                     </StackPanel>
 
                                     <Border Grid.Row="4"
@@ -2124,15 +2189,47 @@
                                             <Button Grid.Column="0"
                                                     Margin="0,0,4,0"
                                                     FontWeight="SemiBold"
-                                                    Content="生成SKU母图"
-                                                    Command="{Binding RunSpBatchMasterCommand}"
-                                                    Style="{StaticResource PrimaryButtonStyle}" />
+                                                    Content="{Binding SpBatchButtonText}">
+                                                <Button.Style>
+                                                    <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+                                                        <Setter Property="Command" Value="{Binding RunSpBatchMasterCommand}" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsSpBatchMasterRunning}" Value="True">
+                                                                <Setter Property="Command" Value="{Binding StopSpBatchCommand}" />
+                                                                <Setter Property="Background" Value="#F56C6C" />
+                                                                <Setter Property="BorderBrush" Value="#F56C6C" />
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding IsSpBatchStopping}" Value="True">
+                                                                <Setter Property="Command" Value="{x:Null}" />
+                                                                <Setter Property="Background" Value="#E6A23C" />
+                                                                <Setter Property="BorderBrush" Value="#E6A23C" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                            </Button>
                                             <Button Grid.Column="1"
                                                     Margin="4,0,0,0"
                                                     FontWeight="SemiBold"
-                                                    Content="生成其他颜色SKU图"
-                                                    Command="{Binding RunSpBatchColorsCommand}"
-                                                    Style="{StaticResource PrimaryButtonStyle}" />
+                                                    Content="{Binding SpBatchColorButtonText}">
+                                                <Button.Style>
+                                                    <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+                                                        <Setter Property="Command" Value="{Binding RunSpBatchColorsCommand}" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsSpBatchColorRunning}" Value="True">
+                                                                <Setter Property="Command" Value="{Binding StopSpBatchCommand}" />
+                                                                <Setter Property="Background" Value="#F56C6C" />
+                                                                <Setter Property="BorderBrush" Value="#F56C6C" />
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding IsSpBatchStopping}" Value="True">
+                                                                <Setter Property="Command" Value="{x:Null}" />
+                                                                <Setter Property="Background" Value="#E6A23C" />
+                                                                <Setter Property="BorderBrush" Value="#E6A23C" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                            </Button>
                                         </Grid>
                                         <Border Margin="0,10,0,0"
                                                 Padding="12"
@@ -3338,7 +3435,8 @@
                                                                                    FontWeight="SemiBold"
                                                                                    Foreground="{StaticResource TitleTextBrush}"
                                                                                    Text="{Binding Name}"
-                                                                                   TextTrimming="CharacterEllipsis" />
+                                                                                   TextWrapping="Wrap"
+                                                                                   MaxHeight="38" />
                                                                         <Border Width="46"
                                                                                 Grid.Column="1"
                                                                                 Margin="8,0,0,0"

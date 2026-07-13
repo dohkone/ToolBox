@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Windows;
 using System.Windows.Media;
 using ImageKeeper.Core.Models;
 using ImageKeeper.Core.Services;
@@ -15,6 +16,32 @@ namespace ImageKeeper.App.ViewModels;
 public sealed class RootCardViewModel : ViewModelBase
 {
 	private const int ImagePageSize = 60;
+
+	private static readonly HashSet<string> SizeImageExtensions = new(StringComparer.OrdinalIgnoreCase)
+	{
+		".png",
+		".jpg",
+		".jpeg",
+		".webp",
+		".bmp",
+		".gif",
+		".tif",
+		".tiff",
+		".jfif"
+	};
+
+	private static readonly HashSet<string> SupportedImageExtensions = new(StringComparer.OrdinalIgnoreCase)
+	{
+		".png",
+		".jpg",
+		".jpeg",
+		".webp",
+		".bmp",
+		".gif",
+		".tif",
+		".tiff",
+		".jfif"
+	};
 
 	private readonly FolderNodeViewModel _rootNode;
 
@@ -41,6 +68,8 @@ public sealed class RootCardViewModel : ViewModelBase
 	private readonly AsyncRelayCommand _copyMainToDetailCommand;
 
 	private readonly AsyncRelayCommand _moveSelectedCommand;
+
+	private readonly AsyncRelayCommand _deleteCardCommand;
 
 	private readonly AsyncRelayCommand _autoPublishCommand;
 
@@ -119,6 +148,8 @@ public sealed class RootCardViewModel : ViewModelBase
 	public AsyncRelayCommand CopyMainToDetailCommand => _copyMainToDetailCommand;
 
 	public AsyncRelayCommand MoveSelectedCommand => _moveSelectedCommand;
+
+	public AsyncRelayCommand DeleteCardCommand => _deleteCardCommand;
 
 	public AsyncRelayCommand AutoPublishCommand => _autoPublishCommand;
 
@@ -562,6 +593,8 @@ public sealed class RootCardViewModel : ViewModelBase
 
 	public event Action<RootCardViewModel, IReadOnlyList<string>>? ImageFilesAdded;
 
+	public event Action<RootCardViewModel>? Deleted;
+
 	public RootCardViewModel(FolderNode rootNode, IImageWorkspaceService workspaceService, IWorkspaceStateService workspaceStateService, string backupFolder, IProductSheetService? productSheetService = null, Func<bool>? isAutoPublishBusyProvider = null, Func<Func<Task>, Task>? runExclusiveAsync = null, Func<RootCardViewModel, AutoPublishStatus, string, Task>? setAutoPublishStatusAsync = null, Func<RootCardViewModel, Task>? runAutoPublishCardAsync = null, Func<RootCardViewModel, Task>? openCardSizeDialogAsync = null, Action? batchSelectionChanged = null)
 	{
 		_workspaceService = workspaceService;
@@ -602,6 +635,7 @@ public sealed class RootCardViewModel : ViewModelBase
 		_openCardSizeDialogCommand = new AsyncRelayCommand((object? _) => OpenCardSizeDialogAsync(), (object? _) => CanOpenCardSizeDialog());
 		_copyMainToDetailCommand = new AsyncRelayCommand((object? _) => CopyMainToDetailAsync(), (object? _) => CanCopyMainToDetail());
 		_moveSelectedCommand = new AsyncRelayCommand((object? _) => MoveSelectedAsync(), (object? _) => SelectedNode != null && SelectedCount > 0);
+		_deleteCardCommand = new AsyncRelayCommand((object? _) => DeleteCardAsync(), (object? _) => CanDeleteCard());
 		_autoPublishCommand = new AsyncRelayCommand((object? _) => AutoPublishAsync(), (object? _) => CanAutoPublish());
 		_toggleExpandCommand = new RelayCommand(delegate(object? node)
 		{
@@ -628,6 +662,7 @@ public sealed class RootCardViewModel : ViewModelBase
 	{
 		OnPropertyChanged("IsAutoPublishBusy");
 		_autoPublishCommand.RaiseCanExecuteChanged();
+		_deleteCardCommand.RaiseCanExecuteChanged();
 		_batchSelectionChanged?.Invoke();
 	}
 
@@ -702,6 +737,16 @@ public sealed class RootCardViewModel : ViewModelBase
 			return !string.IsNullOrWhiteSpace(GetSpRootFolder());
 		}
 		return false;
+	}
+
+	private bool CanDeleteCard()
+	{
+		string spRootFolder = GetSpRootFolder();
+		if (IsAutoPublishBusy || string.IsNullOrWhiteSpace(spRootFolder))
+		{
+			return false;
+		}
+		return Directory.Exists(spRootFolder);
 	}
 
 	private bool CanOpenCardSizeDialog()
@@ -797,7 +842,7 @@ public sealed class RootCardViewModel : ViewModelBase
 		{
 			throw new InvalidOperationException("未找到 main 文件夹：" + text);
 		}
-		if (!Directory.EnumerateFiles(text, "2-*.png", SearchOption.TopDirectoryOnly).Any())
+		if (!HasSizeImageFile(text))
 		{
 			throw new InvalidOperationException("当前 main 文件夹下没有尺寸图：" + text);
 		}
@@ -817,11 +862,28 @@ public sealed class RootCardViewModel : ViewModelBase
 		{
 			return "自动上架前置校验失败：" + text + " 不存在。";
 		}
-		if (!Directory.EnumerateFiles(text, "2-*.png", SearchOption.TopDirectoryOnly).Any())
+		if (!HasSizeImageFile(text))
 		{
-			return "自动上架前置校验失败：" + text + " 下缺少 2-*.png 尺寸图。";
+			return "自动上架前置校验失败：" + text + " 下缺少尺寸图。";
 		}
 		return null;
+	}
+
+	private static bool HasSizeImageFile(string mainFolder)
+	{
+		return Directory.EnumerateFiles(mainFolder, "*", SearchOption.TopDirectoryOnly).Any(IsSizeImageFile);
+	}
+
+	private static bool IsSizeImageFile(string filePath)
+	{
+		if (!SizeImageExtensions.Contains(Path.GetExtension(filePath)))
+		{
+			return false;
+		}
+		string name = Path.GetFileNameWithoutExtension(filePath);
+		return name.StartsWith("2-", StringComparison.OrdinalIgnoreCase)
+			|| name.Contains("\u5C3A\u5BF8", StringComparison.OrdinalIgnoreCase)
+			|| name.Contains("size", StringComparison.OrdinalIgnoreCase);
 	}
 
 	public async Task AddImageFilesAsync(IReadOnlyList<string> sourceFiles, bool showStatusMessage = true)
@@ -1033,6 +1095,59 @@ public sealed class RootCardViewModel : ViewModelBase
 		UpdateCounts();
 		this.PreviewRequested?.Invoke(null);
 		this.StatusChanged?.Invoke($"已移动 {list.Count} 张图片到备份目录。");
+	}
+
+	private async Task DeleteCardAsync()
+	{
+		string spRootFolder = GetSpRootFolder();
+		if (string.IsNullOrWhiteSpace(spRootFolder) || !Directory.Exists(spRootFolder))
+		{
+			return;
+		}
+		if (string.IsNullOrWhiteSpace(BackupFolder))
+		{
+			throw new InvalidOperationException("请先设置备份目录。");
+		}
+		string sourceRoot = Path.GetFullPath(spRootFolder);
+		string backupRoot = Path.GetFullPath(BackupFolder);
+		if (IsUnsafeDeleteTarget(sourceRoot))
+		{
+			throw new InvalidOperationException("当前目录不安全，已取消删除：" + sourceRoot);
+		}
+		if (IsSameOrChildPath(backupRoot, sourceRoot))
+		{
+			throw new InvalidOperationException("备份目录不能放在当前 SP 目录里面，请先切换备份目录。");
+		}
+		IReadOnlyList<string> imageFiles = Directory.EnumerateFiles(sourceRoot, "*", SearchOption.AllDirectories)
+			.Where(IsSupportedImageFile)
+			.OrderBy<string, string>((string path) => path, StringComparer.OrdinalIgnoreCase)
+			.ToArray();
+		MessageBoxResult messageBoxResult = MessageBox.Show(
+			$"确认删除 {DisplayName} 吗？\n\n将先把当前目录内 {imageFiles.Count} 张图片复制回备份目录，然后删除整个目录：\n{sourceRoot}",
+			"删除链接卡片",
+			MessageBoxButton.OKCancel,
+			MessageBoxImage.Warning);
+		if (messageBoxResult != MessageBoxResult.OK)
+		{
+			return;
+		}
+		Activate();
+		int movedCount = await Task.Run(delegate
+		{
+			Directory.CreateDirectory(backupRoot);
+			int count = 0;
+			foreach (string imageFile in imageFiles)
+			{
+				string uniquePath = GetUniquePath(backupRoot, Path.GetFileName(imageFile));
+				File.Copy(imageFile, uniquePath);
+				count++;
+			}
+			Directory.Delete(sourceRoot, recursive: true);
+			return count;
+		});
+		this.PreviewRequested?.Invoke(null);
+		this.StatusChanged?.Invoke($"已删除 {DisplayName}，并将 {movedCount} 张图片放回备份目录。");
+		this.Deleted?.Invoke(this);
 	}
 
 	private void RebuildVisibleNodes()
@@ -1282,94 +1397,24 @@ public sealed class RootCardViewModel : ViewModelBase
 		return text;
 	}
 
+	private static bool IsUnsafeDeleteTarget(string folderPath)
+	{
+		string fullPath = Path.GetFullPath(folderPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+		string root = Path.GetPathRoot(fullPath)?.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) ?? string.Empty;
+		return string.IsNullOrWhiteSpace(fullPath) || string.Equals(fullPath, root, StringComparison.OrdinalIgnoreCase);
+	}
+
+	private static bool IsSameOrChildPath(string path, string parentPath)
+	{
+		string normalizedPath = Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+		string normalizedParent = Path.GetFullPath(parentPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+		return string.Equals(normalizedPath, normalizedParent, StringComparison.OrdinalIgnoreCase)
+			|| normalizedPath.StartsWith(normalizedParent + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+			|| normalizedPath.StartsWith(normalizedParent + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+	}
+
 	private static bool IsSupportedImageFile(string filePath)
 	{
-		string text = Path.GetExtension(filePath).ToLowerInvariant();
-		if (text != null)
-		{
-			int length = text.Length;
-			if (length != 4)
-			{
-				if (length == 5)
-				{
-					switch (text[2])
-					{
-					case 'p':
-						break;
-					case 'i':
-						goto IL_00df;
-					case 'e':
-						goto IL_00ee;
-					case 'f':
-						goto IL_00fd;
-					default:
-						goto IL_010e;
-					}
-					if (text == ".jpeg")
-					{
-						goto IL_010a;
-					}
-				}
-			}
-			else
-			{
-				char c = text[1];
-				if ((uint)c <= 103u)
-				{
-					if (c != 'b')
-					{
-						if (c == 'g' && text == ".gif")
-						{
-							goto IL_010a;
-						}
-					}
-					else if (text == ".bmp")
-					{
-						goto IL_010a;
-					}
-				}
-				else if (c != 'j')
-				{
-					if (c != 'p')
-					{
-						if (c == 't' && text == ".tif")
-						{
-							goto IL_010a;
-						}
-					}
-					else if (text == ".png")
-					{
-						goto IL_010a;
-					}
-				}
-				else if (text == ".jpg")
-				{
-					goto IL_010a;
-				}
-			}
-		}
-		goto IL_010e;
-		IL_010a:
-		return true;
-		IL_010e:
-		return false;
-		IL_00ee:
-		if (text == ".webp")
-		{
-			goto IL_010a;
-		}
-		goto IL_010e;
-		IL_00df:
-		if (text == ".tiff")
-		{
-			goto IL_010a;
-		}
-		goto IL_010e;
-		IL_00fd:
-		if (text == ".jfif")
-		{
-			goto IL_010a;
-		}
-		goto IL_010e;
+		return SupportedImageExtensions.Contains(Path.GetExtension(filePath));
 	}
 }
