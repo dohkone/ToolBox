@@ -22,6 +22,7 @@ public sealed class PythonScriptRunner : IPythonScriptRunner
 		ProcessStartInfo processStartInfo = new ProcessStartInfo
 		{
 			FileName = _pythonExePath,
+			WorkingDirectory = PythonProcessHelper.GetWritableWorkingDirectory(),
 			UseShellExecute = false,
 			RedirectStandardOutput = true,
 			RedirectStandardError = true,
@@ -31,6 +32,7 @@ public sealed class PythonScriptRunner : IPythonScriptRunner
 		};
 		processStartInfo.Environment["PYTHONIOENCODING"] = "utf-8";
 		processStartInfo.Environment["PYTHONUTF8"] = "1";
+		processStartInfo.Environment["PYTHONDONTWRITEBYTECODE"] = "1";
 		processStartInfo.ArgumentList.Add(scriptPath);
 		foreach (string argument in arguments)
 		{

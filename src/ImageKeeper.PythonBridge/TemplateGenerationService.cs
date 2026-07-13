@@ -55,6 +55,7 @@ public sealed class TemplateGenerationService : ITemplateGenerationService
 		ProcessStartInfo processStartInfo = new ProcessStartInfo
 		{
 			FileName = _pythonExePath,
+			WorkingDirectory = PythonProcessHelper.GetWritableWorkingDirectory(),
 			UseShellExecute = false,
 			RedirectStandardOutput = true,
 			RedirectStandardError = true,
@@ -64,6 +65,7 @@ public sealed class TemplateGenerationService : ITemplateGenerationService
 		};
 		processStartInfo.Environment["PYTHONIOENCODING"] = "utf-8";
 		processStartInfo.Environment["PYTHONUTF8"] = "1";
+		processStartInfo.Environment["PYTHONDONTWRITEBYTECODE"] = "1";
 		processStartInfo.ArgumentList.Add(_scriptPath);
 		processStartInfo.ArgumentList.Add("--template-path");
 		processStartInfo.ArgumentList.Add(request.TemplatePath);

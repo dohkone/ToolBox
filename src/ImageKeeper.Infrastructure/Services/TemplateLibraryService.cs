@@ -389,9 +389,10 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 		{
 			throw new InvalidOperationException("导入文件不是有效的布局模板包。");
 		}
-		TemplateLibraryService templateLibraryService = this;
-		CancellationToken cancellationToken2 = cancellationToken;
-		HashSet<string> existingNames = new HashSet<string>((await templateLibraryService.GetByCategoryAsync(TemplateCategory.Layout, null, cancellationToken2)).Select(GetLayoutImportKey), StringComparer.OrdinalIgnoreCase);
+		IReadOnlyList<TemplateItemRecord> existingLayouts = await GetByCategoryAsync(TemplateCategory.Layout, null, cancellationToken);
+		Dictionary<string, List<TemplateItemRecord>> existingLayoutsByKey = existingLayouts
+			.GroupBy(GetLayoutImportKey, StringComparer.OrdinalIgnoreCase)
+			.ToDictionary(group => group.Key, group => group.ToList(), StringComparer.OrdinalIgnoreCase);
 		int importedCount = 0;
 		foreach (LayoutTemplatePackageItem item in manifest.Items)
 		{
@@ -399,14 +400,18 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 			if (!string.IsNullOrWhiteSpace(item.Name) && !string.IsNullOrWhiteSpace(item.Content))
 			{
 				string importKey = GetLayoutImportKey(item.ImageType, item.Name);
-				if (existingNames.Contains(importKey))
+				if (existingLayoutsByKey.TryGetValue(importKey, out List<TemplateItemRecord>? existingItems))
 				{
-					continue;
+					foreach (TemplateItemRecord existingItem in existingItems)
+					{
+						await DeleteAsync(existingItem.Id, cancellationToken);
+						DeletePreviewImageFile(existingItem.PreviewImagePath);
+					}
+					existingLayoutsByKey.Remove(importKey);
 				}
 
 				string previewImagePath = ImportPreviewFromPackage(archive, item.PreviewFile);
-				existingNames.Add(importKey);
-				await SaveAsync(new TemplateItemRecord
+				TemplateItemRecord importedLayoutRecord = await SaveAsync(new TemplateItemRecord
 				{
 					Category = TemplateCategory.Layout,
 					Name = item.Name.Trim(),
@@ -417,6 +422,7 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 					SortOrder = 0,
 					IsEnabled = item.IsEnabled
 				}, cancellationToken);
+				existingLayoutsByKey[importKey] = new List<TemplateItemRecord> { importedLayoutRecord };
 				importedCount++;
 			}
 		}
@@ -762,6 +768,20 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 		string text = Path.Combine(templateAssetDirectory, $"layout_import_{DateTimeOffset.Now:yyyyMMdd_HHmmssfff}_{Guid.NewGuid():N}{value}");
 		entry.ExtractToFile(text, overwrite: true);
 		return text;
+	}
+
+	private static void DeletePreviewImageFile(string previewImagePath)
+	{
+		if (!string.IsNullOrWhiteSpace(previewImagePath) && File.Exists(previewImagePath))
+		{
+			try
+			{
+				File.Delete(previewImagePath);
+			}
+			catch
+			{
+			}
+		}
 	}
 
 	private static string GetLayoutImportKey(TemplateItemRecord item)

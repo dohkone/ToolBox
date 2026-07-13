@@ -116,6 +116,10 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private readonly RelayCommand _sendSelectedSpBatchMasterToSkuOptimizeCommand;
 
+	private readonly AsyncRelayCommand _chooseSpBatchSourceImagesCommand;
+
+	private readonly AsyncRelayCommand _chooseSpBatchMasterImagesCommand;
+
 	private readonly RelayCommand _showSceneImageGenerateTabCommand;
 
 	private readonly RelayCommand _showCompareImageGenerateTabCommand;
@@ -493,6 +497,10 @@ public sealed class MainWindowViewModel : ViewModelBase
 	public ICommand ShowSkuOptimizeTabCommand => _showSkuOptimizeTabCommand;
 
 	public ICommand SendSelectedSpBatchMasterToSkuOptimizeCommand => _sendSelectedSpBatchMasterToSkuOptimizeCommand;
+
+	public ICommand ChooseSpBatchSourceImagesCommand => _chooseSpBatchSourceImagesCommand;
+
+	public ICommand ChooseSpBatchMasterImagesCommand => _chooseSpBatchMasterImagesCommand;
 
 	public ICommand ShowSceneImageGenerateTabCommand => _showSceneImageGenerateTabCommand;
 
@@ -2325,6 +2333,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 				SetSelectedImageGenerateTab("sku-optimize");
 			}
 		});
+		_chooseSpBatchSourceImagesCommand = new AsyncRelayCommand((object? _) => ChooseSpBatchSourceImagesAsync(), (object? _) => true);
+		_chooseSpBatchMasterImagesCommand = new AsyncRelayCommand((object? _) => ChooseSpBatchMasterImagesAsync(), (object? _) => true);
 		_showSceneImageGenerateTabCommand = new RelayCommand(delegate
 		{
 			SetSelectedImageGenerateTab("scene-image-generate");
@@ -3874,19 +3884,53 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private async Task ChooseGenerationImagesAsync()
 	{
+		string[] fileNames = ChooseImageFiles("选择图片", Directory.Exists(GenerationOutputDirectory) ? GenerationOutputDirectory : WorkspaceDefaults.DefaultOpenFolder);
+		if (fileNames.Length != 0)
+		{
+			AddGenerationImages(fileNames);
+			StatusMessage = $"已添加 {fileNames.Length} 张图片到模板生图区。";
+		}
+		await Task.CompletedTask;
+	}
+
+	private async Task ChooseSpBatchSourceImagesAsync()
+	{
+		string initialDirectory = Directory.Exists(SpBatchInputDirectory) ? SpBatchInputDirectory : (Directory.Exists(GenerationOutputDirectory) ? GenerationOutputDirectory : WorkspaceDefaults.DefaultOpenFolder);
+		string[] fileNames = ChooseImageFiles("选择 SKU 图生成图片", initialDirectory);
+		if (fileNames.Length != 0)
+		{
+			AddSpBatchSourceImages(fileNames);
+			StatusMessage = $"已添加 {fileNames.Length} 张图片到 SKU 图生成区域。";
+		}
+		await Task.CompletedTask;
+	}
+
+	private async Task ChooseSpBatchMasterImagesAsync()
+	{
+		string initialDirectory = Directory.Exists(SpBatchOutputDirectory) ? SpBatchOutputDirectory : (Directory.Exists(GenerationOutputDirectory) ? GenerationOutputDirectory : WorkspaceDefaults.DefaultOpenFolder);
+		string[] fileNames = ChooseImageFiles("选择 SKU 母图", initialDirectory);
+		if (fileNames.Length != 0)
+		{
+			AddSpBatchMasterImages(fileNames);
+			StatusMessage = $"已添加 {fileNames.Length} 张图片到 SKU 母图区域。";
+		}
+		await Task.CompletedTask;
+	}
+
+	private static string[] ChooseImageFiles(string title, string initialDirectory)
+	{
 		Microsoft.Win32.OpenFileDialog openFileDialog = new Microsoft.Win32.OpenFileDialog
 		{
-			Title = "选择图片",
+			Title = title,
 			Filter = "图片文件|*.jpg;*.jpeg;*.png;*.bmp;*.gif;*.tif;*.tiff;*.webp;*.jfif|所有文件|*.*",
 			Multiselect = true,
-			InitialDirectory = (Directory.Exists(GenerationOutputDirectory) ? GenerationOutputDirectory : WorkspaceDefaults.DefaultOpenFolder)
+			InitialDirectory = Directory.Exists(initialDirectory) ? initialDirectory : WorkspaceDefaults.DefaultOpenFolder
 		};
-		if (openFileDialog.ShowDialog() == true && openFileDialog.FileNames.Length != 0)
+		if (openFileDialog.ShowDialog() == true)
 		{
-			AddGenerationImages(openFileDialog.FileNames);
-			StatusMessage = $"已添加 {openFileDialog.FileNames.Length} 张图片到模板生图区。";
-			await Task.CompletedTask;
+			return openFileDialog.FileNames;
 		}
+		return Array.Empty<string>();
 	}
 
 	private void OpenGenerationOutputFolder()
@@ -4263,7 +4307,6 @@ public sealed class MainWindowViewModel : ViewModelBase
 		}
 		await RunAutoPublishExclusiveAsync(async delegate
 		{
-			IsBusy = true;
 			LoadingTitle = "正在批量上架";
 			IsScanProgressIndeterminate = true;
 			ScanProgressValue = 0.0;
@@ -4302,7 +4345,6 @@ public sealed class MainWindowViewModel : ViewModelBase
 			}
 			finally
 			{
-				IsBusy = false;
 				OnBatchSelectionChanged();
 			}
 		});
@@ -4312,7 +4354,6 @@ public sealed class MainWindowViewModel : ViewModelBase
 	{
 		await RunAutoPublishExclusiveAsync(async delegate
 		{
-			IsBusy = true;
 			LoadingTitle = "正在自动上架";
 			IsScanProgressIndeterminate = true;
 			ScanProgressValue = 0.0;
@@ -4338,7 +4379,6 @@ public sealed class MainWindowViewModel : ViewModelBase
 			}
 			finally
 			{
-				IsBusy = false;
 				OnBatchSelectionChanged();
 			}
 		});
@@ -4610,7 +4650,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 	private static MiaoshouPublishRequest CreateMiaoshouPublishRequest(Func<MiaoshouPublishProgressEvent, Task>? progressHandler = null)
 	{
 		string path = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-		string path2 = Path.Combine(AppContext.BaseDirectory, "output", "miaoshou", path);
+		string path2 = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ToolBox", "output", "miaoshou", path);
 		return new MiaoshouPublishRequest
 		{
 			ManifestPath = Path.Combine(path2, "batch-manifest.json"),

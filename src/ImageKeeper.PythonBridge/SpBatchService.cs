@@ -133,6 +133,7 @@ public sealed class SpBatchService : ISpBatchService
 		ProcessStartInfo processStartInfo = new ProcessStartInfo
 		{
 			FileName = _pythonExePath,
+			WorkingDirectory = PythonProcessHelper.GetWritableWorkingDirectory(),
 			UseShellExecute = false,
 			RedirectStandardOutput = true,
 			RedirectStandardError = true,
@@ -142,6 +143,7 @@ public sealed class SpBatchService : ISpBatchService
 		};
 		processStartInfo.Environment["PYTHONIOENCODING"] = "utf-8";
 		processStartInfo.Environment["PYTHONUTF8"] = "1";
+		processStartInfo.Environment["PYTHONDONTWRITEBYTECODE"] = "1";
 		processStartInfo.ArgumentList.Add(_scriptPath);
 		processStartInfo.ArgumentList.Add("--request");
 		processStartInfo.ArgumentList.Add(BuildRequestText(request));

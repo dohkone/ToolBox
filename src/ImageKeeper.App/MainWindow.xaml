@@ -1315,9 +1315,19 @@
                                         <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
 
-                                    <TextBlock FontSize="16"
-                                               FontWeight="SemiBold"
-                                               Text="SKU图生成" />
+                                    <StackPanel Orientation="Horizontal"
+                                                VerticalAlignment="Center">
+                                        <TextBlock VerticalAlignment="Center"
+                                                   FontSize="16"
+                                                   FontWeight="SemiBold"
+                                                   Text="SKU图生成" />
+                                        <Button Margin="10,0,0,0"
+                                                MinWidth="72"
+                                                Padding="10,4"
+                                                Content="选择文件"
+                                                Style="{StaticResource ElementSecondaryButtonStyle}"
+                                                Command="{Binding ChooseSpBatchSourceImagesCommand}" />
+                                    </StackPanel>
 
                                     <Border Grid.Row="1"
                                             Margin="0,10,0,0"
@@ -1512,9 +1522,19 @@
                                         <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
 
-                                    <TextBlock FontSize="16"
-                                               FontWeight="SemiBold"
-                                               Text="SKU母图" />
+                                    <StackPanel Orientation="Horizontal"
+                                                VerticalAlignment="Center">
+                                        <TextBlock VerticalAlignment="Center"
+                                                   FontSize="16"
+                                                   FontWeight="SemiBold"
+                                                   Text="SKU母图" />
+                                        <Button Margin="10,0,0,0"
+                                                MinWidth="72"
+                                                Padding="10,4"
+                                                Content="选择文件"
+                                                Style="{StaticResource ElementSecondaryButtonStyle}"
+                                                Command="{Binding ChooseSpBatchMasterImagesCommand}" />
+                                    </StackPanel>
 
                                     <Border Grid.Row="1"
                                             Margin="0,10,0,0"
@@ -1974,12 +1994,12 @@
                                                 <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
                                                     <Setter Property="Command" Value="{Binding RunTemplateGenerationCommand}" />
                                                     <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding IsTemplateGenerating}" Value="True">
+                                                        <DataTrigger Binding="{Binding IsCurrentTemplateGenerationRunning}" Value="True">
                                                             <Setter Property="Command" Value="{Binding StopTemplateGenerationCommand}" />
                                                             <Setter Property="Background" Value="#F56C6C" />
                                                             <Setter Property="BorderBrush" Value="#F56C6C" />
                                                         </DataTrigger>
-                                                        <DataTrigger Binding="{Binding IsTemplateGenerationStopping}" Value="True">
+                                                        <DataTrigger Binding="{Binding IsCurrentTemplateGenerationStopping}" Value="True">
                                                             <Setter Property="Command" Value="{x:Null}" />
                                                             <Setter Property="Background" Value="#E6A23C" />
                                                             <Setter Property="BorderBrush" Value="#E6A23C" />
@@ -1999,7 +2019,7 @@
                                                            Text="{Binding GenerationStatusText}" />
                                                 <ProgressBar Margin="0,10,0,0"
                                                              Height="8"
-                                                             IsIndeterminate="{Binding IsTemplateGenerating, Mode=OneWay}" />
+                                                             IsIndeterminate="{Binding IsCurrentTemplateGenerationRunning, Mode=OneWay}" />
                                             </StackPanel>
                                         </Border>
                                     </StackPanel>

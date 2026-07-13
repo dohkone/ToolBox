@@ -34,7 +34,7 @@ public sealed class ProductSheetService : IProductSheetService
 		};
 		try
 		{
-			string text = Path.Combine(AppContext.BaseDirectory, "output", "products");
+			string text = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ToolBox", "output", "products");
 			Directory.CreateDirectory(text);
 			string productsJsonPath = Path.Combine(text, Path.GetFileName(spRootFolder) + ".product.json");
 			List<string> list = new List<string>

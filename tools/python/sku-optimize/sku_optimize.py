@@ -6,6 +6,7 @@ import concurrent.futures
 import json
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -18,6 +19,7 @@ if hasattr(sys.stderr, "reconfigure"):
 
 VALID_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
 MANIFEST_NAME = ".sku-optimize-manifest.json"
+IMAGE2_RETRIES = 3
 
 
 @dataclass(frozen=True)
@@ -406,6 +408,24 @@ def decode_output(data: bytes | None) -> str:
     return data.decode("utf-8", errors="replace")
 
 
+def is_retryable_error(message: str) -> bool:
+    lowered = message.lower()
+    markers = (
+        "temporarily unavailable",
+        "timeout",
+        "timed out",
+        "connection reset",
+        "connection aborted",
+        "recv failure",
+        "curl: (56)",
+        "524",
+        "502",
+        "503",
+        "504",
+    )
+    return any(marker in lowered for marker in markers)
+
+
 def run_image2(
     *,
     script_path: Path,
@@ -485,31 +505,41 @@ def run_master(master_job: Job, options: RequestOptions) -> dict[str, Any]:
             "stage": "master",
         }
 
-    returncode, stdout_text, stderr_text = run_image2(
-        script_path=options.image2_script,
-        input_image=master_job.source_image,
-        prompt=build_master_prompt(options.length_multiplier, options.diameter_multiplier),
-        output_dir=master_job.output_path.parent,
-        filename=master_job.output_path.name,
-    )
+    last_error = ""
+    final_attempt = 0
+    for attempt in range(1, IMAGE2_RETRIES + 1):
+        final_attempt = attempt
+        returncode, stdout_text, stderr_text = run_image2(
+            script_path=options.image2_script,
+            input_image=master_job.source_image,
+            prompt=build_master_prompt(options.length_multiplier, options.diameter_multiplier),
+            output_dir=master_job.output_path.parent,
+            filename=master_job.output_path.name,
+        )
 
-    if returncode == 0:
-        return {
-            "index": master_job.index,
-            "source_image": str(master_job.source_image),
-            "status": "generated",
-            "image_path": resolve_final_output_path(stdout_text, master_job.output_path),
-            "attempts": 1,
-            "stage": "master",
-        }
+        if returncode == 0:
+            return {
+                "index": master_job.index,
+                "source_image": str(master_job.source_image),
+                "status": "generated",
+                "image_path": resolve_final_output_path(stdout_text, master_job.output_path),
+                "attempts": attempt,
+                "stage": "master",
+            }
+
+        last_error = (stderr_text or stdout_text).strip()
+        if attempt < IMAGE2_RETRIES and is_retryable_error(last_error):
+            time.sleep(10 * attempt)
+            continue
+        break
 
     return {
         "index": master_job.index,
         "source_image": str(master_job.source_image),
         "status": "failed",
         "image_path": "",
-        "error": (stderr_text or stdout_text).strip(),
-        "attempts": 1,
+        "error": last_error,
+        "attempts": final_attempt,
         "stage": "master",
     }
 

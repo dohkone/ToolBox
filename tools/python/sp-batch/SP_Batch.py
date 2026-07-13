@@ -487,6 +487,12 @@ def build_master_prompt(color: ColorSpec) -> str:
         "The SKU image must show at most ONE leather repair roll. If a leather repair roll is visible, it must be "
         "exactly one single roll only. Do not generate two rolls, three rolls, multiple rolls, stacked rolls, "
         "parallel rolls, bundled rolls, repeated rolls, or several color samples in the same image.\n"
+        "SLIM LONG ROLL PROPORTION REQUIREMENT: if a leather repair roll is visible, optimize it into a unified slim "
+        "and elongated product shape. Compared with a normal compact leather repair roll, reduce the apparent roll "
+        "diameter by about one third, so the diameter becomes approximately two thirds of the regular roll diameter. "
+        "Increase the apparent roll length to approximately two times the regular roll length. The final roll "
+        "silhouette must look obviously thinner and longer, with a clean long-cylinder proportion, while still "
+        "remaining a realistic tightly wound PU leather repair roll.\n"
         "If a leather repair roll is visible, keep it elegant, compact, fully rolled, and realistic. The roll size, "
         "angle, position, distance from the subject, and visible paper core must be clearly established in this "
         "master image and must be suitable for later color-only variants.\n"
@@ -593,6 +599,8 @@ def is_retryable_error(message: str) -> bool:
         "timed out",
         "connection reset",
         "connection aborted",
+        "recv failure",
+        "curl: (56)",
         "524",
         "502",
         "503",
