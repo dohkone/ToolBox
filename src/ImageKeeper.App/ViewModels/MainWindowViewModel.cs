@@ -5177,12 +5177,18 @@ public sealed class MainWindowViewModel : ViewModelBase
 		{
 			throw new InvalidOperationException(fieldName + "必须是大于或等于 0 的数字。输入 0 表示不变。");
 		}
-		if (factor == 0.0 || (shrink && factor <= 1.0))
+		if (factor == 0.0)
 		{
 			value = 0.0;
 			return true;
 		}
-		value = shrink ? -(1.0 / factor) : factor;
+		if (!shrink)
+		{
+			value = factor;
+			return true;
+		}
+		double targetRatio = factor <= 1.0 ? factor : (1.0 / factor);
+		value = -targetRatio;
 		return true;
 	}
 

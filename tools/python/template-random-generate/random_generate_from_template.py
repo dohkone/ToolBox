@@ -46,16 +46,6 @@ COLOR_PLACEHOLDER = "{颜色}"
 SUBJECT_PLACEHOLDER = "{主体}"
 
 
-LEATHER_GRAIN_REQUIREMENT = (
-    "All visible outer PU leather repair patch or roll surfaces must have a subtle, fine, natural lychee-grain "
-    "texture with shallow micro embossing, a soft glossy finish, rich leather luster, elegant natural sheen, "
-    "clean specular highlights, and a smooth reflective surface. The leather should appear smooth first, with "
-    "the ultra-fine grain becoming visible only at close viewing distance. Avoid deep embossing, coarse pebble "
-    "grain, rough leather, oversized pores, matte finish, chalky surface, or patent-leather mirror reflections. "
-    "Do not add lychee grain to the paper core, release liner, background, props, or any non-leather object."
-)
-
-
 class TemplateRandomError(Exception):
     """Raised when template generation fails with a user-facing message."""
 
@@ -225,7 +215,7 @@ def render_prompt(template: SelectedTemplate) -> str:
     prompt = replace_subject_color_placeholders(prompt, subject_color)
     prompt = prompt.replace(SUBJECT_PLACEHOLDER, subject_text)
     prompt = replace_color_placeholders(prompt)
-    return f"{prompt.strip()}\n\n{LEATHER_GRAIN_REQUIREMENT}"
+    return prompt.strip()
 
 
 def format_color_option(color_option: tuple[str, str]) -> str:

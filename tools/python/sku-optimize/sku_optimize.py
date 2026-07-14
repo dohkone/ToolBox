@@ -186,9 +186,9 @@ The final roll should immediately look much longer than before.
 Transform the roll into a longer, slim cylindrical leather repair roll.
 """.strip()
     elif length_multiplier < 0:
-        shorten_multiplier = abs(length_multiplier)
+        target_length_ratio = abs(length_multiplier)
         length_instruction = (
-            f"Decrease the visible roll length until the roll appears approximately {shorten_multiplier:.4g} times shorter than the original while keeping exactly the same diameter."
+            f"Decrease the visible roll length until the roll appears approximately {target_length_ratio:.4g} times the original length while keeping exactly the same diameter."
         )
         length_behavior_instruction = """
 The roll must become obviously shorter.
@@ -203,7 +203,7 @@ Reduce the amount of rolled leather while keeping the roll naturally manufacture
 
 The leather must appear naturally rolled, as if the same product were manufactured in a shorter specification.
 
-For large changes such as 2x, 3x, or 4x shorter length, fully apply the requested geometry.
+Fully apply the requested target length ratio.
 
 Do not preserve the previous long appearance.
 

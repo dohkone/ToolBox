@@ -1,6 +1,6 @@
 ﻿#!/usr/bin/env python3
 """
-Generate images using a skill-private API key and the current Codex provider base_url.
+Generate images using a skill-private API key and the image2 endpoint.
 """
 
 from __future__ import annotations
@@ -215,36 +215,20 @@ def is_local_base_url(base_url: str) -> bool:
 
 def resolve_base_url(config: dict[str, Any] | None = None, explicit_base_url: str | None = None) -> str:
     if explicit_base_url and explicit_base_url.strip():
-        return explicit_base_url.strip().rstrip("/")
+        base_url = explicit_base_url.strip().rstrip("/")
+        if is_local_base_url(base_url):
+            return DEFAULT_BASE_URL
+        return base_url
 
     env_base_url = os.environ.get("IMAGE2_BASE_URL")
     if env_base_url and env_base_url.strip():
-        return env_base_url.strip().rstrip("/")
+        base_url = env_base_url.strip().rstrip("/")
+        host = urllib.parse.urlparse(base_url).hostname or ""
+        if is_local_base_url(base_url) or host.lower() == "api.mikoto.vip":
+            return DEFAULT_BASE_URL
+        return base_url
 
-    if config is None:
-        return DEFAULT_BASE_URL
-
-    provider_name = config.get("model_provider")
-    if not provider_name:
-        return DEFAULT_BASE_URL
-
-    providers = config.get("model_providers")
-    if not isinstance(providers, dict):
-        return DEFAULT_BASE_URL
-
-    provider = providers.get(provider_name)
-    if not isinstance(provider, dict):
-        return DEFAULT_BASE_URL
-
-    base_url = provider.get("base_url")
-    if not isinstance(base_url, str) or not base_url.strip():
-        return DEFAULT_BASE_URL
-
-    base_url = base_url.rstrip("/")
-    if is_local_base_url(base_url):
-        return DEFAULT_BASE_URL
-
-    return base_url
+    return DEFAULT_BASE_URL
 
 
 def build_images_endpoint(base_url: str) -> str:
