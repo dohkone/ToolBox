@@ -396,6 +396,42 @@ def replace_color_placeholders(prompt: str) -> str:
     return prompt
 
 
+def replace_color_subject_pairs(
+    prompt: str,
+    subject_templates: list[str],
+    color_placeholder: str,
+    subject_placeholder: str,
+    fixed_color: str | None = None,
+    fixed_subject_template: str | None = None,
+) -> str:
+    pair_pattern = re.compile(
+        rf"{re.escape(color_placeholder)}\s*{re.escape(subject_placeholder)}"
+    )
+    if not pair_pattern.search(prompt):
+        return prompt
+
+    color_pool = build_color_replacements(prompt.count(color_placeholder))
+    subject_pool = list(subject_templates)
+    random.shuffle(subject_pool)
+
+    def replace_pair(_match: re.Match[str]) -> str:
+        color_text = fixed_color if fixed_color is not None else color_pool.pop(0)
+        if fixed_subject_template is not None:
+            subject_template = fixed_subject_template
+        elif subject_templates:
+            nonlocal subject_pool
+            if not subject_pool:
+                subject_pool = list(subject_templates)
+                random.shuffle(subject_pool)
+            subject_template = subject_pool.pop()
+        else:
+            subject_template = ""
+        subject_text = render_subject_text(subject_template, color_text, strip_embedded_color=True)
+        return f"{color_text}{subject_text}"
+
+    return pair_pattern.sub(replace_pair, prompt)
+
+
 def render_prompt(template: SelectedTemplate, library: TemplateLibrary) -> str:
     prompt = template.layout_template
     subject_uses_prompt_color = has_color_placeholder_before(prompt, COLOR_PLACEHOLDER, SUBJECT_PLACEHOLDER)
@@ -425,6 +461,15 @@ def render_prompt(template: SelectedTemplate, library: TemplateLibrary) -> str:
     all_subjects_text = build_all_subjects_text(library.subject_templates)
 
     prompt = prompt.replace(SCENE_PLACEHOLDER, template.scene_template)
+    prompt = replace_color_subject_pairs(prompt, library.subject_templates, COLOR_PLACEHOLDER, SUBJECT_PLACEHOLDER)
+    prompt = replace_color_subject_pairs(
+        prompt,
+        library.subject_templates,
+        FIXED_COLOR_PLACEHOLDER,
+        FIXED_SUBJECT_PLACEHOLDER,
+        fixed_color,
+        fixed_subject_template,
+    )
     prompt = replace_color_placeholders_before(prompt, COLOR_PLACEHOLDER, SUBJECT_PLACEHOLDER, subject_color)
     prompt = replace_color_placeholders_before(
         prompt,

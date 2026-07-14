@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Generate images using a skill-private API key and the current Codex provider base_url.
 """
@@ -54,8 +54,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--quality",
-        default="high",
-        help="Requested image quality. Defaults to high.",
+        default="medium",
+        help="Requested image quality. Defaults to medium.",
     )
     parser.add_argument(
         "--n",
@@ -265,12 +265,21 @@ def build_edits_endpoint(base_url: str) -> str:
     return f"{base_url}/v1/images/edits"
 
 
+def get_user_key_file() -> Path:
+    local_app_data = os.environ.get("LOCALAPPDATA")
+    if local_app_data and local_app_data.strip():
+        return Path(local_app_data) / "ToolBox" / "image2_api_key"
+    return Path.home() / ".toolbox" / "image2_api_key"
+
+
 def read_private_key() -> str:
-    if not KEY_FILE.exists():
-        raise Image2Error(f"Dedicated key file not found: {KEY_FILE}")
-    key = KEY_FILE.read_text(encoding="utf-8").strip()
+    user_key_file = get_user_key_file()
+    key_file = user_key_file if user_key_file.exists() else KEY_FILE
+    if not key_file.exists():
+        raise Image2Error(f"Dedicated key file not found: {key_file}")
+    key = key_file.read_text(encoding="utf-8-sig").strip().lstrip("\ufeff")
     if not key:
-        raise Image2Error(f"Dedicated key file is empty: {KEY_FILE}")
+        raise Image2Error(f"Dedicated key file is empty: {key_file}")
     return key
 
 

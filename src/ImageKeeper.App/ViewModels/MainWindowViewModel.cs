@@ -230,6 +230,12 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private readonly RelayCommand _cancelCardSizeInfoCommand;
 
+	private readonly RelayCommand _openImageGenerationKeyDialogCommand;
+
+	private readonly RelayCommand _saveImageGenerationKeyCommand;
+
+	private readonly RelayCommand _cancelImageGenerationKeyCommand;
+
 	private CancellationTokenSource? _previewCancellationTokenSource;
 
 	private CancellationTokenSource? _templateGenerationCancellationTokenSource;
@@ -307,6 +313,10 @@ public sealed class MainWindowViewModel : ViewModelBase
 	private bool _isGenerationUniqueScene = true;
 
 	private bool _isGenerationPromptsOnly;
+
+	private bool _isImageGenerationKeyDialogOpen;
+
+	private string _imageGenerationKeyText = string.Empty;
 
 	private bool? _lastExecutedGenerationPromptsOnly;
 
@@ -619,6 +629,12 @@ public sealed class MainWindowViewModel : ViewModelBase
 	public ICommand SaveCardSizeInfoCommand => _saveCardSizeInfoCommand;
 
 	public ICommand CancelCardSizeInfoCommand => _cancelCardSizeInfoCommand;
+
+	public ICommand OpenImageGenerationKeyDialogCommand => _openImageGenerationKeyDialogCommand;
+
+	public ICommand SaveImageGenerationKeyCommand => _saveImageGenerationKeyCommand;
+
+	public ICommand CancelImageGenerationKeyCommand => _cancelImageGenerationKeyCommand;
 
 	public WorkspaceTabViewModel? SelectedTab
 	{
@@ -1979,6 +1995,35 @@ public sealed class MainWindowViewModel : ViewModelBase
 		}
 	}
 
+	public bool IsImageGenerationKeyDialogOpen
+	{
+		get
+		{
+			return _isImageGenerationKeyDialogOpen;
+		}
+		private set
+		{
+			SetProperty(ref _isImageGenerationKeyDialogOpen, value, "IsImageGenerationKeyDialogOpen");
+		}
+	}
+
+	public string ImageGenerationKeyText
+	{
+		get
+		{
+			return _imageGenerationKeyText;
+		}
+		set
+		{
+			if (SetProperty(ref _imageGenerationKeyText, value, "ImageGenerationKeyText"))
+			{
+				_saveImageGenerationKeyCommand.RaiseCanExecuteChanged();
+			}
+		}
+	}
+
+	public string ImageGenerationKeyPathText => "保存位置：" + GetUserImageGenerationKeyPath();
+
 	public string GenerationStatusText
 	{
 		get
@@ -2479,6 +2524,18 @@ public sealed class MainWindowViewModel : ViewModelBase
 		_cancelCardSizeInfoCommand = new RelayCommand(delegate
 		{
 			CloseCardSizeDialog();
+		});
+		_openImageGenerationKeyDialogCommand = new RelayCommand(delegate
+		{
+			OpenImageGenerationKeyDialog();
+		});
+		_saveImageGenerationKeyCommand = new RelayCommand(delegate
+		{
+			SaveImageGenerationKey();
+		}, (object? _) => !string.IsNullOrWhiteSpace(ImageGenerationKeyText));
+		_cancelImageGenerationKeyCommand = new RelayCommand(delegate
+		{
+			CloseImageGenerationKeyDialog();
 		});
 	}
 
@@ -4999,6 +5056,52 @@ public sealed class MainWindowViewModel : ViewModelBase
 			Path.Combine("D:\\new_project\\tools\\python", "image2-generate", "scripts", "generate_image.py")
 		};
 		return array.FirstOrDefault(File.Exists) ?? array[0];
+	}
+
+	private static string GetUserImageGenerationKeyPath()
+	{
+		string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+		string root = string.IsNullOrWhiteSpace(localAppData) ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".toolbox") : Path.Combine(localAppData, "ToolBox");
+		return Path.Combine(root, "image2_api_key");
+	}
+
+	private static string GetBundledImageGenerationKeyPath()
+	{
+		return Path.Combine(AppContext.BaseDirectory, "tools", "python", "image2-generate", ".image2_api_key");
+	}
+
+	private void OpenImageGenerationKeyDialog()
+	{
+		string userKeyPath = GetUserImageGenerationKeyPath();
+		string bundledKeyPath = GetBundledImageGenerationKeyPath();
+		string keyPath = File.Exists(userKeyPath) ? userKeyPath : bundledKeyPath;
+		ImageGenerationKeyText = File.Exists(keyPath) ? File.ReadAllText(keyPath, Encoding.UTF8).Trim().TrimStart('\ufeff') : string.Empty;
+		OnPropertyChanged("ImageGenerationKeyPathText");
+		IsImageGenerationKeyDialogOpen = true;
+	}
+
+	private void SaveImageGenerationKey()
+	{
+		string key = ImageGenerationKeyText.Trim().TrimStart('\ufeff');
+		if (string.IsNullOrWhiteSpace(key))
+		{
+			StatusMessage = "生图 Key 不能为空。";
+			return;
+		}
+		string userKeyPath = GetUserImageGenerationKeyPath();
+		string? directoryName = Path.GetDirectoryName(userKeyPath);
+		if (!string.IsNullOrWhiteSpace(directoryName))
+		{
+			Directory.CreateDirectory(directoryName);
+		}
+		File.WriteAllText(userKeyPath, key, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+		StatusMessage = "已保存生图 Key。";
+		CloseImageGenerationKeyDialog();
+	}
+
+	private void CloseImageGenerationKeyDialog()
+	{
+		IsImageGenerationKeyDialogOpen = false;
 	}
 
 	private static string ResolveDefaultFolderPickerDirectory()

@@ -1193,9 +1193,23 @@
                     </Grid.RowDefinitions>
 
                     <StackPanel>
-                        <TextBlock FontSize="24"
-                                   FontWeight="SemiBold"
-                                   Text="&#x56FE;&#x7247;&#x751F;&#x6210;" />
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock VerticalAlignment="Center"
+                                       FontSize="24"
+                                       FontWeight="SemiBold"
+                                       Text="&#x56FE;&#x7247;&#x751F;&#x6210;" />
+                            <Button Width="32"
+                                    Height="32"
+                                    MinWidth="0"
+                                    MinHeight="0"
+                                    Margin="10,0,0,0"
+                                    Padding="0"
+                                    VerticalAlignment="Center"
+                                    Content="&#x1F511;"
+                                    ToolTip="生图Key"
+                                    Style="{StaticResource ElementSecondaryButtonStyle}"
+                                    Command="{Binding OpenImageGenerationKeyDialogCommand}" />
+                        </StackPanel>
                         <TextBlock Margin="0,6,0,0"
                                    Foreground="{StaticResource MutedTextBrush}"
                                    Text="{Binding GenerationPageDescription}"
@@ -4065,6 +4079,74 @@
                                     Content="确定"
                                     Style="{StaticResource ElementPrimaryButtonStyle}"
                                     Command="{Binding CloseGenerationTemplatePickerCommand}" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <Grid Panel.ZIndex="85"
+                  Grid.RowSpan="2"
+                  Background="#66000000"
+                  Visibility="{Binding IsImageGenerationKeyDialogOpen, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <Border Width="560"
+                        Padding="22"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Background="White"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="12">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right"
+                                    Width="24"
+                                    Height="24"
+                                    MinWidth="0"
+                                    MinHeight="0"
+                                    Padding="0"
+                                    Content="x"
+                                    Style="{StaticResource ElementSecondaryButtonStyle}"
+                                    Command="{Binding CancelImageGenerationKeyCommand}" />
+                            <StackPanel>
+                                <TextBlock FontSize="18"
+                                           FontWeight="SemiBold"
+                                           Text="生图Key" />
+                                <TextBlock Margin="0,4,0,0"
+                                           Foreground="{StaticResource MutedTextBrush}"
+                                           Text="保存后会写入本机用户目录，覆盖安装或更换新版包不会丢失。"
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
+                        </DockPanel>
+
+                        <StackPanel Grid.Row="1"
+                                    Margin="0,16,0,0">
+                            <TextBlock Margin="0,0,0,6"
+                                       Text="API Key" />
+                            <TextBox Style="{StaticResource ElementInputTextBoxStyle}"
+                                     Text="{Binding ImageGenerationKeyText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Margin="0,8,0,0"
+                                       Foreground="{StaticResource MutedTextBrush}"
+                                       Text="{Binding ImageGenerationKeyPathText}"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Row="2"
+                                    Margin="0,18,0,0"
+                                    HorizontalAlignment="Right"
+                                    Orientation="Horizontal">
+                            <Button Content="取消"
+                                    Style="{StaticResource ElementSecondaryButtonStyle}"
+                                    Command="{Binding CancelImageGenerationKeyCommand}" />
+                            <Button Margin="8,0,0,0"
+                                    Content="保存"
+                                    Style="{StaticResource ElementPrimaryButtonStyle}"
+                                    Command="{Binding SaveImageGenerationKeyCommand}" />
                         </StackPanel>
                     </Grid>
                 </Border>
