@@ -333,6 +333,37 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <Style x:Key="HeaderIconButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="24" />
+            <Setter Property="MinWidth" Value="24" />
+            <Setter Property="Height" Value="24" />
+            <Setter Property="MinHeight" Value="24" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <ContentPresenter x:Name="ContentHost"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          Opacity="0.78" />
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ContentHost" Property="Opacity" Value="1" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="ContentHost" Property="Opacity" Value="0.35" />
+                                <Setter Property="Cursor" Value="Arrow" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <Grid Background="{StaticResource AppBackgroundBrush}">
@@ -1219,16 +1250,11 @@
                                        FontSize="24"
                                        FontWeight="SemiBold"
                                        Text="&#x56FE;&#x7247;&#x751F;&#x6210;" />
-                            <Button Width="32"
-                                    Height="32"
-                                    MinWidth="0"
-                                    MinHeight="0"
-                                    Margin="10,0,0,0"
-                                    Padding="0"
+                            <Button Margin="8,0,0,0"
                                     VerticalAlignment="Center"
                                     Content="&#x1F511;"
                                     ToolTip="生图Key"
-                                    Style="{StaticResource ElementSecondaryButtonStyle}"
+                                    Style="{StaticResource HeaderIconButtonStyle}"
                                     Command="{Binding OpenImageGenerationKeyDialogCommand}" />
                         </StackPanel>
                         <TextBlock Margin="0,6,0,0"

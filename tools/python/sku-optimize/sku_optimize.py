@@ -19,7 +19,7 @@ if hasattr(sys.stderr, "reconfigure"):
 
 VALID_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
 MANIFEST_NAME = ".sku-optimize-manifest.json"
-IMAGE2_RETRIES = 3
+IMAGE2_RETRIES = 5
 
 
 @dataclass(frozen=True)
@@ -426,6 +426,10 @@ def is_retryable_error(message: str) -> bool:
     return any(marker in lowered for marker in markers)
 
 
+def get_retry_delay_seconds(attempt: int) -> int:
+    return min(30 * attempt, 120)
+
+
 def run_image2(
     *,
     script_path: Path,
@@ -529,7 +533,7 @@ def run_master(master_job: Job, options: RequestOptions) -> dict[str, Any]:
 
         last_error = (stderr_text or stdout_text).strip()
         if attempt < IMAGE2_RETRIES and is_retryable_error(last_error):
-            time.sleep(10 * attempt)
+            time.sleep(get_retry_delay_seconds(attempt))
             continue
         break
 

@@ -27,7 +27,7 @@ if hasattr(sys.stderr, "reconfigure"):
 DEFAULT_INPUT_DIR = Path(r"D:\temu_auto\review")
 DEFAULT_OUTPUT_DIR = Path(r"D:\temu_auto\assert")
 DEFAULT_CONCURRENCY = 2
-DEFAULT_RETRIES = 4
+DEFAULT_RETRIES = 6
 VALID_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 SOURCE_METADATA_NAME = ".sku-source.json"
 LINKED_BUNDLES_MANIFEST_NAME = ".sp-batch-linked-bundles.json"
@@ -554,21 +554,24 @@ def build_master_prompt(color: ColorSpec) -> str:
         "as a standard cylindrical roll.\n"
         "The roll must clearly use a dual-layer structure: the front side is the premium PU leather layer, and the back "
         "side is a kraft paper release liner. The release liner must remain tightly attached to the leather layer.\n"
-        "The outer leather surface must show clear, shallow, fine, even lychee-grain leather texture with low contrast. "
-        "The overall surface should read as smooth and refined first, with the grain becoming visible at closer viewing "
-        "distance.\n"
-        "The leather must present a rich oily leather finish, strong natural specular highlights, broad bright specular "
-        "reflections across the curved surface, premium commercial product photography gloss, visible light flow across "
-        "the surface, and bright high surface brightness without overexposure. The highlights may be pronounced but must "
-        "stay natural, clean, even, and transparent without washing out the leather texture.\n"
-        "SURFACE TEXTURE AND GLOSS ARE TOP PRIORITY: the roll surface must clearly show ultra-fine, shallow, uniform "
-        "lychee leather grain and a smooth oily PU leather sheen. The final image must immediately communicate premium "
-        "PU leather through visible fine grain, clean broad highlights, rich luster, and natural reflective light flow "
-        "on the curved roll surface.\n"
-        "Avoid dark, gray, matte, powdery, dry, rough, low-gloss, frosted, rubber-like, plastic-like, or non-reflective "
-        "surfaces. Avoid deep embossing, coarse pebble grain, oversized pores, chalky finish, or patent-leather mirror "
-        "reflections. Do not add leather grain to the paper core, release liner, background, props, or any non-leather "
-        "object.\n"
+        "PU leather surface texture requirement (STRICT): all visible outer PU leather surfaces on the repair roll, "
+        "repair patch/product material, repair demonstration leather, and matching main leather or upholstered subject "
+        "must be covered with ultra-fine natural micro pebble / lychee leather grain.\n"
+        "The grain must be dense, high-density, random, continuous, evenly distributed, non-repeating, and without an "
+        "obvious direction. Use low-profile embossing only: the surface should remain smooth, flat, and refined overall, "
+        "with only subtle natural micro relief and no raised coarse particles. The lychee grain must fully cover the PU "
+        "leather surface and remain subtly visible even in highlight areas.\n"
+        "The leather must have a premium natural oily semi-gloss PU leather finish, with soft natural highlight "
+        "gradients, delicate reflections, realistic leather luster, clean specular highlights, visible light flow across "
+        "the curved surface, and high surface brightness without overexposure or loss of grain detail.\n"
+        "SURFACE TEXTURE AND GLOSS ARE TOP PRIORITY: the final image must clearly communicate premium PU leather through "
+        "ultra-fine grain, shallow micro embossing, rich oily semi-gloss luster, clean broad highlights, and natural "
+        "reflective sheen. The surface must not look dry, chalky, dull, overly matte, plastic, PVC, mirror-polished, or "
+        "patent leather.\n"
+        "Do not generate coarse pebble grain, deep embossing, rough leather, suede, matte leather, plastic texture, PVC "
+        "texture, repeated artificial patterns, oversized pores, powdery finish, frosted finish, rubber-like finish, or "
+        "non-reflective surfaces. Apply this texture only to PU leather surfaces. Do not apply leather grain or leather "
+        "gloss to the paper core, kraft release liner, background, props, or any non-leather object.\n"
         "Only change leather-repair-related color areas to the target color:\n"
         "- the original main leather surface or upholstered surface\n"
         "- the repair demonstration surface\n"
@@ -662,6 +665,10 @@ def is_retryable_error(message: str) -> bool:
     return any(marker in lowered for marker in markers)
 
 
+def get_retry_delay_seconds(attempt: int) -> int:
+    return min(30 * attempt, 120)
+
+
 def run_job(
     job: Job,
     image2_script: Path,
@@ -726,7 +733,7 @@ def run_job(
 
         last_error = (stderr_text or stdout_text).strip()
         if attempt < retries and is_retryable_error(last_error):
-            time.sleep(10 * attempt)
+            time.sleep(get_retry_delay_seconds(attempt))
             continue
         break
 

@@ -602,12 +602,14 @@ def save_images(payload: dict[str, Any], output_dir: Path, filename: str | None,
                 current_filename = f"{stem}-{index}{suffix}" if suffix else f"{filename}-{index}"
             else:
                 current_filename = f"{fallback_stem}-{index}"
-        if "b64_json" in item:
+        b64_value = item.get("b64_json")
+        url_value = item.get("url")
+        if isinstance(b64_value, str) and b64_value:
             saved_paths.append(save_b64_image(item, output_dir, current_filename, prompt))
-        elif "url" in item:
+        elif isinstance(url_value, str) and url_value:
             saved_paths.append(download_url_image(item, output_dir, current_filename, prompt))
         else:
-            raise Image2Error("Image response item contained neither b64_json nor url.")
+            raise Image2Error("Image response item contained neither usable b64_json nor url.")
 
     if not saved_paths:
         raise Image2Error("No images were saved from the response.")
