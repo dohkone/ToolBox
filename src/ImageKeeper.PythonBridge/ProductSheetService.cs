@@ -36,6 +36,7 @@ public sealed class ProductSheetService : IProductSheetService
 		{
 			string text = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ToolBox", "output", "products");
 			Directory.CreateDirectory(text);
+			string sizeIndexPath = GetWritableSizeIndexPath();
 			string productsJsonPath = Path.Combine(text, Path.GetFileName(spRootFolder) + ".product.json");
 			List<string> list = new List<string>
 			{
@@ -45,6 +46,8 @@ public sealed class ProductSheetService : IProductSheetService
 				Path.GetFileName(spRootFolder),
 				"--output-dir",
 				text,
+				"--index",
+				sizeIndexPath,
 				"--products-json",
 				productsJsonPath
 			};
@@ -71,6 +74,19 @@ public sealed class ProductSheetService : IProductSheetService
 
 	public async Task RebuildSizeIndexAsync(CancellationToken cancellationToken = default(CancellationToken))
 	{
-		await _scriptRunner.RunAsync(_buildSizeIndexScriptPath, Array.Empty<string>(), cancellationToken);
+		string sizeIndexPath = GetWritableSizeIndexPath();
+		await _scriptRunner.RunAsync(_buildSizeIndexScriptPath, new[] { "--output", sizeIndexPath }, cancellationToken);
+	}
+
+	private static string GetWritableSizeIndexPath()
+	{
+		string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+		if (string.IsNullOrWhiteSpace(localAppData))
+		{
+			localAppData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".toolbox");
+		}
+		string directory = Path.Combine(localAppData, "ToolBox", "cache", "temu-product-sheet");
+		Directory.CreateDirectory(directory);
+		return Path.Combine(directory, "size_specs_index.json");
 	}
 }

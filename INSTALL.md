@@ -2,7 +2,7 @@
 
 ## 目录结构
 
-- `EcomTool Studio.exe`
+- `EcomTool.exe`
 - `runtime\python\`
 - `runtime\node\`
 - `tools\python\`
@@ -16,7 +16,7 @@
 
 ## 首次使用
 
-1. 解压整个目录到本地硬盘，例如 `D:\EcomTool_Studio_Portable`
+1. 解压整个目录到本地硬盘，例如 `D:\EcomTool_Portable`
 2. 进入 `data\workspace\temp`
    把模板库 `文生图模板库_Codex.xlsx` 放在这里
 3. 如果要使用图片生成
@@ -25,7 +25,7 @@
 4. 如果要使用妙手批量上架
    检查 `config\miaoshou.json`
    确认妙手地址、浏览器通道和 profile 名称正确
-5. 双击 `EcomTool Studio.exe`
+5. 双击 `EcomTool.exe`
 
 ## 目标机器需要的环境
 
@@ -78,5 +78,5 @@ powershell -ExecutionPolicy Bypass -File D:\new_project\scripts\build_portable_p
 生成目录：
 
 ```text
-D:\new_project\dist\EcomTool_Studio_Portable
+D:\new_project\dist\EcomTool_Portable
 ```

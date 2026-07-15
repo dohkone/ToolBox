@@ -2,7 +2,7 @@ $ErrorActionPreference = 'Stop'
 
 $projectRoot = 'D:\new_project'
 $timestamp = Get-Date -Format 'yyyyMMdd_HHmmss'
-$publishDir = Join-Path $projectRoot ("dist\EcomTool_Studio_Portable_" + $timestamp)
+$publishDir = Join-Path $projectRoot ("dist\EcomTool_Portable_" + $timestamp)
 $runtimePythonSource = 'C:\Users\Administrator\AppData\Local\Programs\Python\Python310'
 $runtimeNodeSource = 'C:\Program Files\nodejs'
 $playwrightBrowsersSource = Join-Path $projectRoot 'runtime\playwright-browsers'

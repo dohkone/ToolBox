@@ -2,9 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
+using System.Reflection;
 using System.Runtime.ExceptionServices;
 using System.Security.Cryptography;
 using System.Text;
@@ -30,6 +33,10 @@ public sealed class MainWindowViewModel : ViewModelBase
 {
 	private readonly record struct SizeImageFingerprint(string Hash, string LastWriteUtc);
 
+	private sealed record SpBatchLinkedBundleManifestItem(string FileName, string CardPath, string SkuDirectory, string SourceCopyPath);
+
+	private const string SpBatchLinkedBundlesManifestName = ".sp-batch-linked-bundles.json";
+
 	private sealed record GenerationTabState(string StatusText, string ResultModeText, string ResultOutputText, bool? LastExecutedPromptsOnly, List<GenerationPromptCardViewModel> PromptCards, List<GeneratedImageResultCardViewModel> ImageCards);
 
 	private const string ReviewWorkspaceSection = "review-workspace";
@@ -47,6 +54,10 @@ public sealed class MainWindowViewModel : ViewModelBase
 	private const string SceneImageGenerateTab = "scene-image-generate";
 
 	private const string CompareImageGenerateTab = "compare-image-generate";
+
+	private const string GitHubLatestReleaseApiUrl = "https://api.github.com/repos/dohkone/ToolBox/releases/latest";
+
+	private const string GitHubReleaseDownloadUrl = "https://github.com/dohkone/ToolBox/releases/latest";
 
 	private static readonly string[] SkuMasterColorTokens =
 	{
@@ -236,6 +247,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private readonly RelayCommand _cancelImageGenerationKeyCommand;
 
+	private readonly AsyncRelayCommand _runAppUpdateCommand;
+
 	private CancellationTokenSource? _previewCancellationTokenSource;
 
 	private CancellationTokenSource? _templateGenerationCancellationTokenSource;
@@ -255,6 +268,22 @@ public sealed class MainWindowViewModel : ViewModelBase
 	private TemplateCategory _selectedTemplateCategory;
 
 	private ImageTemplateType _selectedLayoutImageType;
+
+	private readonly string _appCurrentVersion = GetCurrentAppVersion();
+
+	private string _appVersionText = "v" + GetCurrentAppVersion();
+
+	private bool _isAppUpdateAvailable;
+
+	private bool _isAppUpdateDownloading;
+
+	private string _availableAppUpdateVersion = string.Empty;
+
+	private string _availableAppUpdateReleaseNotes = string.Empty;
+
+	private string _availableAppUpdateInstallerUrl = string.Empty;
+
+	private string _availableAppUpdateInstallerName = string.Empty;
 
 	private int _mainImageLayoutTemplateCount;
 
@@ -635,6 +664,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 	public ICommand SaveImageGenerationKeyCommand => _saveImageGenerationKeyCommand;
 
 	public ICommand CancelImageGenerationKeyCommand => _cancelImageGenerationKeyCommand;
+
+	public ICommand RunAppUpdateCommand => _runAppUpdateCommand;
 
 	public WorkspaceTabViewModel? SelectedTab
 	{
@@ -1645,6 +1676,48 @@ public sealed class MainWindowViewModel : ViewModelBase
 		}
 	}
 
+	public string AppVersionText
+	{
+		get
+		{
+			return _appVersionText;
+		}
+		private set
+		{
+			SetProperty(ref _appVersionText, value, "AppVersionText");
+		}
+	}
+
+	public bool IsAppUpdateAvailable
+	{
+		get
+		{
+			return _isAppUpdateAvailable;
+		}
+		private set
+		{
+			if (SetProperty(ref _isAppUpdateAvailable, value, "IsAppUpdateAvailable"))
+			{
+				_runAppUpdateCommand.RaiseCanExecuteChanged();
+			}
+		}
+	}
+
+	public bool IsAppUpdateDownloading
+	{
+		get
+		{
+			return _isAppUpdateDownloading;
+		}
+		private set
+		{
+			if (SetProperty(ref _isAppUpdateDownloading, value, "IsAppUpdateDownloading"))
+			{
+				_runAppUpdateCommand.RaiseCanExecuteChanged();
+			}
+		}
+	}
+
 	public bool IsScanProgressIndeterminate
 	{
 		get
@@ -2537,6 +2610,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		{
 			CloseImageGenerationKeyDialog();
 		});
+		_runAppUpdateCommand = new AsyncRelayCommand((object? _) => RunAppUpdateAsync(), (object? _) => IsAppUpdateAvailable && !IsAppUpdateDownloading);
 	}
 
 	public async Task InitializeAsync()
@@ -2558,6 +2632,159 @@ public sealed class MainWindowViewModel : ViewModelBase
 		{
 			await LoadFolderAsync(appUserPathsState.ReviewRootFolder);
 		}
+		_ = CheckForAppUpdateAsync();
+	}
+
+	private async Task CheckForAppUpdateAsync()
+	{
+		try
+		{
+			using HttpClient client = CreateGitHubHttpClient();
+			using HttpResponseMessage response = await client.GetAsync(GitHubLatestReleaseApiUrl);
+			if (!response.IsSuccessStatusCode)
+			{
+				return;
+			}
+			using Stream stream = await response.Content.ReadAsStreamAsync();
+			using JsonDocument document = await JsonDocument.ParseAsync(stream);
+			JsonElement root = document.RootElement;
+			string latestVersionText = root.TryGetProperty("tag_name", out JsonElement tagElement) ? tagElement.GetString() ?? string.Empty : string.Empty;
+			if (!TryParseAppVersion(latestVersionText, out Version? latestVersion) || !TryParseAppVersion(_appCurrentVersion, out Version? currentVersion))
+			{
+				return;
+			}
+			if (latestVersion <= currentVersion)
+			{
+				return;
+			}
+			string installerUrl = string.Empty;
+			string installerName = string.Empty;
+			if (root.TryGetProperty("assets", out JsonElement assetsElement) && assetsElement.ValueKind == JsonValueKind.Array)
+			{
+				foreach (JsonElement asset in assetsElement.EnumerateArray())
+				{
+					string assetName = asset.TryGetProperty("name", out JsonElement nameElement) ? nameElement.GetString() ?? string.Empty : string.Empty;
+					string assetUrl = asset.TryGetProperty("browser_download_url", out JsonElement urlElement) ? urlElement.GetString() ?? string.Empty : string.Empty;
+					if (assetName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(assetUrl))
+					{
+						installerName = assetName;
+						installerUrl = assetUrl;
+						break;
+					}
+				}
+			}
+			if (string.IsNullOrWhiteSpace(installerUrl))
+			{
+				return;
+			}
+			_availableAppUpdateVersion = NormalizeAppVersionText(latestVersionText);
+			_availableAppUpdateReleaseNotes = root.TryGetProperty("body", out JsonElement bodyElement) ? bodyElement.GetString() ?? string.Empty : string.Empty;
+			_availableAppUpdateInstallerUrl = installerUrl;
+			_availableAppUpdateInstallerName = installerName;
+			IsAppUpdateAvailable = true;
+		}
+		catch
+		{
+			IsAppUpdateAvailable = false;
+		}
+	}
+
+	private async Task RunAppUpdateAsync()
+	{
+		if (string.IsNullOrWhiteSpace(_availableAppUpdateInstallerUrl))
+		{
+			Process.Start(new ProcessStartInfo
+			{
+				FileName = GitHubReleaseDownloadUrl,
+				UseShellExecute = true
+			});
+			return;
+		}
+		string releaseNotes = string.IsNullOrWhiteSpace(_availableAppUpdateReleaseNotes) ? "本次更新未填写更新公告。" : _availableAppUpdateReleaseNotes.Trim();
+		string message = "当前版本：" + AppVersionText + Environment.NewLine +
+			"最新版本：v" + _availableAppUpdateVersion + Environment.NewLine +
+			Environment.NewLine +
+			"更新公告：" + Environment.NewLine +
+			releaseNotes + Environment.NewLine +
+			Environment.NewLine +
+			"点击“确定”后开始下载并安装更新。";
+		MessageBoxResult result = MessageBox.Show(message, "发现新版本", MessageBoxButton.OKCancel, MessageBoxImage.Information);
+		if (result != MessageBoxResult.OK)
+		{
+			return;
+		}
+		IsAppUpdateDownloading = true;
+		try
+		{
+			StatusMessage = "正在下载更新：" + _availableAppUpdateVersion;
+			string updatesFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ToolBox", "Updates");
+			Directory.CreateDirectory(updatesFolder);
+			string installerName = string.IsNullOrWhiteSpace(_availableAppUpdateInstallerName) ? "EcomToolStudio_Update_" + _availableAppUpdateVersion + ".exe" : Path.GetFileName(_availableAppUpdateInstallerName);
+			string installerPath = Path.Combine(updatesFolder, installerName);
+			using HttpClient client = CreateGitHubHttpClient();
+			byte[] bytes = await client.GetByteArrayAsync(_availableAppUpdateInstallerUrl);
+			await File.WriteAllBytesAsync(installerPath, bytes);
+			StatusMessage = "更新包下载完成，正在启动安装程序。";
+			Process.Start(new ProcessStartInfo
+			{
+				FileName = installerPath,
+				UseShellExecute = true
+			});
+			Application.Current.Shutdown();
+		}
+		finally
+		{
+			IsAppUpdateDownloading = false;
+		}
+	}
+
+	private static HttpClient CreateGitHubHttpClient()
+	{
+		HttpClient client = new HttpClient
+		{
+			Timeout = TimeSpan.FromSeconds(20)
+		};
+		client.DefaultRequestHeaders.UserAgent.ParseAdd("EcomTool-Studio-Updater");
+		client.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
+		return client;
+	}
+
+	private static string GetCurrentAppVersion()
+	{
+		Assembly assembly = typeof(MainWindowViewModel).Assembly;
+		string? informationalVersion = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+		if (!string.IsNullOrWhiteSpace(informationalVersion))
+		{
+			return NormalizeAppVersionText(informationalVersion);
+		}
+		return NormalizeAppVersionText(assembly.GetName().Version?.ToString() ?? "1.0.0");
+	}
+
+	private static string NormalizeAppVersionText(string versionText)
+	{
+		string normalized = versionText.Trim();
+		if (normalized.StartsWith("v", StringComparison.OrdinalIgnoreCase))
+		{
+			normalized = normalized.Substring(1);
+		}
+		int suffixIndex = normalized.IndexOfAny(new[] { '-', '+' });
+		if (suffixIndex >= 0)
+		{
+			normalized = normalized.Substring(0, suffixIndex);
+		}
+		return normalized;
+	}
+
+	private static bool TryParseAppVersion(string versionText, out Version? version)
+	{
+		string normalized = NormalizeAppVersionText(versionText);
+		if (Version.TryParse(normalized, out Version? parsed))
+		{
+			version = parsed;
+			return true;
+		}
+		version = null;
+		return false;
 	}
 
 	public async Task LoadFolderAsync(string folderPath)
@@ -5571,7 +5798,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 		{
 			if (string.Equals(item.Stage, "master", StringComparison.OrdinalIgnoreCase))
 			{
-				GeneratedImageResultCardViewModel card = new GeneratedImageResultCardViewModel(item.ImagePath, Path.GetFileName(item.ImagePath), canToggleSelection: true, showRemoveAction: true, OnSpBatchMasterSelectionChanged, OnSpBatchMasterImageRemoved);
+				string linkedSkuDirectory = (!string.IsNullOrWhiteSpace(item.SpDirectory) ? Path.Combine(item.SpDirectory, "sku") : (Path.GetDirectoryName(item.ImagePath) ?? string.Empty));
+				GeneratedImageResultCardViewModel card = new GeneratedImageResultCardViewModel(item.ImagePath, Path.GetFileName(item.ImagePath), canToggleSelection: true, showRemoveAction: true, OnSpBatchMasterSelectionChanged, OnSpBatchMasterImageRemoved, item.SpDirectory, linkedSkuDirectory);
 				card.SetSelected(isSelected: true);
 				SpBatchMasterImageCards.Add(card);
 			}
@@ -5650,17 +5878,62 @@ public sealed class MainWindowViewModel : ViewModelBase
 		_sendSelectedSpBatchMasterToSkuOptimizeCommand.RaiseCanExecuteChanged();
 	}
 
-	private void AddSpBatchMasterImage(string imagePath, string? fileName = null)
+	private void AddSpBatchMasterImage(string imagePath, string? fileName = null, string? linkedCardPath = null, string? linkedSkuDirectory = null)
 	{
 		if (File.Exists(imagePath) && IsSupportedImageFile(imagePath))
 		{
-			GeneratedImageResultCardViewModel card = new GeneratedImageResultCardViewModel(imagePath, fileName ?? Path.GetFileName(imagePath), canToggleSelection: true, showRemoveAction: true, OnSpBatchMasterSelectionChanged, OnSpBatchMasterImageRemoved);
+			GeneratedImageResultCardViewModel card = new GeneratedImageResultCardViewModel(imagePath, fileName ?? Path.GetFileName(imagePath), canToggleSelection: true, showRemoveAction: true, OnSpBatchMasterSelectionChanged, OnSpBatchMasterImageRemoved, linkedCardPath, linkedSkuDirectory);
 			card.SetSelected(isSelected: true);
 			SpBatchMasterImageCards.Add(card);
 			OnPropertyChanged("HasSpBatchMasterImageCards");
 			OnPropertyChanged("HasAnySpBatchResultCards");
 			OnPropertyChanged("ShouldShowSpBatchDetailCards");
 			_generateSpBatchColorSkusCommand.RaiseCanExecuteChanged();
+		}
+	}
+
+	private bool TryResolveLinkedSpBatchCard(string imagePath, out string cardPath, out string skuDirectory)
+	{
+		cardPath = string.Empty;
+		skuDirectory = string.Empty;
+		string fullImagePath;
+		try
+		{
+			fullImagePath = Path.GetFullPath(imagePath);
+		}
+		catch
+		{
+			return false;
+		}
+		foreach (RootCardViewModel card in WorkspaceTabs.SelectMany((WorkspaceTabViewModel tab) => tab.RootCards))
+		{
+			string candidateCardPath = card.AutoPublishKeyPath;
+			if (string.IsNullOrWhiteSpace(candidateCardPath) || !IsPathInsideDirectory(fullImagePath, candidateCardPath))
+			{
+				continue;
+			}
+			cardPath = Path.GetFullPath(candidateCardPath);
+			skuDirectory = Path.Combine(cardPath, "sku");
+			return true;
+		}
+		return false;
+	}
+
+	private static bool IsPathInsideDirectory(string path, string directory)
+	{
+		try
+		{
+			string fullPath = Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+			string fullDirectory = Path.GetFullPath(directory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+			if (string.Equals(fullPath, fullDirectory, StringComparison.OrdinalIgnoreCase))
+			{
+				return true;
+			}
+			return fullPath.StartsWith(fullDirectory + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) || fullPath.StartsWith(fullDirectory + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+		}
+		catch
+		{
+			return false;
 		}
 	}
 
@@ -5672,6 +5945,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 		}
 		string displayFileName = Path.GetFileName(imagePath);
 		string targetImagePath = imagePath;
+		string? linkedCardPath = null;
+		string? linkedSkuDirectory = null;
 		if (!HasSkuMasterColorToken(displayFileName))
 		{
 			string? renamedFileName = ShowSkuMasterRenameDialog(displayFileName);
@@ -5687,9 +5962,17 @@ public sealed class MainWindowViewModel : ViewModelBase
 				StatusMessage = "SKU 母图文件名未包含颜色，已取消添加。";
 				return;
 			}
+		}
+		if (TryResolveLinkedSpBatchCard(imagePath, out string cardPath, out string skuDirectory))
+		{
+			linkedCardPath = cardPath;
+			linkedSkuDirectory = skuDirectory;
+		}
+		else if (!string.Equals(displayFileName, Path.GetFileName(imagePath), StringComparison.OrdinalIgnoreCase))
+		{
 			targetImagePath = CopySkuMasterImageToRenamedTempFile(imagePath, displayFileName);
 		}
-		AddSpBatchMasterImage(targetImagePath, displayFileName);
+		AddSpBatchMasterImage(targetImagePath, displayFileName, linkedCardPath, linkedSkuDirectory);
 	}
 
 	private void AddSpBatchMasterImages(IEnumerable<string> filePaths)
@@ -5722,7 +6005,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		SkuOptimizeSourceImageCards.Clear();
 		foreach (GeneratedImageResultCardViewModel masterCard in selectedCards)
 		{
-			SkuOptimizeSourceImageCards.Add(new GeneratedImageResultCardViewModel(masterCard.ImagePath, masterCard.FileName, canToggleSelection: false, showRemoveAction: true, null, OnSkuOptimizeSourceImageRemoved));
+			SkuOptimizeSourceImageCards.Add(new GeneratedImageResultCardViewModel(masterCard.ImagePath, masterCard.FileName, canToggleSelection: false, showRemoveAction: true, null, OnSkuOptimizeSourceImageRemoved, masterCard.LinkedCardPath, masterCard.LinkedSkuDirectory));
 		}
 		OnPropertyChanged("HasSkuOptimizeSourceImageCards");
 		_runSkuOptimizeCommand.RaiseCanExecuteChanged();
@@ -5792,10 +6075,21 @@ public sealed class MainWindowViewModel : ViewModelBase
 		string text = Path.Combine(Path.GetTempPath(), "ImageKeeper", "sp-batch-staging", DateTime.Now.ToString("yyyyMMdd_HHmmss_fff"));
 		Directory.CreateDirectory(text);
 		HashSet<string> usedFileNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+		List<SpBatchLinkedBundleManifestItem> linkedItems = new List<SpBatchLinkedBundleManifestItem>();
 		foreach (GeneratedImageResultCardViewModel item in sourceCards ?? SpBatchSourceImageCards)
 		{
 			string uniqueStagingFileName = GetUniqueStagingFileName(item, usedFileNames);
 			File.Copy(destFileName: Path.Combine(text, uniqueStagingFileName), sourceFileName: item.ImagePath, overwrite: true);
+			if (item.IsLinkedToExistingCard)
+			{
+				linkedItems.Add(new SpBatchLinkedBundleManifestItem(uniqueStagingFileName, item.LinkedCardPath, item.LinkedSkuDirectory, item.ImagePath));
+			}
+		}
+		if (linkedItems.Count > 0)
+		{
+			string manifestPath = Path.Combine(text, SpBatchLinkedBundlesManifestName);
+			string manifestJson = JsonSerializer.Serialize(new { items = linkedItems }, new JsonSerializerOptions { WriteIndented = true });
+			File.WriteAllText(manifestPath, manifestJson, Encoding.UTF8);
 		}
 		return text;
 	}
@@ -6094,7 +6388,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		SkuOptimizeSourceImageCards.Clear();
 		foreach (GeneratedImageResultCardViewModel card in cards)
 		{
-			SkuOptimizeSourceImageCards.Add(new GeneratedImageResultCardViewModel(card.ImagePath, card.FileName, canToggleSelection: false, showRemoveAction: true, null, OnSkuOptimizeSourceImageRemoved));
+			SkuOptimizeSourceImageCards.Add(new GeneratedImageResultCardViewModel(card.ImagePath, card.FileName, canToggleSelection: false, showRemoveAction: true, null, OnSkuOptimizeSourceImageRemoved, card.LinkedCardPath, card.LinkedSkuDirectory));
 		}
 		OnPropertyChanged("HasSkuOptimizeSourceImageCards");
 		_runSkuOptimizeCommand.RaiseCanExecuteChanged();
@@ -6110,7 +6404,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		SpBatchMasterImageCards.Clear();
 		foreach (GeneratedImageResultCardViewModel card in cards)
 		{
-			GeneratedImageResultCardViewModel refreshedCard = new GeneratedImageResultCardViewModel(card.ImagePath, card.FileName, canToggleSelection: true, showRemoveAction: true, OnSpBatchMasterSelectionChanged, OnSpBatchMasterImageRemoved);
+			GeneratedImageResultCardViewModel refreshedCard = new GeneratedImageResultCardViewModel(card.ImagePath, card.FileName, canToggleSelection: true, showRemoveAction: true, OnSpBatchMasterSelectionChanged, OnSpBatchMasterImageRemoved, card.LinkedCardPath, card.LinkedSkuDirectory);
 			refreshedCard.SetSelected(card.IsSelected);
 			SpBatchMasterImageCards.Add(refreshedCard);
 		}

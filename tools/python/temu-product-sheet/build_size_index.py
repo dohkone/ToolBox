@@ -11,8 +11,17 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 DATA_DIR = SCRIPT_DIR / "data"
 DEFAULT_SOURCE = DATA_DIR / "size_specs.xlsx"
-DEFAULT_OUTPUT = DATA_DIR / "size_specs_index.json"
 NS = {"a": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
+
+
+def get_default_cache_dir():
+    local_app_data = os.environ.get("LOCALAPPDATA")
+    if local_app_data:
+        return Path(local_app_data) / "ToolBox" / "cache" / "temu-product-sheet"
+    return Path.home() / ".toolbox" / "cache" / "temu-product-sheet"
+
+
+DEFAULT_OUTPUT = get_default_cache_dir() / "size_specs_index.json"
 
 
 def parse_args():

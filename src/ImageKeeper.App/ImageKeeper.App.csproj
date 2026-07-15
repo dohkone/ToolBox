@@ -8,8 +8,12 @@
     <ImplicitUsings>disable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
-    <AssemblyName>EcomTool Studio</AssemblyName>
-    <Product>EcomTool Studio</Product>
+    <AssemblyName>EcomTool</AssemblyName>
+    <Product>EcomTool</Product>
+    <Version>1.0.1</Version>
+    <AssemblyVersion>1.0.1.0</AssemblyVersion>
+    <FileVersion>1.0.1.0</FileVersion>
+    <InformationalVersion>1.0.1</InformationalVersion>
     <Description>E-commerce image, generation, product sheet, and listing automation studio.</Description>
     <ApplicationIcon>..\..\logo\new_logo.ico</ApplicationIcon>
   </PropertyGroup>

@@ -1,4 +1,4 @@
-# EcomTool Studio 安装包打包说明
+# EcomTool 安装包打包说明
 
 ## 方案
 
@@ -45,7 +45,7 @@ dist\installer\
 输出文件示例：
 
 ```text
-EcomTool_Studio_Setup_2026.07.11.1430.exe
+EcomTool_Setup_2026.07.11.1430.exe
 ```
 
 ## 只用已有便携包打安装包
@@ -69,7 +69,7 @@ powershell -ExecutionPolicy Bypass -File scripts\build_installer.ps1 -InnoSetupC
 安装目录默认：
 
 ```text
-C:\Program Files\EcomTool Studio\
+C:\Program Files\EcomTool\
 ```
 
 本地数据目录仍保留：

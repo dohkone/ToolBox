@@ -7,7 +7,7 @@
         xmlns:models="clr-namespace:ImageKeeper.Core.Models;assembly=ImageKeeper.Core"
         xmlns:viewModels="clr-namespace:ImageKeeper.App.ViewModels"
         mc:Ignorable="d"
-        Title="EcomTool Studio"
+        Title="EcomTool"
         Icon="pack://application:,,,/Assets/new_logo.ico"
         Width="1660"
         Height="960"
@@ -335,7 +335,7 @@
         </Style>
     </Window.Resources>
 
-        <Grid Background="{StaticResource AppBackgroundBrush}">
+    <Grid Background="{StaticResource AppBackgroundBrush}">
             <Grid.ColumnDefinitions>
             <ColumnDefinition Width="236" />
             <ColumnDefinition Width="*" />
@@ -394,12 +394,33 @@
                 </Button>
             </StackPanel>
 
-            <TextBlock Grid.Row="2"
-                       Margin="12,0,0,0"
-                       HorizontalAlignment="Left"
-                       Foreground="{StaticResource MutedTextBrush}"
-                       FontSize="11"
-                       Text="ToolBox" />
+            <StackPanel Grid.Row="2"
+                        Margin="12,0,0,0"
+                        Orientation="Horizontal"
+                        VerticalAlignment="Center">
+                <TextBlock VerticalAlignment="Center"
+                           Foreground="{StaticResource MutedTextBrush}"
+                           FontSize="12"
+                           Text="{Binding AppVersionText}" />
+                <Button Margin="8,0,0,0"
+                        Padding="6,0"
+                        Height="22"
+                        VerticalAlignment="Center"
+                        Command="{Binding RunAppUpdateCommand}"
+                        Visibility="{Binding IsAppUpdateAvailable, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource GhostIconButtonStyle}">
+                            <Setter Property="Width" Value="Auto" />
+                            <Setter Property="MinWidth" Value="34" />
+                            <Setter Property="Foreground" Value="#2D6AE3" />
+                            <Setter Property="FontSize" Value="12" />
+                            <Setter Property="FontWeight" Value="SemiBold" />
+                        </Style>
+                    </Button.Style>
+                    <TextBlock Text="更新" />
+                </Button>
+            </StackPanel>
+
         </Grid>
 
         <Grid Grid.Column="1"
@@ -1673,9 +1694,25 @@
                                         <Button Grid.Column="0"
                                                 Margin="0,0,4,0"
                                                 FontWeight="SemiBold"
-                                                Content="{Binding SpBatchColorButtonText}"
-                                                Command="{Binding RunSpBatchColorsCommand}"
-                                                Style="{StaticResource PrimaryButtonStyle}" />
+                                                Content="{Binding SpBatchColorButtonText}">
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+                                                    <Setter Property="Command" Value="{Binding RunSpBatchColorsCommand}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsSpBatchColorRunning}" Value="True">
+                                                            <Setter Property="Command" Value="{Binding StopSpBatchCommand}" />
+                                                            <Setter Property="Background" Value="#F56C6C" />
+                                                            <Setter Property="BorderBrush" Value="#F56C6C" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsSpBatchStopping}" Value="True">
+                                                            <Setter Property="Command" Value="{x:Null}" />
+                                                            <Setter Property="Background" Value="#E6A23C" />
+                                                            <Setter Property="BorderBrush" Value="#E6A23C" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
                                         <Button Grid.Column="1"
                                                 Margin="4,0,0,0"
                                                 FontWeight="SemiBold"

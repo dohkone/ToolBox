@@ -17,6 +17,10 @@ public sealed class GeneratedImageResultCardViewModel : ViewModelBase
 
 	private readonly string _fileName;
 
+	private readonly string _linkedCardPath;
+
+	private readonly string _linkedSkuDirectory;
+
 	private readonly Action<GeneratedImageResultCardViewModel>? _selectionChanged;
 
 	private readonly Action<GeneratedImageResultCardViewModel>? _removeRequested;
@@ -28,6 +32,12 @@ public sealed class GeneratedImageResultCardViewModel : ViewModelBase
 	public string ImagePath => _imagePath;
 
 	public string FileName => _fileName;
+
+	public string LinkedCardPath => _linkedCardPath;
+
+	public string LinkedSkuDirectory => _linkedSkuDirectory;
+
+	public bool IsLinkedToExistingCard => !string.IsNullOrWhiteSpace(_linkedCardPath) && !string.IsNullOrWhiteSpace(_linkedSkuDirectory);
 
 	public bool CanToggleSelection { get; }
 
@@ -63,10 +73,12 @@ public sealed class GeneratedImageResultCardViewModel : ViewModelBase
 		}
 	}
 
-	public GeneratedImageResultCardViewModel(string imagePath, string? fileName = null, bool canToggleSelection = false, bool showRemoveAction = false, Action<GeneratedImageResultCardViewModel>? selectionChanged = null, Action<GeneratedImageResultCardViewModel>? removeRequested = null)
+	public GeneratedImageResultCardViewModel(string imagePath, string? fileName = null, bool canToggleSelection = false, bool showRemoveAction = false, Action<GeneratedImageResultCardViewModel>? selectionChanged = null, Action<GeneratedImageResultCardViewModel>? removeRequested = null, string? linkedCardPath = null, string? linkedSkuDirectory = null)
 	{
 		_imagePath = imagePath;
 		_fileName = (string.IsNullOrWhiteSpace(fileName) ? Path.GetFileName(imagePath) : fileName);
+		_linkedCardPath = linkedCardPath ?? string.Empty;
+		_linkedSkuDirectory = linkedSkuDirectory ?? string.Empty;
 		CanToggleSelection = canToggleSelection;
 		ShowRemoveAction = showRemoveAction;
 		_selectionChanged = selectionChanged;

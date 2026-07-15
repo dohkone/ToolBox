@@ -42,7 +42,7 @@ function Find-InnoSetupCompiler {
 function Get-LatestPortablePackage {
     param([string]$DistRoot)
 
-    Get-ChildItem -LiteralPath $DistRoot -Directory -Filter 'EcomTool_Studio_Portable_*' |
+    Get-ChildItem -LiteralPath $DistRoot -Directory -Filter 'EcomTool_Portable_*' |
         Sort-Object LastWriteTime -Descending |
         Select-Object -First 1
 }
@@ -92,7 +92,7 @@ if ($LASTEXITCODE -ne 0) {
     throw "Installer build failed."
 }
 
-$installerPath = Join-Path $outputDir ("EcomTool_Studio_Setup_{0}.exe" -f $Version)
+$installerPath = Join-Path $outputDir ("EcomTool_Setup_{0}.exe" -f $Version)
 if (-not (Test-Path -LiteralPath $installerPath)) {
     throw "Installer was not created: $installerPath"
 }

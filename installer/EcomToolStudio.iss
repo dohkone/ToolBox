@@ -1,7 +1,7 @@
-#define MyAppName "EcomTool Studio"
+#define MyAppName "EcomTool"
 #define MyAppVersion GetEnv("ECOMTOOL_APP_VERSION")
 #define MyAppPublisher "EcomTool"
-#define MyAppExeName "EcomTool Studio.exe"
+#define MyAppExeName "EcomTool.exe"
 #define SourceDir GetEnv("ECOMTOOL_INSTALL_SOURCE")
 #define OutputDir GetEnv("ECOMTOOL_INSTALL_OUTPUT")
 
@@ -14,7 +14,7 @@ DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 OutputDir={#OutputDir}
-OutputBaseFilename=EcomTool_Studio_Setup_{#MyAppVersion}
+OutputBaseFilename=EcomTool_Setup_{#MyAppVersion}
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern

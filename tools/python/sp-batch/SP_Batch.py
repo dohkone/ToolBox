@@ -30,6 +30,7 @@ DEFAULT_CONCURRENCY = 2
 DEFAULT_RETRIES = 4
 VALID_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 SOURCE_METADATA_NAME = ".sku-source.json"
+LINKED_BUNDLES_MANIFEST_NAME = ".sp-batch-linked-bundles.json"
 MAIN_IMAGE_NAME = "1-封面.png"
 
 
@@ -321,22 +322,74 @@ def write_source_metadata(sp_dir: Path, image_path: Path) -> None:
     )
 
 
+def load_linked_bundle_map(input_dir: Path) -> dict[str, dict[str, Any]]:
+    manifest_path = input_dir / LINKED_BUNDLES_MANIFEST_NAME
+    if not manifest_path.exists():
+        return {}
+
+    try:
+        data = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+    items = data.get("items")
+    if not isinstance(items, list):
+        return {}
+
+    result: dict[str, dict[str, Any]] = {}
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        file_name = item.get("FileName") or item.get("file_name")
+        card_path = item.get("CardPath") or item.get("card_path") or item.get("sp_dir")
+        sku_dir = item.get("SkuDirectory") or item.get("sku_directory") or item.get("sku_dir")
+        source_copy_path = item.get("SourceCopyPath") or item.get("source_copy_path")
+        if not isinstance(file_name, str) or not isinstance(card_path, str) or not isinstance(sku_dir, str):
+            continue
+        result[normalize_source_file_name(file_name)] = {
+            "card_path": card_path,
+            "sku_dir": sku_dir,
+            "source_copy_path": source_copy_path if isinstance(source_copy_path, str) else "",
+        }
+    return result
+
+
 def ensure_output_bundles(
     images: list[Path],
     output_dir: Path,
     overwrite: bool,
     copy_source_to_sku: bool = False,
+    linked_bundles: dict[str, dict[str, Any]] | None = None,
 ) -> dict[Path, OutputBundle]:
     dated_root = get_dated_root(output_dir)
-    dated_root.mkdir(parents=True, exist_ok=True)
 
     bundles: dict[Path, OutputBundle] = {}
+    linked_bundles = linked_bundles or {}
     existing_source_map = build_existing_source_map(dated_root)
     next_index = get_next_sp_index(dated_root)
     used_sp_dirs: set[Path] = set()
 
     for image_path in images:
         source_key = normalize_source_file_name(image_path.name)
+        linked_bundle = linked_bundles.get(source_key)
+        if linked_bundle:
+            sp_dir = Path(str(linked_bundle["card_path"])).expanduser().resolve()
+            main_dir = sp_dir / "main"
+            sku_dir = Path(str(linked_bundle["sku_dir"])).expanduser().resolve()
+            detail_dir = sp_dir / "detail"
+            for folder in (main_dir, sku_dir, detail_dir):
+                folder.mkdir(parents=True, exist_ok=True)
+            source_copy_text = str(linked_bundle.get("source_copy_path") or "")
+            source_copy_path = Path(source_copy_text).expanduser().resolve() if source_copy_text else image_path
+            bundles[image_path] = OutputBundle(
+                sp_dir=sp_dir,
+                main_dir=main_dir,
+                sku_dir=sku_dir,
+                detail_dir=detail_dir,
+                source_copy_path=source_copy_path,
+            )
+            continue
+
         sp_dir = existing_source_map.get(source_key)
         reuse_existing = sp_dir is not None and sp_dir not in used_sp_dirs
         if not reuse_existing:
@@ -863,11 +916,13 @@ def main() -> int:
     try:
         options = resolve_options(args)
         images = list_input_images(options.input_dir)
+        linked_bundles = load_linked_bundle_map(options.input_dir)
         bundles = ensure_output_bundles(
             images,
             options.output_dir,
             options.overwrite,
             copy_source_to_sku=options.recolor_only,
+            linked_bundles=linked_bundles,
         )
         if options.master_only:
             jobs = build_master_jobs(images, bundles, options.selected_colors)
