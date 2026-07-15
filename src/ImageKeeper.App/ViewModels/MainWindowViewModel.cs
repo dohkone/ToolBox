@@ -2733,7 +2733,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 			string updatesFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ToolBox", "Updates");
 			Directory.CreateDirectory(updatesFolder);
 			string installerName = string.IsNullOrWhiteSpace(_availableAppUpdateInstallerName) ? "EcomToolStudio_Update_" + _availableAppUpdateVersion + ".exe" : Path.GetFileName(_availableAppUpdateInstallerName);
-			string installerPath = Path.Combine(updatesFolder, installerName);
+			string installerPath = CreateUniqueUpdateFilePath(updatesFolder, installerName);
 			await DownloadAppUpdateInstallerAsync(_availableAppUpdateInstallerUrl, installerPath);
 			StatusMessage = "更新包下载完成，正在启动安装程序。";
 			Process.Start(new ProcessStartInfo
@@ -2756,23 +2756,55 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private static async Task DownloadAppUpdateInstallerAsync(string url, string installerPath)
 	{
-		string tempPath = installerPath + ".download";
-		if (File.Exists(tempPath))
-		{
-			File.Delete(tempPath);
-		}
+		string directory = Path.GetDirectoryName(installerPath) ?? Path.GetTempPath();
+		string tempPath = CreateUniqueUpdateFilePath(directory, Path.GetFileNameWithoutExtension(installerPath) + ".download");
 		using HttpClient client = CreateGitHubHttpClient(TimeSpan.FromMinutes(30));
-		client.DefaultRequestHeaders.Accept.Clear();
-		using HttpResponseMessage response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
-		response.EnsureSuccessStatusCode();
-		await using Stream remoteStream = await response.Content.ReadAsStreamAsync();
-		await using FileStream fileStream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, 1024 * 1024, useAsync: true);
-		await remoteStream.CopyToAsync(fileStream);
-		if (File.Exists(installerPath))
+		try
 		{
-			File.Delete(installerPath);
+			client.DefaultRequestHeaders.Accept.Clear();
+			using HttpResponseMessage response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
+			response.EnsureSuccessStatusCode();
+			await using Stream remoteStream = await response.Content.ReadAsStreamAsync();
+			await using FileStream fileStream = new FileStream(tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 1024 * 1024, useAsync: true);
+			await remoteStream.CopyToAsync(fileStream);
+			File.Move(tempPath, installerPath);
 		}
-		File.Move(tempPath, installerPath);
+		catch
+		{
+			TryDeleteFile(tempPath);
+			throw;
+		}
+	}
+
+	private static string CreateUniqueUpdateFilePath(string folder, string fileName)
+	{
+		string safeName = Path.GetFileName(fileName);
+		string extension = Path.GetExtension(safeName);
+		string stem = Path.GetFileNameWithoutExtension(safeName);
+		for (int index = 0; index < 100; index++)
+		{
+			string suffix = DateTime.Now.ToString("yyyyMMddHHmmssfff", CultureInfo.InvariantCulture) + "_" + Guid.NewGuid().ToString("N")[..8];
+			string candidate = Path.Combine(folder, stem + "_" + suffix + extension);
+			if (!File.Exists(candidate))
+			{
+				return candidate;
+			}
+		}
+		return Path.Combine(folder, stem + "_" + Guid.NewGuid().ToString("N") + extension);
+	}
+
+	private static void TryDeleteFile(string path)
+	{
+		try
+		{
+			if (File.Exists(path))
+			{
+				File.Delete(path);
+			}
+		}
+		catch
+		{
+		}
 	}
 
 	private static HttpClient CreateGitHubHttpClient()
