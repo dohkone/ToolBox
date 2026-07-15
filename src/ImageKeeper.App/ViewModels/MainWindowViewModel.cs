@@ -2628,9 +2628,10 @@ public sealed class MainWindowViewModel : ViewModelBase
 		ResetGenerationSummary();
 		ResetSpBatchSummary();
 		ResetSkuOptimizeSummary();
-		if (!string.IsNullOrWhiteSpace(appUserPathsState.ReviewRootFolder) && Directory.Exists(appUserPathsState.ReviewRootFolder))
+		string reviewRootFolder = NormalizeWritableWorkspacePath(appUserPathsState.ReviewRootFolder ?? string.Empty);
+		if (!string.IsNullOrWhiteSpace(reviewRootFolder) && Directory.Exists(reviewRootFolder))
 		{
-			await LoadFolderAsync(appUserPathsState.ReviewRootFolder);
+			await LoadFolderAsync(reviewRootFolder);
 		}
 		_ = CheckForAppUpdateAsync();
 	}
@@ -5389,12 +5390,28 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private void ApplyUserPathSettings(AppUserPathsState state)
 	{
-		BackupFolder = state.BackupFolder ?? string.Empty;
+		BackupFolder = NormalizeWritableWorkspacePath(state.BackupFolder ?? string.Empty);
 		TemplateLibraryPath = state.TemplateLibraryPath ?? string.Empty;
-		GenerationOutputDirectory = state.GenerationOutputDirectory ?? string.Empty;
-		SpBatchInputDirectory = state.SpBatchInputDirectory ?? string.Empty;
-		SpBatchOutputDirectory = state.SpBatchOutputDirectory ?? string.Empty;
-		SkuOptimizeOutputDirectory = state.SkuOptimizeOutputDirectory ?? string.Empty;
+		GenerationOutputDirectory = NormalizeWritableWorkspacePath(state.GenerationOutputDirectory ?? string.Empty);
+		SpBatchInputDirectory = NormalizeWritableWorkspacePath(state.SpBatchInputDirectory ?? string.Empty);
+		SpBatchOutputDirectory = NormalizeWritableWorkspacePath(state.SpBatchOutputDirectory ?? string.Empty);
+		SkuOptimizeOutputDirectory = NormalizeWritableWorkspacePath(state.SkuOptimizeOutputDirectory ?? string.Empty);
+	}
+
+	private static string NormalizeWritableWorkspacePath(string path)
+	{
+		if (string.IsNullOrWhiteSpace(path))
+		{
+			return string.Empty;
+		}
+		try
+		{
+			return WorkspaceDefaults.IsPackagedWorkspacePath(path) ? WorkspaceDefaults.ToUserWorkspacePath(path) : path;
+		}
+		catch
+		{
+			return path;
+		}
 	}
 
 	private void PersistUserPathSettings()

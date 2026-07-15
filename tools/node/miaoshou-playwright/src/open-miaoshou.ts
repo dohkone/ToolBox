@@ -1,5 +1,6 @@
 ﻿import { execFileSync } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import "dotenv/config";
 import { chromium, Locator, Page } from "playwright";
@@ -107,6 +108,23 @@ const weightText = "\u6bdb\u91cd";
 const weightDialogTitleText = "\u6279\u91cf\u4fee\u6539\u91cd\u91cf";
 const supportedImageExtensions = new Set([".jpg", ".jpeg", ".png", ".webp", ".bmp"]);
 
+function getDefaultOutputDir() {
+  const localAppData = process.env.LOCALAPPDATA?.trim();
+  if (localAppData) {
+    return path.join(localAppData, "ToolBox", "output", "miaoshou", "playwright");
+  }
+
+  return path.join(os.tmpdir(), "ToolBox", "output", "miaoshou", "playwright");
+}
+
+function getDefaultOutputPath(fileName: string) {
+  return path.join(getDefaultOutputDir(), fileName);
+}
+
+function getArtifactDir() {
+  return path.dirname(cliOptions.logPath || getDefaultOutputPath("publish.log"));
+}
+
 function parseCliOptions(args: string[]): CliOptions {
   const getValue = (name: string) => {
     const index = args.indexOf(name);
@@ -114,10 +132,10 @@ function parseCliOptions(args: string[]): CliOptions {
   };
 
   const manifestPath = getValue("--manifest") || process.env.MIAOSHOU_MANIFEST || "";
-  const resultPath = getValue("--result") || process.env.MIAOSHOU_RESULT || path.resolve(__dirname, "..", "output", "batch-result.json");
+  const resultPath = getValue("--result") || process.env.MIAOSHOU_RESULT || getDefaultOutputPath("batch-result.json");
   const configPath = getValue("--config") || process.env.MIAOSHOU_CONFIG || path.resolve(__dirname, "..", "..", "..", "config", "miaoshou.json");
-  const eventsPath = getValue("--events") || process.env.MIAOSHOU_EVENTS || path.resolve(__dirname, "..", "output", "events.jsonl");
-  const logPath = getValue("--log") || process.env.MIAOSHOU_LOG || path.resolve(__dirname, "..", "output", "publish.log");
+  const eventsPath = getValue("--events") || process.env.MIAOSHOU_EVENTS || getDefaultOutputPath("events.jsonl");
+  const logPath = getValue("--log") || process.env.MIAOSHOU_LOG || getDefaultOutputPath("publish.log");
 
   if (!manifestPath) {
     throw new Error("Missing required --manifest path.");
@@ -311,7 +329,7 @@ function getDefaultProfilesDir() {
     return path.join(localAppData, "EcomToolStudio", "miaoshou-playwright", "profiles");
   }
 
-  return path.resolve(__dirname, "..", ".profiles");
+  return path.join(os.tmpdir(), "ToolBox", "miaoshou-playwright", "profiles");
 }
 
 function resolveProfilesDir() {
@@ -919,7 +937,7 @@ async function clickShopDropdown(page: Page) {
 }
 
 async function captureShopDebugState(page: Page, name: string) {
-  const artifactDir = path.resolve(__dirname, "..", "output");
+  const artifactDir = getArtifactDir();
   const screenshotPath = path.resolve(artifactDir, name);
   await page.screenshot({ path: screenshotPath, fullPage: true }).catch(() => {});
 
@@ -3963,7 +3981,7 @@ async function runCollectBoxFlow(page: Page, jsonInstance: ProductJsonItem[]) {
 
 async function main() {
   const automationStartMs = Date.now();
-  const artifactDir = path.resolve(__dirname, "..", "output");
+  const artifactDir = getArtifactDir();
   const profilesDir = resolveProfilesDir();
   const userDataDir = path.resolve(profilesDir, profileName);
   const jsonInstance = readJsonInstance();

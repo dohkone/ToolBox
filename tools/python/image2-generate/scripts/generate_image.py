@@ -22,7 +22,7 @@ DEFAULT_BASE_URL = "https://api.change2pro.com"
 DEFAULT_OUTPUT_DIR = Path.home() / "Downloads" / "image2-generations"
 SKILL_DIR = Path(__file__).resolve().parents[1]
 KEY_FILE = SKILL_DIR / ".image2_api_key"
-STATE_FILE = SKILL_DIR / ".default_model"
+LEGACY_STATE_FILE = SKILL_DIR / ".default_model"
 
 
 class Image2Error(Exception):
@@ -256,6 +256,13 @@ def get_user_key_file() -> Path:
     return Path.home() / ".toolbox" / "image2_api_key"
 
 
+def get_user_state_file() -> Path:
+    local_app_data = os.environ.get("LOCALAPPDATA")
+    if local_app_data and local_app_data.strip():
+        return Path(local_app_data) / "ToolBox" / "image2_default_model"
+    return Path.home() / ".toolbox" / "image2_default_model"
+
+
 def read_private_key() -> str:
     user_key_file = get_user_key_file()
     key_file = user_key_file if user_key_file.exists() else KEY_FILE
@@ -268,14 +275,19 @@ def read_private_key() -> str:
 
 
 def read_default_model() -> str:
-    if not STATE_FILE.exists():
+    state_file = get_user_state_file()
+    if not state_file.exists():
+        state_file = LEGACY_STATE_FILE
+    if not state_file.exists():
         return DEFAULT_MODEL
-    value = STATE_FILE.read_text(encoding="utf-8").strip()
+    value = state_file.read_text(encoding="utf-8").strip()
     return value or DEFAULT_MODEL
 
 
 def write_default_model(model: str) -> None:
-    STATE_FILE.write_text(model.strip() + "\n", encoding="utf-8")
+    state_file = get_user_state_file()
+    state_file.parent.mkdir(parents=True, exist_ok=True)
+    state_file.write_text(model.strip() + "\n", encoding="utf-8")
 
 
 def slugify_filename(prompt: str, max_length: int = 60) -> str:
