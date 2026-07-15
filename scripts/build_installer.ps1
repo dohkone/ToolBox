@@ -73,7 +73,6 @@ $distRoot = Join-Path $ProjectRoot 'dist'
 $portableScript = Join-Path $ProjectRoot 'scripts\build_portable_package.ps1'
 $installerScript = Join-Path $ProjectRoot 'installer\EcomToolStudio.iss'
 $updaterScript = Join-Path $ProjectRoot 'installer\EcomToolUpdater.iss'
-$tinyUpdaterTemplate = Join-Path $ProjectRoot 'installer\EcomToolTinyUpdater.cs'
 
 if (-not (Test-Path -LiteralPath $portableScript)) {
     throw "Portable build script not found: $portableScript"
@@ -85,10 +84,6 @@ if (-not (Test-Path -LiteralPath $installerScript)) {
 
 if (-not (Test-Path -LiteralPath $updaterScript)) {
     throw "Updater Inno Setup script not found: $updaterScript"
-}
-
-if (-not (Test-Path -LiteralPath $tinyUpdaterTemplate)) {
-    throw "Tiny updater template not found: $tinyUpdaterTemplate"
 }
 
 if (-not $SkipPortableBuild) {
@@ -154,21 +149,4 @@ if (-not (Test-Path -LiteralPath $updaterPath)) {
 
 Write-Output "Updater created: $updaterPath"
 
-$legacySortedUpdaterPath = Join-Path $outputDir ("EcomTool_0_Update_{0}.exe" -f $Version)
-$tinyUpdaterSource = Get-Content -LiteralPath $tinyUpdaterTemplate -Raw -Encoding UTF8
-$tinyUpdaterSource = $tinyUpdaterSource.Replace('__FULL_INSTALLER_URL__', (ConvertTo-CSharpStringContent $fullInstallerUrl))
-$tinyUpdaterSource = $tinyUpdaterSource.Replace('__FULL_INSTALLER_NAME__', (ConvertTo-CSharpStringContent $installerFileName))
-$tinyUpdaterSource = $tinyUpdaterSource.Replace('__FULL_INSTALLER_SIZE__', [string]$installerSize)
-$tinyUpdaterSourcePath = Join-Path ([System.IO.Path]::GetTempPath()) ("EcomToolTinyUpdater_{0}.cs" -f $Version)
-Set-Content -LiteralPath $tinyUpdaterSourcePath -Value $tinyUpdaterSource -Encoding UTF8
-
-$csc = Find-DotNetFrameworkCompiler
-$iconPath = Join-Path $ProjectRoot 'logo\new_logo.ico'
-Write-Output "Building tiny updater bootstrapper..."
-Write-Output "Using C# compiler: $csc"
-& $csc /nologo /target:winexe /optimize+ /out:$legacySortedUpdaterPath /win32icon:$iconPath /reference:System.dll /reference:System.Windows.Forms.dll /reference:System.Drawing.dll $tinyUpdaterSourcePath
-if ($LASTEXITCODE -ne 0) {
-    throw "Tiny updater build failed."
-}
-
-Write-Output "Legacy-compatible tiny updater created: $legacySortedUpdaterPath"
+Write-Output "Tiny updater bootstrapper skipped. Release flow uses the Inno updater: $updaterPath"
