@@ -128,3 +128,7 @@ if (-not (Test-Path -LiteralPath $updaterPath)) {
 }
 
 Write-Output "Updater created: $updaterPath"
+
+$legacySortedUpdaterPath = Join-Path $outputDir ("EcomTool_0_Update_{0}.exe" -f $Version)
+Copy-Item -LiteralPath $updaterPath -Destination $legacySortedUpdaterPath -Force
+Write-Output "Legacy-compatible updater copy created: $legacySortedUpdaterPath"

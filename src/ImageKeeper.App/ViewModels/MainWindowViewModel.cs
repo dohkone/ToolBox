@@ -2671,7 +2671,9 @@ public sealed class MainWindowViewModel : ViewModelBase
 						executableAssets.Add((assetName, assetUrl));
 					}
 				}
-				(string Name, string Url) preferredAsset = executableAssets.FirstOrDefault(asset => asset.Name.StartsWith("EcomTool_Update_", StringComparison.OrdinalIgnoreCase));
+				(string Name, string Url) preferredAsset = executableAssets.FirstOrDefault(asset =>
+					asset.Name.StartsWith("EcomTool_0_Update_", StringComparison.OrdinalIgnoreCase) ||
+					asset.Name.StartsWith("EcomTool_Update_", StringComparison.OrdinalIgnoreCase));
 				if (string.IsNullOrWhiteSpace(preferredAsset.Url))
 				{
 					preferredAsset = executableAssets.FirstOrDefault(asset => asset.Name.StartsWith("EcomTool_Setup_", StringComparison.OrdinalIgnoreCase));
