@@ -2661,17 +2661,27 @@ public sealed class MainWindowViewModel : ViewModelBase
 			string installerName = string.Empty;
 			if (root.TryGetProperty("assets", out JsonElement assetsElement) && assetsElement.ValueKind == JsonValueKind.Array)
 			{
+				List<(string Name, string Url)> executableAssets = new List<(string Name, string Url)>();
 				foreach (JsonElement asset in assetsElement.EnumerateArray())
 				{
 					string assetName = asset.TryGetProperty("name", out JsonElement nameElement) ? nameElement.GetString() ?? string.Empty : string.Empty;
 					string assetUrl = asset.TryGetProperty("browser_download_url", out JsonElement urlElement) ? urlElement.GetString() ?? string.Empty : string.Empty;
 					if (assetName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(assetUrl))
 					{
-						installerName = assetName;
-						installerUrl = assetUrl;
-						break;
+						executableAssets.Add((assetName, assetUrl));
 					}
 				}
+				(string Name, string Url) preferredAsset = executableAssets.FirstOrDefault(asset => asset.Name.StartsWith("EcomTool_Update_", StringComparison.OrdinalIgnoreCase));
+				if (string.IsNullOrWhiteSpace(preferredAsset.Url))
+				{
+					preferredAsset = executableAssets.FirstOrDefault(asset => asset.Name.StartsWith("EcomTool_Setup_", StringComparison.OrdinalIgnoreCase));
+				}
+				if (string.IsNullOrWhiteSpace(preferredAsset.Url))
+				{
+					preferredAsset = executableAssets.FirstOrDefault();
+				}
+				installerName = preferredAsset.Name ?? string.Empty;
+				installerUrl = preferredAsset.Url ?? string.Empty;
 			}
 			if (string.IsNullOrWhiteSpace(installerUrl))
 			{
@@ -2721,9 +2731,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 			Directory.CreateDirectory(updatesFolder);
 			string installerName = string.IsNullOrWhiteSpace(_availableAppUpdateInstallerName) ? "EcomToolStudio_Update_" + _availableAppUpdateVersion + ".exe" : Path.GetFileName(_availableAppUpdateInstallerName);
 			string installerPath = Path.Combine(updatesFolder, installerName);
-			using HttpClient client = CreateGitHubHttpClient();
-			byte[] bytes = await client.GetByteArrayAsync(_availableAppUpdateInstallerUrl);
-			await File.WriteAllBytesAsync(installerPath, bytes);
+			await DownloadAppUpdateInstallerAsync(_availableAppUpdateInstallerUrl, installerPath);
 			StatusMessage = "更新包下载完成，正在启动安装程序。";
 			Process.Start(new ProcessStartInfo
 			{
@@ -2732,17 +2740,48 @@ public sealed class MainWindowViewModel : ViewModelBase
 			});
 			Application.Current.Shutdown();
 		}
+		catch (Exception ex)
+		{
+			StatusMessage = "更新失败：" + ex.Message;
+			MessageBox.Show("更新包下载失败：" + Environment.NewLine + ex.Message + Environment.NewLine + Environment.NewLine + "可以稍后重试，或手动下载安装包。", "操作失败", MessageBoxButton.OK, MessageBoxImage.Error);
+		}
 		finally
 		{
 			IsAppUpdateDownloading = false;
 		}
 	}
 
+	private static async Task DownloadAppUpdateInstallerAsync(string url, string installerPath)
+	{
+		string tempPath = installerPath + ".download";
+		if (File.Exists(tempPath))
+		{
+			File.Delete(tempPath);
+		}
+		using HttpClient client = CreateGitHubHttpClient(TimeSpan.FromMinutes(30));
+		client.DefaultRequestHeaders.Accept.Clear();
+		using HttpResponseMessage response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
+		response.EnsureSuccessStatusCode();
+		await using Stream remoteStream = await response.Content.ReadAsStreamAsync();
+		await using FileStream fileStream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, 1024 * 1024, useAsync: true);
+		await remoteStream.CopyToAsync(fileStream);
+		if (File.Exists(installerPath))
+		{
+			File.Delete(installerPath);
+		}
+		File.Move(tempPath, installerPath);
+	}
+
 	private static HttpClient CreateGitHubHttpClient()
+	{
+		return CreateGitHubHttpClient(TimeSpan.FromSeconds(20));
+	}
+
+	private static HttpClient CreateGitHubHttpClient(TimeSpan timeout)
 	{
 		HttpClient client = new HttpClient
 		{
-			Timeout = TimeSpan.FromSeconds(20)
+			Timeout = timeout
 		};
 		client.DefaultRequestHeaders.UserAgent.ParseAdd("EcomTool-Studio-Updater");
 		client.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");

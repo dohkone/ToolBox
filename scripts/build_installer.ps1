@@ -2,6 +2,7 @@ param(
     [string]$ProjectRoot = 'D:\new_project',
     [string]$Version = (Get-Date -Format 'yyyy.MM.dd.HHmm'),
     [string]$InnoSetupCompiler = '',
+    [string]$ReleaseBaseUrl = 'https://github.com/dohkone/ToolBox/releases/download',
     [switch]$SkipPortableBuild
 )
 
@@ -51,6 +52,7 @@ $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
 $distRoot = Join-Path $ProjectRoot 'dist'
 $portableScript = Join-Path $ProjectRoot 'scripts\build_portable_package.ps1'
 $installerScript = Join-Path $ProjectRoot 'installer\EcomToolStudio.iss'
+$updaterScript = Join-Path $ProjectRoot 'installer\EcomToolUpdater.iss'
 
 if (-not (Test-Path -LiteralPath $portableScript)) {
     throw "Portable build script not found: $portableScript"
@@ -58,6 +60,10 @@ if (-not (Test-Path -LiteralPath $portableScript)) {
 
 if (-not (Test-Path -LiteralPath $installerScript)) {
     throw "Inno Setup script not found: $installerScript"
+}
+
+if (-not (Test-Path -LiteralPath $updaterScript)) {
+    throw "Updater Inno Setup script not found: $updaterScript"
 }
 
 if (-not $SkipPortableBuild) {
@@ -98,3 +104,27 @@ if (-not (Test-Path -LiteralPath $installerPath)) {
 }
 
 Write-Output "Installer created: $installerPath"
+
+$installerFileName = Split-Path -Leaf $installerPath
+$installerSize = (Get-Item -LiteralPath $installerPath).Length
+$fullInstallerUrl = ('{0}/v{1}/{2}' -f $ReleaseBaseUrl.TrimEnd('/'), $Version, $installerFileName)
+
+$env:ECOMTOOL_FULL_INSTALLER_URL = $fullInstallerUrl
+$env:ECOMTOOL_FULL_INSTALLER_NAME = $installerFileName
+$env:ECOMTOOL_FULL_INSTALLER_SIZE = [string]$installerSize
+
+Write-Output "Building updater bootstrapper..."
+Write-Output "Full installer URL: $fullInstallerUrl"
+Write-Output "Full installer size: $installerSize"
+
+& $iscc $updaterScript
+if ($LASTEXITCODE -ne 0) {
+    throw "Updater build failed."
+}
+
+$updaterPath = Join-Path $outputDir ("EcomTool_Update_{0}.exe" -f $Version)
+if (-not (Test-Path -LiteralPath $updaterPath)) {
+    throw "Updater was not created: $updaterPath"
+}
+
+Write-Output "Updater created: $updaterPath"
