@@ -10,10 +10,10 @@
     <UseWindowsForms>true</UseWindowsForms>
     <AssemblyName>EcomTool</AssemblyName>
     <Product>EcomTool</Product>
-    <Version>1.0.6</Version>
-    <AssemblyVersion>1.0.6.0</AssemblyVersion>
-    <FileVersion>1.0.6.0</FileVersion>
-    <InformationalVersion>1.0.6</InformationalVersion>
+    <Version>1.0.8</Version>
+    <AssemblyVersion>1.0.8.0</AssemblyVersion>
+    <FileVersion>1.0.8.0</FileVersion>
+    <InformationalVersion>1.0.8</InformationalVersion>
     <Description>E-commerce image, generation, product sheet, and listing automation studio.</Description>
     <ApplicationIcon>..\..\logo\new_logo.ico</ApplicationIcon>
   </PropertyGroup>
@@ -67,8 +67,13 @@
     </None>
     <None Include="..\..\tools\python\image2-generate\**\*">
       <Link>tools\python\image2-generate\%(RecursiveDir)%(Filename)%(Extension)</Link>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Always</CopyToPublishDirectory>
+    </None>
+    <None Include="..\..\tools\python\banana-generate\**\*">
+      <Link>tools\python\banana-generate\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Always</CopyToPublishDirectory>
     </None>
     <None Include="..\..\tools\node\miaoshou-playwright\**\*">
       <Link>tools\node\miaoshou-playwright\%(RecursiveDir)%(Filename)%(Extension)</Link>

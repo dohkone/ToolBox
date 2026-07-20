@@ -1256,6 +1256,49 @@
                                     ToolTip="生图Key"
                                     Style="{StaticResource HeaderIconButtonStyle}"
                                     Command="{Binding OpenImageGenerationKeyDialogCommand}" />
+                            <StackPanel Margin="10,0,0,0"
+                                        VerticalAlignment="Center"
+                                        Orientation="Horizontal">
+                                <Button Padding="10,3"
+                                        MinWidth="58"
+                                        Command="{Binding SelectImageGenerationProviderCommand}"
+                                        CommandParameter="image2">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                            <Setter Property="MinHeight" Value="26" />
+                                            <Setter Property="FontSize" Value="12" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsImage2GenerationProviderSelected}" Value="True">
+                                                    <Setter Property="Background" Value="#2D6AE3" />
+                                                    <Setter Property="BorderBrush" Value="#2D6AE3" />
+                                                    <Setter Property="Foreground" Value="White" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                    <TextBlock Text="image2" />
+                                </Button>
+                                <Button Margin="6,0,0,0"
+                                        Padding="10,3"
+                                        MinWidth="66"
+                                        Command="{Binding SelectImageGenerationProviderCommand}"
+                                        CommandParameter="banana">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                            <Setter Property="MinHeight" Value="26" />
+                                            <Setter Property="FontSize" Value="12" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsBananaGenerationProviderSelected}" Value="True">
+                                                    <Setter Property="Background" Value="#2D6AE3" />
+                                                    <Setter Property="BorderBrush" Value="#2D6AE3" />
+                                                    <Setter Property="Foreground" Value="White" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                    <TextBlock Text="banana" />
+                                </Button>
+                            </StackPanel>
                         </StackPanel>
                         <TextBlock Margin="0,6,0,0"
                                    Foreground="{StaticResource MutedTextBrush}"
@@ -4190,12 +4233,21 @@
                         <StackPanel Grid.Row="1"
                                     Margin="0,16,0,0">
                             <TextBlock Margin="0,0,0,6"
-                                       Text="API Key" />
+                                       Text="image2 Key" />
                             <TextBox Style="{StaticResource ElementInputTextBoxStyle}"
                                      Text="{Binding ImageGenerationKeyText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                             <TextBlock Margin="0,8,0,0"
                                        Foreground="{StaticResource MutedTextBrush}"
                                        Text="{Binding ImageGenerationKeyPathText}"
+                                       TextWrapping="Wrap" />
+
+                            <TextBlock Margin="0,14,0,6"
+                                       Text="banana Key" />
+                            <TextBox Style="{StaticResource ElementInputTextBoxStyle}"
+                                     Text="{Binding BananaImageGenerationKeyText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Margin="0,8,0,0"
+                                       Foreground="{StaticResource MutedTextBrush}"
+                                       Text="{Binding BananaImageGenerationKeyPathText}"
                                        TextWrapping="Wrap" />
                         </StackPanel>
 

@@ -113,11 +113,8 @@ def parse_args():
 
 
 def ensure_index(index_path, source_path):
-    if index_path.exists() and source_path.exists():
-        if index_path.stat().st_mtime >= source_path.stat().st_mtime:
-            return
-    elif index_path.exists():
-        return
+    if not source_path.exists():
+        raise FileNotFoundError(f"Source size spec workbook not found: {source_path}")
 
     build_script = Path(__file__).with_name("build_size_index.py")
     cmd = [

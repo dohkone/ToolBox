@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Batch-generate six fixed-color SKU variants from every image in a folder.
+Batch-generate fixed-color SKU variants from every image in a folder.
 """
 
 from __future__ import annotations
@@ -87,15 +87,44 @@ COLORS: tuple[ColorSpec, ...] = (
     ColorSpec("darkgray", "Dark gray", "深灰色", "#C4C8CA"),
     ColorSpec("winered", "Wine red", "酒红色", "#722829"),
     ColorSpec("royalblue", "Royal blue", "宝蓝色", "#2E3EA5"),
+    ColorSpec("khaki", "Khaki", "卡其色", "#E8DDBC"),
+    ColorSpec("coffeecolor", "Coffee color", "咖啡色", "#6F4E37"),
 )
 
 COLOR_ALIAS_MAP: dict[str, str] = {
     "black": "black",
+    "黑色": "black",
     "offwhite": "offwhite",
+    "off-white": "offwhite",
+    "off white": "offwhite",
+    "米白色": "offwhite",
     "darkbrown": "darkbrown",
+    "dark-brown": "darkbrown",
+    "dark brown": "darkbrown",
+    "深棕色": "darkbrown",
     "darkgray": "darkgray",
+    "dark-gray": "darkgray",
+    "dark gray": "darkgray",
+    "darkgrey": "darkgray",
+    "dark-grey": "darkgray",
+    "dark grey": "darkgray",
+    "深灰色": "darkgray",
     "winered": "winered",
+    "wine-red": "winered",
+    "wine red": "winered",
+    "酒红色": "winered",
     "royalblue": "royalblue",
+    "royal-blue": "royalblue",
+    "royal blue": "royalblue",
+    "宝蓝色": "royalblue",
+    "khaki": "khaki",
+    "khaki color": "khaki",
+    "卡其色": "khaki",
+    "coffee": "coffeecolor",
+    "coffeecolor": "coffeecolor",
+    "coffee-color": "coffeecolor",
+    "coffee color": "coffeecolor",
+    "咖啡色": "coffeecolor",
 }
 
 

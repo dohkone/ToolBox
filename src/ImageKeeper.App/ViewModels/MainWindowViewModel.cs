@@ -55,6 +55,10 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private const string CompareImageGenerateTab = "compare-image-generate";
 
+	private const string Image2GenerationProvider = "image2";
+
+	private const string BananaGenerationProvider = "banana";
+
 	private const string GitHubLatestReleaseApiUrl = "https://api.github.com/repos/dohkone/ToolBox/releases/latest";
 
 	private const string GitHubReleaseDownloadUrl = "https://github.com/dohkone/ToolBox/releases/latest";
@@ -66,7 +70,9 @@ public sealed class MainWindowViewModel : ViewModelBase
 		"深棕色",
 		"深灰色",
 		"酒红色",
-		"宝蓝色"
+		"宝蓝色",
+		"卡其色",
+		"咖啡色"
 	};
 
 	private readonly IFolderScanService _folderScanService;
@@ -243,6 +249,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private readonly RelayCommand _openImageGenerationKeyDialogCommand;
 
+	private readonly RelayCommand _selectImageGenerationProviderCommand;
+
 	private readonly RelayCommand _saveImageGenerationKeyCommand;
 
 	private readonly RelayCommand _cancelImageGenerationKeyCommand;
@@ -347,6 +355,10 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private string _imageGenerationKeyText = string.Empty;
 
+	private string _bananaImageGenerationKeyText = string.Empty;
+
+	private string _selectedImageGenerationProvider = Image2GenerationProvider;
+
 	private bool? _lastExecutedGenerationPromptsOnly;
 
 	private string? _activeTemplateGenerationTab;
@@ -377,7 +389,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private string _spBatchColorStatusText = "待命";
 
-	private string _spBatchSummaryText = "用于批量创建日期目录、SP 结构和 6 色 SKU 图。";
+	private string _spBatchSummaryText = "用于批量创建日期目录、SP 结构和多色 SKU 图。";
 
 	private string _spBatchResultRootText = "日期目录：未设置";
 
@@ -471,7 +483,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private static string DefaultTemplateLibraryPath => ResolveTemplateLibraryPath();
 
-	private static string DefaultImage2ScriptPath => ResolveImage2ScriptPath();
+	private string CurrentImageGenerationScriptPath => ResolveImageGenerationScriptPath(SelectedImageGenerationProvider);
 
 	private static string DefaultFolderPickerDirectory => ResolveDefaultFolderPickerDirectory();
 
@@ -660,6 +672,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 	public ICommand CancelCardSizeInfoCommand => _cancelCardSizeInfoCommand;
 
 	public ICommand OpenImageGenerationKeyDialogCommand => _openImageGenerationKeyDialogCommand;
+
+	public ICommand SelectImageGenerationProviderCommand => _selectImageGenerationProviderCommand;
 
 	public ICommand SaveImageGenerationKeyCommand => _saveImageGenerationKeyCommand;
 
@@ -2095,7 +2109,48 @@ public sealed class MainWindowViewModel : ViewModelBase
 		}
 	}
 
-	public string ImageGenerationKeyPathText => "保存位置：" + GetUserImageGenerationKeyPath();
+	public string BananaImageGenerationKeyText
+	{
+		get
+		{
+			return _bananaImageGenerationKeyText;
+		}
+		set
+		{
+			if (SetProperty(ref _bananaImageGenerationKeyText, value, "BananaImageGenerationKeyText"))
+			{
+				_saveImageGenerationKeyCommand.RaiseCanExecuteChanged();
+			}
+		}
+	}
+
+	public string SelectedImageGenerationProvider
+	{
+		get
+		{
+			return _selectedImageGenerationProvider;
+		}
+		private set
+		{
+			string normalized = NormalizeImageGenerationProvider(value);
+			if (SetProperty(ref _selectedImageGenerationProvider, normalized, "SelectedImageGenerationProvider"))
+			{
+				OnPropertyChanged("IsImage2GenerationProviderSelected");
+				OnPropertyChanged("IsBananaGenerationProviderSelected");
+				OnPropertyChanged("ImageGenerationProviderText");
+			}
+		}
+	}
+
+	public bool IsImage2GenerationProviderSelected => string.Equals(SelectedImageGenerationProvider, Image2GenerationProvider, StringComparison.OrdinalIgnoreCase);
+
+	public bool IsBananaGenerationProviderSelected => string.Equals(SelectedImageGenerationProvider, BananaGenerationProvider, StringComparison.OrdinalIgnoreCase);
+
+	public string ImageGenerationProviderText => IsBananaGenerationProviderSelected ? "banana" : "image2";
+
+	public string ImageGenerationKeyPathText => "image2 保存位置：" + GetUserImageGenerationKeyPath();
+
+	public string BananaImageGenerationKeyPathText => "banana 保存位置：" + GetUserBananaImageGenerationKeyPath();
 
 	public string GenerationStatusText
 	{
@@ -2602,10 +2657,14 @@ public sealed class MainWindowViewModel : ViewModelBase
 		{
 			OpenImageGenerationKeyDialog();
 		});
+		_selectImageGenerationProviderCommand = new RelayCommand(delegate(object? parameter)
+		{
+			SelectImageGenerationProvider(parameter?.ToString());
+		});
 		_saveImageGenerationKeyCommand = new RelayCommand(delegate
 		{
 			SaveImageGenerationKey();
-		}, (object? _) => !string.IsNullOrWhiteSpace(ImageGenerationKeyText));
+		}, (object? _) => !string.IsNullOrWhiteSpace(ImageGenerationKeyText) || !string.IsNullOrWhiteSpace(BananaImageGenerationKeyText));
 		_cancelImageGenerationKeyCommand = new RelayCommand(delegate
 		{
 			CloseImageGenerationKeyDialog();
@@ -4474,7 +4533,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 			{
 				TemplatePath = TemplateLibraryPath,
 				OutputDirectory = GenerationOutputDirectory,
-				Image2ScriptPath = DefaultImage2ScriptPath,
+				Image2ScriptPath = CurrentImageGenerationScriptPath,
 				ImageType = currentImageType,
 				Count = value,
 				Concurrency = value2,
@@ -4582,7 +4641,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 			{
 				InputDirectory = SpBatchInputDirectory,
 				OutputDirectory = SpBatchOutputDirectory,
-				Image2ScriptPath = DefaultImage2ScriptPath,
+				Image2ScriptPath = CurrentImageGenerationScriptPath,
 				Concurrency = value,
 				Retries = retries,
 				Mode = _spBatchMode,
@@ -5146,7 +5205,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 	{
 		SpBatchStatusText = "待命";
 		SpBatchColorStatusText = "待命";
-		SpBatchSummaryText = "用于批量创建日期目录、SKU 结构和 6 色 SKU 图。";
+		SpBatchSummaryText = "用于批量创建日期目录、SKU 结构和多色 SKU 图。";
 		SpBatchResultRootText = "日期目录：" + SpBatchOutputDirectory;
 		SpBatchResultStatsText = "SKU 数量：0  总任务：0  成功：0  跳过：0  失败：0";
 		ClearSpBatchResultCards();
@@ -5346,6 +5405,11 @@ public sealed class MainWindowViewModel : ViewModelBase
 		return array.FirstOrDefault(File.Exists) ?? array[0];
 	}
 
+	private static string ResolveImageGenerationScriptPath(string provider)
+	{
+		return string.Equals(NormalizeImageGenerationProvider(provider), BananaGenerationProvider, StringComparison.OrdinalIgnoreCase) ? ResolveBananaScriptPath() : ResolveImage2ScriptPath();
+	}
+
 	private static string ResolveImage2ScriptPath()
 	{
 		string baseDirectory = AppContext.BaseDirectory;
@@ -5357,6 +5421,17 @@ public sealed class MainWindowViewModel : ViewModelBase
 		return array.FirstOrDefault(File.Exists) ?? array[0];
 	}
 
+	private static string ResolveBananaScriptPath()
+	{
+		string baseDirectory = AppContext.BaseDirectory;
+		string[] array = new string[2]
+		{
+			Path.Combine(baseDirectory, "tools", "python", "banana-generate", "scripts", "generate_image.py"),
+			Path.Combine("D:\\new_project\\tools\\python", "banana-generate", "scripts", "generate_image.py")
+		};
+		return array.FirstOrDefault(File.Exists) ?? array[0];
+	}
+
 	private static string GetUserImageGenerationKeyPath()
 	{
 		string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
@@ -5364,9 +5439,21 @@ public sealed class MainWindowViewModel : ViewModelBase
 		return Path.Combine(root, "image2_api_key");
 	}
 
+	private static string GetUserBananaImageGenerationKeyPath()
+	{
+		string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+		string root = string.IsNullOrWhiteSpace(localAppData) ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".toolbox") : Path.Combine(localAppData, "ToolBox");
+		return Path.Combine(root, "banana_api_key");
+	}
+
 	private static string GetBundledImageGenerationKeyPath()
 	{
 		return Path.Combine(AppContext.BaseDirectory, "tools", "python", "image2-generate", ".image2_api_key");
+	}
+
+	private static string GetBundledBananaImageGenerationKeyPath()
+	{
+		return Path.Combine(AppContext.BaseDirectory, "tools", "python", "banana-generate", ".banana_api_key");
 	}
 
 	private void OpenImageGenerationKeyDialog()
@@ -5375,32 +5462,66 @@ public sealed class MainWindowViewModel : ViewModelBase
 		string bundledKeyPath = GetBundledImageGenerationKeyPath();
 		string keyPath = File.Exists(userKeyPath) ? userKeyPath : bundledKeyPath;
 		ImageGenerationKeyText = File.Exists(keyPath) ? File.ReadAllText(keyPath, Encoding.UTF8).Trim().TrimStart('\ufeff') : string.Empty;
+		string bananaUserKeyPath = GetUserBananaImageGenerationKeyPath();
+		string bananaBundledKeyPath = GetBundledBananaImageGenerationKeyPath();
+		string bananaKeyPath = File.Exists(bananaUserKeyPath) ? bananaUserKeyPath : bananaBundledKeyPath;
+		BananaImageGenerationKeyText = File.Exists(bananaKeyPath) ? File.ReadAllText(bananaKeyPath, Encoding.UTF8).Trim().TrimStart('\ufeff') : string.Empty;
 		OnPropertyChanged("ImageGenerationKeyPathText");
+		OnPropertyChanged("BananaImageGenerationKeyPathText");
 		IsImageGenerationKeyDialogOpen = true;
 	}
 
 	private void SaveImageGenerationKey()
 	{
 		string key = ImageGenerationKeyText.Trim().TrimStart('\ufeff');
-		if (string.IsNullOrWhiteSpace(key))
+		string bananaKey = BananaImageGenerationKeyText.Trim().TrimStart('\ufeff');
+		if (string.IsNullOrWhiteSpace(key) && string.IsNullOrWhiteSpace(bananaKey))
 		{
-			StatusMessage = "生图 Key 不能为空。";
+			StatusMessage = "至少填写一个生图 Key。";
 			return;
 		}
-		string userKeyPath = GetUserImageGenerationKeyPath();
-		string? directoryName = Path.GetDirectoryName(userKeyPath);
+		if (!string.IsNullOrWhiteSpace(key))
+		{
+			WriteImageGenerationKey(GetUserImageGenerationKeyPath(), key);
+		}
+		if (!string.IsNullOrWhiteSpace(bananaKey))
+		{
+			WriteImageGenerationKey(GetUserBananaImageGenerationKeyPath(), bananaKey);
+		}
+		StatusMessage = "已保存生图 Key。";
+		CloseImageGenerationKeyDialog();
+	}
+
+	private static void WriteImageGenerationKey(string path, string key)
+	{
+		string? directoryName = Path.GetDirectoryName(path);
 		if (!string.IsNullOrWhiteSpace(directoryName))
 		{
 			Directory.CreateDirectory(directoryName);
 		}
-		File.WriteAllText(userKeyPath, key, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
-		StatusMessage = "已保存生图 Key。";
-		CloseImageGenerationKeyDialog();
+		File.WriteAllText(path, key, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
 	}
 
 	private void CloseImageGenerationKeyDialog()
 	{
 		IsImageGenerationKeyDialogOpen = false;
+	}
+
+	private void SelectImageGenerationProvider(string? provider)
+	{
+		string normalized = NormalizeImageGenerationProvider(provider);
+		if (string.Equals(SelectedImageGenerationProvider, normalized, StringComparison.OrdinalIgnoreCase))
+		{
+			return;
+		}
+		SelectedImageGenerationProvider = normalized;
+		PersistUserPathSettings();
+		StatusMessage = "生图接口已切换为：" + ImageGenerationProviderText;
+	}
+
+	private static string NormalizeImageGenerationProvider(string? provider)
+	{
+		return string.Equals(provider?.Trim(), BananaGenerationProvider, StringComparison.OrdinalIgnoreCase) ? BananaGenerationProvider : Image2GenerationProvider;
 	}
 
 	private static string ResolveDefaultFolderPickerDirectory()
@@ -5426,6 +5547,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		SpBatchInputDirectory = NormalizeWritableWorkspacePath(state.SpBatchInputDirectory ?? string.Empty);
 		SpBatchOutputDirectory = NormalizeWritableWorkspacePath(state.SpBatchOutputDirectory ?? string.Empty);
 		SkuOptimizeOutputDirectory = NormalizeWritableWorkspacePath(state.SkuOptimizeOutputDirectory ?? string.Empty);
+		SelectedImageGenerationProvider = state.ImageGenerationProvider;
 	}
 
 	private static string NormalizeWritableWorkspacePath(string path)
@@ -5456,6 +5578,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		appUserPathsState.SpBatchInputDirectory = SpBatchInputDirectory;
 		appUserPathsState.SpBatchOutputDirectory = SpBatchOutputDirectory;
 		appUserPathsState.SkuOptimizeOutputDirectory = SkuOptimizeOutputDirectory;
+		appUserPathsState.ImageGenerationProvider = SelectedImageGenerationProvider;
 		appSettingsService.SaveUserPaths(appUserPathsState);
 	}
 
@@ -5573,7 +5696,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		TextBlock description = new TextBlock
 		{
 			Margin = new Thickness(0.0, 8.0, 0.0, 10.0),
-			Text = "例如：黑色.png、深棕色.png、宝蓝色.png",
+			Text = "例如：黑色.png、卡其色.png、咖啡色.png",
 			Foreground = new SolidColorBrush(Color.FromRgb(96, 98, 102))
 		};
 		Grid.SetRow(description, 1);
@@ -6046,7 +6169,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 			displayFileName = EnsureImageExtension(renamedFileName.Trim(), Path.GetExtension(imagePath));
 			if (!HasSkuMasterColorToken(displayFileName))
 			{
-				MessageBox.Show("文件名需要包含颜色，例如：黑色.png、深棕色.png、宝蓝色.png。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+				MessageBox.Show("文件名需要包含颜色，例如：黑色.png、卡其色.png、咖啡色.png。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
 				StatusMessage = "SKU 母图文件名未包含颜色，已取消添加。";
 				return;
 			}
@@ -6320,7 +6443,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 			{
 				InputDirectory = inputDirectory,
 				OutputDirectory = SpBatchOutputDirectory,
-				Image2ScriptPath = DefaultImage2ScriptPath,
+				Image2ScriptPath = CurrentImageGenerationScriptPath,
 				Concurrency = value,
 				Retries = retries,
 				Mode = mode,
@@ -6620,7 +6743,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 			{
 				InputDirectory = inputDirectory,
 				OutputDirectory = SkuOptimizeOutputDirectory,
-				Image2ScriptPath = DefaultImage2ScriptPath,
+				Image2ScriptPath = CurrentImageGenerationScriptPath,
 				Concurrency = value,
 				LengthMultiplier = value2,
 				DiameterMultiplier = value3,

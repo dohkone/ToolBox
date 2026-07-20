@@ -54,8 +54,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--quality",
-        default="medium",
-        help="Requested image quality. Defaults to medium.",
+        default="high",
+        help="Requested image quality. Defaults to high.",
     )
     parser.add_argument(
         "--n",

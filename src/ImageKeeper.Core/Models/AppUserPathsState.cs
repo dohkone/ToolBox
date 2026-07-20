@@ -15,4 +15,6 @@ public sealed class AppUserPathsState
 	public string SpBatchOutputDirectory { get; set; } = string.Empty;
 
 	public string SkuOptimizeOutputDirectory { get; set; } = string.Empty;
+
+	public string ImageGenerationProvider { get; set; } = string.Empty;
 }
