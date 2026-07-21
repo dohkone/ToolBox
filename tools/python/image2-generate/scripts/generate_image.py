@@ -20,6 +20,8 @@ from typing import Any
 DEFAULT_MODEL = "gpt-image-2"
 DEFAULT_BASE_URL = "https://api.change2pro.com"
 DEFAULT_OUTPUT_DIR = Path.home() / "Downloads" / "image2-generations"
+MAX_OUTPUT_IMAGE_BYTES = 3 * 1024 * 1024
+COMPRESSED_JPEG_QUALITY = 86
 SKILL_DIR = Path(__file__).resolve().parents[1]
 KEY_FILE = SKILL_DIR / ".image2_api_key"
 LEGACY_STATE_FILE = SKILL_DIR / ".default_model"
@@ -333,6 +335,39 @@ def normalize_filename(filename: str | None, fallback_stem: str, extension: str)
     return f"{fallback_stem}{extension}"
 
 
+def compress_image_if_needed(image_path: Path) -> Path:
+    if not image_path.exists() or image_path.stat().st_size <= MAX_OUTPUT_IMAGE_BYTES:
+        return image_path.resolve()
+
+    try:
+        from PIL import Image
+    except ModuleNotFoundError as exc:
+        raise Image2Error("Pillow is required to compress images larger than 3MB.") from exc
+
+    compressed_path = image_path.with_suffix(".jpg")
+    if compressed_path == image_path:
+        compressed_path = image_path.with_name(f"{image_path.stem}_compressed.jpg")
+
+    with Image.open(image_path) as image:
+        image.convert("RGB").save(
+            compressed_path,
+            format="JPEG",
+            quality=COMPRESSED_JPEG_QUALITY,
+            optimize=True,
+            progressive=True,
+            subsampling=0,
+        )
+
+    if compressed_path.stat().st_size <= MAX_OUTPUT_IMAGE_BYTES:
+        try:
+            image_path.unlink()
+        except OSError:
+            pass
+        return compressed_path.resolve()
+
+    return compressed_path.resolve()
+
+
 def resolve_input_paths(paths: list[str] | None, label: str) -> list[Path]:
     if not paths:
         return []
@@ -582,7 +617,7 @@ def save_b64_image(item: dict[str, Any], output_dir: Path, filename: str | None,
     final_name = normalize_filename(filename, slugify_filename(prompt), extension)
     output_path = output_dir / final_name
     output_path.write_bytes(raw)
-    return output_path.resolve()
+    return compress_image_if_needed(output_path)
 
 
 def download_url_image(item: dict[str, Any], output_dir: Path, filename: str | None, prompt: str) -> Path:
@@ -593,7 +628,7 @@ def download_url_image(item: dict[str, Any], output_dir: Path, filename: str | N
     final_name = normalize_filename(filename, slugify_filename(prompt), extension)
     output_path = output_dir / final_name
     run_curl_download(url, output_path)
-    return output_path.resolve()
+    return compress_image_if_needed(output_path)
 
 
 def save_images(payload: dict[str, Any], output_dir: Path, filename: str | None, prompt: str) -> list[Path]:

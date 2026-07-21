@@ -1,5 +1,7 @@
 using System;
 using System.IO;
+using System.Linq;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Input;
 using ImageKeeper.App.Utilities;
@@ -11,7 +13,11 @@ public sealed class TemplateItemViewModel : ViewModelBase
 {
 	private bool _isSelected;
 
+	private bool _isSelectedForExport;
+
 	private string? _subjectSummaryOverride;
+
+	private readonly Action? _exportSelectionChanged;
 
 	public TemplateItemRecord Model { get; private set; }
 
@@ -134,12 +140,32 @@ public sealed class TemplateItemViewModel : ViewModelBase
 		}
 	}
 
+	public string MainTitleSummary => BuildTitleSummary("MainTitles");
+
+	public string SubTitleSummary => BuildTitleSummary("SubTitles");
+
+	public bool IsSelectedForExport
+	{
+		get
+		{
+			return _isSelectedForExport;
+		}
+		set
+		{
+			if (SetProperty(ref _isSelectedForExport, value, "IsSelectedForExport"))
+			{
+				_exportSelectionChanged?.Invoke();
+			}
+		}
+	}
+
 	public ICommand OpenPreviewImageCommand { get; }
 
-	public TemplateItemViewModel(TemplateItemRecord model, string? subjectSummaryOverride = null)
+	public TemplateItemViewModel(TemplateItemRecord model, string? subjectSummaryOverride = null, Action? exportSelectionChanged = null)
 	{
 		Model = model;
 		_subjectSummaryOverride = subjectSummaryOverride;
+		_exportSelectionChanged = exportSelectionChanged;
 		OpenPreviewImageCommand = new RelayCommand(delegate
 		{
 			OpenPreviewImage();
@@ -167,7 +193,32 @@ public sealed class TemplateItemViewModel : ViewModelBase
 		OnPropertyChanged("CreatedAtText");
 		OnPropertyChanged("UpdatedAtText");
 		OnPropertyChanged("ContentSummary");
+		OnPropertyChanged("MainTitleSummary");
+		OnPropertyChanged("SubTitleSummary");
 		OnPropertyChanged("SubjectSummary");
+	}
+
+	private string BuildTitleSummary(string propertyName)
+	{
+		try
+		{
+			using JsonDocument document = JsonDocument.Parse(Content);
+			if (document.RootElement.TryGetProperty(propertyName, out JsonElement values) && values.ValueKind == JsonValueKind.Array)
+			{
+				string text = string.Join(" / ", values.EnumerateArray()
+					.Where(item => item.ValueKind == JsonValueKind.String)
+					.Select(item => item.GetString()?.Trim() ?? string.Empty)
+					.Where(text => !string.IsNullOrWhiteSpace(text)));
+				if (!string.IsNullOrWhiteSpace(text))
+				{
+					return text.Length > 80 ? text.Substring(0, 80) + "..." : text;
+				}
+			}
+		}
+		catch (JsonException)
+		{
+		}
+		return "-";
 	}
 
 	private void OpenPreviewImage()

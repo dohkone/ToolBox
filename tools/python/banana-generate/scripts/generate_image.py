@@ -22,6 +22,8 @@ DEFAULT_MODEL = "gemini-3.1-flash-image"
 DEFAULT_BASE_URL = "https://api.change2pro.com"
 DEFAULT_OUTPUT_DIR = Path.home() / "Downloads" / "banana-generations"
 HTTP_TIMEOUT_SECONDS = 900
+MAX_OUTPUT_IMAGE_BYTES = 3 * 1024 * 1024
+COMPRESSED_JPEG_QUALITY = 86
 SKILL_DIR = Path(__file__).resolve().parents[1]
 KEY_FILE = SKILL_DIR / ".banana_api_key"
 VALID_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
@@ -345,6 +347,39 @@ def normalize_filename(filename: str | None, fallback_stem: str, extension: str)
     return f"{fallback_stem}{extension}"
 
 
+def compress_image_if_needed(image_path: Path) -> Path:
+    if not image_path.exists() or image_path.stat().st_size <= MAX_OUTPUT_IMAGE_BYTES:
+        return image_path.resolve()
+
+    try:
+        from PIL import Image
+    except ModuleNotFoundError as exc:
+        raise BananaImageError("Pillow is required to compress images larger than 3MB.") from exc
+
+    compressed_path = image_path.with_suffix(".jpg")
+    if compressed_path == image_path:
+        compressed_path = image_path.with_name(f"{image_path.stem}_compressed.jpg")
+
+    with Image.open(image_path) as image:
+        image.convert("RGB").save(
+            compressed_path,
+            format="JPEG",
+            quality=COMPRESSED_JPEG_QUALITY,
+            optimize=True,
+            progressive=True,
+            subsampling=0,
+        )
+
+    if compressed_path.stat().st_size <= MAX_OUTPUT_IMAGE_BYTES:
+        try:
+            image_path.unlink()
+        except OSError:
+            pass
+        return compressed_path.resolve()
+
+    return compressed_path.resolve()
+
+
 def save_images(images: list[dict[str, str]], output_dir: Path, filename: str | None, prompt: str) -> list[Path]:
     if not images:
         raise BananaImageError("Banana response did not contain any inline image data.")
@@ -366,7 +401,7 @@ def save_images(images: list[dict[str, str]], output_dir: Path, filename: str | 
         final_name = normalize_filename(current_filename, fallback_stem, extension)
         output_path = output_dir / final_name
         output_path.write_bytes(raw)
-        saved_paths.append(output_path.resolve())
+        saved_paths.append(compress_image_if_needed(output_path))
     return saved_paths
 
 

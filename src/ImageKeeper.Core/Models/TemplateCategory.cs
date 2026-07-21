@@ -4,5 +4,6 @@ public enum TemplateCategory
 {
 	Layout,
 	Scene,
-	Subject
+	Subject,
+	Title
 }

@@ -52,14 +52,10 @@ class Job:
 COLORS: tuple[ColorSpec, ...] = (
     ColorSpec("black", "Black", "#0A0A0A", ("black", "black-cn", "黑色")),
     ColorSpec("offwhite", "Off-white", "#F4F4F2", ("offwhite", "off-white", "offwhite-cn", "米白色")),
-    ColorSpec("yellowbrown", "Yellow brown", "#C19F7A", ("yellowbrown", "yellow-brown", "yellowbrown-cn", "黄褐色")),
-    ColorSpec("khaki", "Khaki", "#E8DDBC", ("khaki", "khaki-cn", "卡其色")),
-    ColorSpec("coffee", "Coffee color", "#6F4E37", ("coffee", "coffee-color", "coffeecolor", "coffee-cn", "咖啡色")),
     ColorSpec("darkbrown", "Dark brown", "#261107", ("darkbrown", "dark-brown", "darkbrown-cn", "深棕色")),
     ColorSpec("darkgray", "Dark gray", "#C4C8CA", ("darkgray", "dark-gray", "dark-grey", "darkgrey", "darkgray-cn", "深灰色")),
     ColorSpec("winered", "Wine red", "#722829", ("winered", "wine-red", "winered-cn", "酒红色")),
     ColorSpec("royalblue", "Royal blue", "#2E3EA5", ("royalblue", "royal-blue", "royalblue-cn", "宝蓝色")),
-    ColorSpec("darkgreen", "Dark green", "#092C15", ("darkgreen", "dark-green", "darkgreen-cn", "墨绿色")),
 )
 
 

@@ -23,9 +23,13 @@ public interface ITemplateLibraryService
 
 	Task<string> ImportPreviewImageAsync(string sourceImagePath, CancellationToken cancellationToken = default(CancellationToken));
 
-	Task<int> ExportLayoutTemplatesAsync(string packagePath, ImageTemplateType imageType, CancellationToken cancellationToken = default(CancellationToken));
+	Task<int> ExportLayoutTemplatesAsync(string packagePath, ImageTemplateType imageType, IReadOnlyList<long>? selectedTemplateIds = null, CancellationToken cancellationToken = default(CancellationToken));
 
 	Task<int> ImportLayoutTemplatesAsync(string packagePath, CancellationToken cancellationToken = default(CancellationToken));
+
+	Task<int> ExportTemplateCategoryAsync(string packagePath, TemplateCategory category, string? templateType = null, CancellationToken cancellationToken = default(CancellationToken));
+
+	Task<int> ImportTemplateCategoryAsync(string packagePath, TemplateCategory category, string? templateType = null, CancellationToken cancellationToken = default(CancellationToken));
 
 	Task<int> ExportAllTemplatesAsync(string packagePath, CancellationToken cancellationToken = default(CancellationToken));
 

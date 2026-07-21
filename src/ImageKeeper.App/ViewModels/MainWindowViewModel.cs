@@ -39,6 +39,13 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private sealed record GenerationTabState(string StatusText, string ResultModeText, string ResultOutputText, bool? LastExecutedPromptsOnly, List<GenerationPromptCardViewModel> PromptCards, List<GeneratedImageResultCardViewModel> ImageCards);
 
+	private sealed class TitleTemplatePayload
+	{
+		public List<string> MainTitles { get; set; } = new List<string>();
+
+		public List<string> SubTitles { get; set; } = new List<string>();
+	}
+
 	private const string ReviewWorkspaceSection = "review-workspace";
 
 	private const string ImageGenerateSection = "image-generate";
@@ -63,6 +70,10 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private const string GitHubReleaseDownloadUrl = "https://github.com/dohkone/ToolBox/releases/latest";
 
+	private const string MainTitleTemplateType = "main-title";
+
+	private const string SubTitleTemplateType = "sub-title";
+
 	private static readonly string[] SkuMasterColorTokens =
 	{
 		"黑色",
@@ -71,8 +82,6 @@ public sealed class MainWindowViewModel : ViewModelBase
 		"深灰色",
 		"酒红色",
 		"宝蓝色",
-		"卡其色",
-		"咖啡色"
 	};
 
 	private readonly IFolderScanService _folderScanService;
@@ -147,11 +156,17 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private readonly AsyncRelayCommand _showSubjectTemplateTabCommand;
 
+	private readonly AsyncRelayCommand _showTitleTemplateTabCommand;
+
 	private readonly RelayCommand _showMainImageLayoutTypeCommand;
 
 	private readonly RelayCommand _showSceneImageLayoutTypeCommand;
 
 	private readonly RelayCommand _showCompareImageLayoutTypeCommand;
+
+	private readonly RelayCommand _showMainTitleTemplateTypeCommand;
+
+	private readonly RelayCommand _showSubTitleTemplateTypeCommand;
 
 	private readonly RelayCommand _newTemplateCommand;
 
@@ -160,6 +175,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 	private readonly AsyncRelayCommand _deleteTemplateCommand;
 
 	private readonly AsyncRelayCommand _deleteManagedTemplateCommand;
+
+	private readonly AsyncRelayCommand _copyManagedLayoutTemplateCommand;
 
 	private readonly RelayCommand _selectManagedTemplateCommand;
 
@@ -180,6 +197,14 @@ public sealed class MainWindowViewModel : ViewModelBase
 	private readonly RelayCommand _addSceneContentLineCommand;
 
 	private readonly RelayCommand _removeSceneContentLineCommand;
+
+	private readonly RelayCommand _addTitleMainLineCommand;
+
+	private readonly RelayCommand _removeTitleMainLineCommand;
+
+	private readonly RelayCommand _addTitleSubLineCommand;
+
+	private readonly RelayCommand _removeTitleSubLineCommand;
 
 	private readonly RelayCommand _openTemplateSubjectPickerCommand;
 
@@ -277,6 +302,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private ImageTemplateType _selectedLayoutImageType;
 
+	private string _selectedTitleTemplateType = MainTitleTemplateType;
+
 	private readonly string _appCurrentVersion = GetCurrentAppVersion();
 
 	private string _appVersionText = "v" + GetCurrentAppVersion();
@@ -298,6 +325,10 @@ public sealed class MainWindowViewModel : ViewModelBase
 	private int _sceneImageLayoutTemplateCount;
 
 	private int _compareImageLayoutTemplateCount;
+
+	private int _mainTitleTemplateCount;
+
+	private int _subTitleTemplateCount;
 
 	private bool _isBusy;
 
@@ -511,6 +542,10 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	public ObservableCollection<SceneContentLineViewModel> SceneContentLines { get; } = new ObservableCollection<SceneContentLineViewModel>();
 
+	public ObservableCollection<SceneContentLineViewModel> TitleMainLines { get; } = new ObservableCollection<SceneContentLineViewModel>();
+
+	public ObservableCollection<SceneContentLineViewModel> TitleSubLines { get; } = new ObservableCollection<SceneContentLineViewModel>();
+
 	public ObservableCollection<TemplateSubjectTagViewModel> TemplateSubjectTags { get; } = new ObservableCollection<TemplateSubjectTagViewModel>();
 
 	public ObservableCollection<TemplateSubjectOptionViewModel> TemplateSubjectOptions { get; } = new ObservableCollection<TemplateSubjectOptionViewModel>();
@@ -567,11 +602,17 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	public ICommand ShowSubjectTemplateTabCommand => _showSubjectTemplateTabCommand;
 
+	public ICommand ShowTitleTemplateTabCommand => _showTitleTemplateTabCommand;
+
 	public ICommand ShowMainImageLayoutTypeCommand => _showMainImageLayoutTypeCommand;
 
 	public ICommand ShowSceneImageLayoutTypeCommand => _showSceneImageLayoutTypeCommand;
 
 	public ICommand ShowCompareImageLayoutTypeCommand => _showCompareImageLayoutTypeCommand;
+
+	public ICommand ShowMainTitleTemplateTypeCommand => _showMainTitleTemplateTypeCommand;
+
+	public ICommand ShowSubTitleTemplateTypeCommand => _showSubTitleTemplateTypeCommand;
 
 	public ICommand NewTemplateCommand => _newTemplateCommand;
 
@@ -580,6 +621,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 	public ICommand DeleteTemplateCommand => _deleteTemplateCommand;
 
 	public ICommand DeleteManagedTemplateCommand => _deleteManagedTemplateCommand;
+
+	public ICommand CopyManagedLayoutTemplateCommand => _copyManagedLayoutTemplateCommand;
 
 	public ICommand SelectManagedTemplateCommand => _selectManagedTemplateCommand;
 
@@ -600,6 +643,14 @@ public sealed class MainWindowViewModel : ViewModelBase
 	public ICommand AddSceneContentLineCommand => _addSceneContentLineCommand;
 
 	public ICommand RemoveSceneContentLineCommand => _removeSceneContentLineCommand;
+
+	public ICommand AddTitleMainLineCommand => _addTitleMainLineCommand;
+
+	public ICommand RemoveTitleMainLineCommand => _removeTitleMainLineCommand;
+
+	public ICommand AddTitleSubLineCommand => _addTitleSubLineCommand;
+
+	public ICommand RemoveTitleSubLineCommand => _removeTitleSubLineCommand;
 
 	public ICommand OpenTemplateSubjectPickerCommand => _openTemplateSubjectPickerCommand;
 
@@ -808,13 +859,19 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	public bool IsSubjectTemplateTabSelected => _selectedTemplateCategory == TemplateCategory.Subject;
 
-	public double TemplateEditorDialogHeight => IsSubjectTemplateTabSelected ? 230 : 760;
+	public bool IsTitleTemplateTabSelected => _selectedTemplateCategory == TemplateCategory.Title;
+
+	public double TemplateEditorDialogHeight => IsSubjectTemplateTabSelected ? 230 : (IsTitleTemplateTabSelected ? 310 : 760);
 
 	public bool IsMainImageLayoutTypeSelected => _selectedLayoutImageType == ImageTemplateType.MainImage;
 
 	public bool IsSceneImageLayoutTypeSelected => _selectedLayoutImageType == ImageTemplateType.SceneImage;
 
 	public bool IsCompareImageLayoutTypeSelected => _selectedLayoutImageType == ImageTemplateType.CompareImage;
+
+	public bool IsMainTitleTemplateTypeSelected => _selectedTitleTemplateType == MainTitleTemplateType;
+
+	public bool IsSubTitleTemplateTypeSelected => _selectedTitleTemplateType == SubTitleTemplateType;
 
 	public int MainImageLayoutTemplateCount
 	{
@@ -849,6 +906,30 @@ public sealed class MainWindowViewModel : ViewModelBase
 		private set
 		{
 			SetProperty(ref _compareImageLayoutTemplateCount, value, "CompareImageLayoutTemplateCount");
+		}
+	}
+
+	public int MainTitleTemplateCount
+	{
+		get
+		{
+			return _mainTitleTemplateCount;
+		}
+		private set
+		{
+			SetProperty(ref _mainTitleTemplateCount, value, "MainTitleTemplateCount");
+		}
+	}
+
+	public int SubTitleTemplateCount
+	{
+		get
+		{
+			return _subTitleTemplateCount;
+		}
+		private set
+		{
+			SetProperty(ref _subTitleTemplateCount, value, "SubTitleTemplateCount");
 		}
 	}
 
@@ -887,6 +968,28 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	public bool HasManagedTemplateItems => ManagedTemplateItems.Count > 0;
 
+	public int SelectedLayoutExportCount => IsLayoutTemplateTabSelected ? ManagedTemplateItems.Count((TemplateItemViewModel item) => item.IsSelectedForExport) : 0;
+
+	public string LayoutExportSelectionText => SelectedLayoutExportCount > 0 ? $"已选 {SelectedLayoutExportCount} 条，导出选中" : "未选择时导出当前类型全部";
+
+	public string CurrentTemplateImportButtonText => _selectedTemplateCategory switch
+	{
+		TemplateCategory.Scene => "导入场景",
+		TemplateCategory.Subject => "导入主体",
+		TemplateCategory.Title => IsMainTitleTemplateTypeSelected ? "导入大标题" : "导入小标题",
+		_ => "导入布局"
+	};
+
+	public string CurrentTemplateExportButtonText => _selectedTemplateCategory switch
+	{
+		TemplateCategory.Scene => "导出场景",
+		TemplateCategory.Subject => "导出主体",
+		TemplateCategory.Title => IsMainTitleTemplateTypeSelected ? "导出大标题" : "导出小标题",
+		_ => "导出布局"
+	};
+
+	public string CurrentNewTemplateButtonText => IsTitleTemplateTabSelected ? "添加标题" : "新增模板";
+
 	public bool IsTemplateEditorPreviewVisible
 	{
 		get
@@ -903,6 +1006,12 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	public bool IsTemplateEditorContentVisible => !IsSubjectTemplateTabSelected;
 
+	public bool IsTemplateEditorContentLabelVisible => !IsTitleTemplateTabSelected;
+
+	public bool IsTemplateEditorNameVisible => !IsTitleTemplateTabSelected;
+
+	public bool IsTemplateEditorEnabledVisible => !IsTitleTemplateTabSelected;
+
 	public bool HasTemplateSubjectTags => TemplateSubjectTags.Any((TemplateSubjectTagViewModel tag) => tag.IsTag);
 
 	public bool HasTemplateSubjectOptions => TemplateSubjectOptions.Count > 0;
@@ -911,6 +1020,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 	{
 		TemplateCategory.Scene => "场景模板", 
 		TemplateCategory.Subject => "主体模板", 
+		TemplateCategory.Title => "标题模板", 
 		_ => "布局模板", 
 	};
 
@@ -918,6 +1028,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 	{
 		TemplateCategory.Scene => "维护可随机使用的场景描述文本。", 
 		TemplateCategory.Subject => "维护可复用的主体描述文本。", 
+		TemplateCategory.Title => "维护可复用的大标题和小标题文案。", 
 		_ => "维护主图提示词布局，并为每个布局配置一张预览图。", 
 	};
 
@@ -925,6 +1036,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 	{
 		TemplateCategory.Scene => "场景内容", 
 		TemplateCategory.Subject => "主体内容", 
+		TemplateCategory.Title => "标题内容", 
 		_ => "布局模板内容", 
 	};
 
@@ -934,6 +1046,11 @@ public sealed class MainWindowViewModel : ViewModelBase
 	{
 		get
 		{
+			if (IsTitleTemplateTabSelected)
+			{
+				string titleType = IsMainTitleTemplateTypeSelected ? "大标题" : "小标题";
+				return (SelectedTemplateItem != null ? "编辑" : "新增") + titleType;
+			}
 			if (SelectedTemplateItem != null)
 			{
 				return "编辑" + TemplateManagerTitle;
@@ -2519,6 +2636,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		_showLayoutTemplateTabCommand = new AsyncRelayCommand((object? _) => SelectTemplateCategoryAsync(TemplateCategory.Layout));
 		_showSceneTemplateTabCommand = new AsyncRelayCommand((object? _) => SelectTemplateCategoryAsync(TemplateCategory.Scene));
 		_showSubjectTemplateTabCommand = new AsyncRelayCommand((object? _) => SelectTemplateCategoryAsync(TemplateCategory.Subject));
+		_showTitleTemplateTabCommand = new AsyncRelayCommand((object? _) => SelectTemplateCategoryAsync(TemplateCategory.Title));
 		_showMainImageLayoutTypeCommand = new RelayCommand(delegate
 		{
 			SetSelectedLayoutImageType(ImageTemplateType.MainImage);
@@ -2531,6 +2649,14 @@ public sealed class MainWindowViewModel : ViewModelBase
 		{
 			SetSelectedLayoutImageType(ImageTemplateType.CompareImage);
 		});
+		_showMainTitleTemplateTypeCommand = new RelayCommand(delegate
+		{
+			SetSelectedTitleTemplateType(MainTitleTemplateType);
+		});
+		_showSubTitleTemplateTypeCommand = new RelayCommand(delegate
+		{
+			SetSelectedTitleTemplateType(SubTitleTemplateType);
+		});
 		_newTemplateCommand = new RelayCommand(delegate
 		{
 			NewTemplate();
@@ -2538,6 +2664,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		_saveTemplateCommand = new AsyncRelayCommand((object? _) => SaveTemplateAsync());
 		_deleteTemplateCommand = new AsyncRelayCommand((object? _) => DeleteTemplateAsync(), (object? _) => SelectedTemplateItem != null && SelectedTemplateItem.Id > 0);
 		_deleteManagedTemplateCommand = new AsyncRelayCommand((object? item) => DeleteManagedTemplateAsync(item as TemplateItemViewModel), (object? item) => item is TemplateItemViewModel);
+		_copyManagedLayoutTemplateCommand = new AsyncRelayCommand((object? item) => CopyManagedLayoutTemplateAsync(item as TemplateItemViewModel), (object? item) => item is TemplateItemViewModel template && template.Category == TemplateCategory.Layout);
 		_selectManagedTemplateCommand = new RelayCommand(delegate(object? item)
 		{
 			SelectManagedTemplate(item as TemplateItemViewModel);
@@ -2547,8 +2674,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 		{
 			OpenTemplateEditorPreview();
 		}, (object? _) => File.Exists(TemplateEditorPreviewImagePath));
-		_importLayoutTemplatesCommand = new AsyncRelayCommand((object? _) => ImportLayoutTemplatesAsync(), (object? _) => IsLayoutTemplateTabSelected);
-		_exportLayoutTemplatesCommand = new AsyncRelayCommand((object? _) => ExportLayoutTemplatesAsync(), (object? _) => IsLayoutTemplateTabSelected);
+		_importLayoutTemplatesCommand = new AsyncRelayCommand((object? _) => ImportLayoutTemplatesAsync());
+		_exportLayoutTemplatesCommand = new AsyncRelayCommand((object? _) => ExportLayoutTemplatesAsync());
 		_importAllTemplatesCommand = new AsyncRelayCommand((object? _) => ImportAllTemplatesAsync());
 		_exportAllTemplatesCommand = new AsyncRelayCommand((object? _) => ExportAllTemplatesAsync());
 		_closeTemplateEditorCommand = new RelayCommand(delegate
@@ -2563,6 +2690,22 @@ public sealed class MainWindowViewModel : ViewModelBase
 		{
 			RemoveSceneContentLine(line as SceneContentLineViewModel);
 		}, (object? line) => SceneContentLines.Count > 1 && line is SceneContentLineViewModel);
+		_addTitleMainLineCommand = new RelayCommand(delegate
+		{
+			AddTitleMainLine();
+		});
+		_removeTitleMainLineCommand = new RelayCommand(delegate(object? line)
+		{
+			RemoveTitleMainLine(line as SceneContentLineViewModel);
+		}, (object? line) => TitleMainLines.Count > 1 && line is SceneContentLineViewModel);
+		_addTitleSubLineCommand = new RelayCommand(delegate
+		{
+			AddTitleSubLine();
+		});
+		_removeTitleSubLineCommand = new RelayCommand(delegate(object? line)
+		{
+			RemoveTitleSubLine(line as SceneContentLineViewModel);
+		}, (object? line) => TitleSubLines.Count > 1 && line is SceneContentLineViewModel);
 		_openTemplateSubjectPickerCommand = new RelayCommand(delegate
 		{
 			OpenTemplateSubjectPicker();
@@ -3006,18 +3149,39 @@ public sealed class MainWindowViewModel : ViewModelBase
 		}
 	}
 
+	private void SetSelectedTitleTemplateType(string titleType)
+	{
+		if (!string.Equals(_selectedTitleTemplateType, titleType, StringComparison.Ordinal))
+		{
+			_selectedTitleTemplateType = titleType;
+			OnPropertyChanged("IsMainTitleTemplateTypeSelected");
+			OnPropertyChanged("IsSubTitleTemplateTypeSelected");
+			OnPropertyChanged("TemplateEditorDialogTitle");
+			OnPropertyChanged("CurrentTemplateImportButtonText");
+			OnPropertyChanged("CurrentTemplateExportButtonText");
+			_ = LoadManagedTemplatesAsync();
+		}
+	}
+
 	private async Task LoadManagedTemplatesAsync()
 	{
 		Task<IReadOnlyList<TemplateItemRecord>> recordsTask = _templateLibraryService.GetByCategoryAsync(_selectedTemplateCategory, IsLayoutTemplateTabSelected ? new ImageTemplateType?(_selectedLayoutImageType) : ((ImageTemplateType?)null));
 		Task<IReadOnlyList<TemplateItemRecord>> layoutTemplatesTask = _templateLibraryService.GetByCategoryAsync(TemplateCategory.Layout);
+		Task<IReadOnlyList<TemplateItemRecord>> titleTemplatesTask = _templateLibraryService.GetByCategoryAsync(TemplateCategory.Title);
 		Task<IReadOnlyList<TemplateItemRecord>> subjectTemplatesTask = _templateLibraryService.GetByCategoryAsync(TemplateCategory.Subject);
 		Task<IReadOnlyDictionary<long, IReadOnlyList<long>>> sceneBindingsTask = _templateLibraryService.GetSceneSubjectBindingsAsync();
-		await Task.WhenAll(recordsTask, layoutTemplatesTask, subjectTemplatesTask, sceneBindingsTask);
+		await Task.WhenAll(recordsTask, layoutTemplatesTask, titleTemplatesTask, subjectTemplatesTask, sceneBindingsTask);
 		IReadOnlyList<TemplateItemRecord> records = await recordsTask;
 		IReadOnlyList<TemplateItemRecord> layoutTemplates = await layoutTemplatesTask;
+		IReadOnlyList<TemplateItemRecord> titleTemplates = await titleTemplatesTask;
 		IReadOnlyList<TemplateItemRecord> subjectTemplates = await subjectTemplatesTask;
 		IReadOnlyDictionary<long, IReadOnlyList<long>> readOnlyDictionary = await sceneBindingsTask;
 		UpdateLayoutTemplateCounts(layoutTemplates);
+		UpdateTitleTemplateCounts(titleTemplates);
+		if (IsTitleTemplateTabSelected)
+		{
+			records = titleTemplates.Where(item => GetTitleTemplateType(item) == _selectedTitleTemplateType).ToArray();
+		}
 		_subjectTemplateLookup.Clear();
 		foreach (TemplateItemRecord item in subjectTemplates)
 		{
@@ -3035,13 +3199,20 @@ public sealed class MainWindowViewModel : ViewModelBase
 		}
 		OnPropertyChanged("HasManagedTemplateItems");
 		OnPropertyChanged("TemplateEmptyText");
+		OnTemplateExportSelectionChanged();
 		await LoadGenerationTemplateOptionsAsync();
 		ResetTemplateEditor();
 	}
 
 	private TemplateItemViewModel CreateTemplateItemViewModel(TemplateItemRecord record)
 	{
-		return new TemplateItemViewModel(record, (record.Category == TemplateCategory.Scene) ? BuildSceneSubjectSummary(record.Id) : null);
+		return new TemplateItemViewModel(record, (record.Category == TemplateCategory.Scene) ? BuildSceneSubjectSummary(record.Id) : null, record.Category == TemplateCategory.Layout ? OnTemplateExportSelectionChanged : null);
+	}
+
+	private void OnTemplateExportSelectionChanged()
+	{
+		OnPropertyChanged("SelectedLayoutExportCount");
+		OnPropertyChanged("LayoutExportSelectionText");
 	}
 
 	private void UpdateLayoutTemplateCounts(IReadOnlyList<TemplateItemRecord> records)
@@ -3049,6 +3220,27 @@ public sealed class MainWindowViewModel : ViewModelBase
 		MainImageLayoutTemplateCount = records.Count((TemplateItemRecord item) => item.ImageType == ImageTemplateType.MainImage);
 		SceneImageLayoutTemplateCount = records.Count((TemplateItemRecord item) => item.ImageType == ImageTemplateType.SceneImage);
 		CompareImageLayoutTemplateCount = records.Count((TemplateItemRecord item) => item.ImageType == ImageTemplateType.CompareImage);
+	}
+
+	private void UpdateTitleTemplateCounts(IReadOnlyList<TemplateItemRecord> records)
+	{
+		MainTitleTemplateCount = records.Count(item => GetTitleTemplateType(item) == MainTitleTemplateType);
+		SubTitleTemplateCount = records.Count(item => GetTitleTemplateType(item) == SubTitleTemplateType);
+	}
+
+	private static string GetTitleTemplateType(TemplateItemRecord item)
+	{
+		return string.Equals(item.Subject, SubTitleTemplateType, StringComparison.Ordinal) ? SubTitleTemplateType : MainTitleTemplateType;
+	}
+
+	private static string CreateTitleTemplateName(string content)
+	{
+		string text = content.ReplaceLineEndings(" ").Trim();
+		if (string.IsNullOrWhiteSpace(text))
+		{
+			return "标题";
+		}
+		return text.Length > 40 ? text.Substring(0, 40) : text;
 	}
 
 	private async Task LoadGenerationTemplateOptionsAsync()
@@ -3130,7 +3322,15 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private void LoadTemplateEditor(TemplateItemViewModel item)
 	{
-		TemplateEditorName = item.Name;
+		if (item.Category == TemplateCategory.Title)
+		{
+			_selectedTitleTemplateType = GetTitleTemplateType(item.Model);
+			OnPropertyChanged("IsMainTitleTemplateTypeSelected");
+			OnPropertyChanged("IsSubTitleTemplateTypeSelected");
+			OnPropertyChanged("CurrentTemplateImportButtonText");
+			OnPropertyChanged("CurrentTemplateExportButtonText");
+		}
+		TemplateEditorName = item.Category == TemplateCategory.Title ? string.Empty : item.Name;
 		TemplateEditorContent = item.Content;
 		IsTemplateSubjectPickerOpen = false;
 		IReadOnlyList<long> sceneSubjectIdsForEditor = GetSceneSubjectIdsForEditor(item);
@@ -3162,6 +3362,16 @@ public sealed class MainWindowViewModel : ViewModelBase
 			message = "当前有任务正在执行，请稍后再保存模板。";
 			return false;
 		}
+		if (IsTitleTemplateTabSelected)
+		{
+			if (string.IsNullOrWhiteSpace(TemplateEditorContent))
+			{
+				message = "请先填写标题内容。";
+				return false;
+			}
+			message = string.Empty;
+			return true;
+		}
 		if (string.IsNullOrWhiteSpace(TemplateEditorName))
 		{
 			message = "请先填写模板名称。";
@@ -3177,6 +3387,19 @@ public sealed class MainWindowViewModel : ViewModelBase
 			if (!TemplateSubjectTags.Any((TemplateSubjectTagViewModel tag) => tag.IsTag))
 			{
 				message = "请至少绑定一个主体。";
+				return false;
+			}
+		}
+		else if (IsTitleTemplateTabSelected)
+		{
+			if (!TitleMainLines.Any((SceneContentLineViewModel line) => !string.IsNullOrWhiteSpace(line.Text)))
+			{
+				message = "请至少填写一条大标题。";
+				return false;
+			}
+			if (!TitleSubLines.Any((SceneContentLineViewModel line) => !string.IsNullOrWhiteSpace(line.Text)))
+			{
+				message = "请至少填写一条小标题。";
 				return false;
 			}
 		}
@@ -3202,7 +3425,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 			StatusMessage = "请填写模板名称和模板内容。";
 			return;
 		}
-		string trimmedName = TemplateEditorName.Trim();
+		string trimmedName = IsTitleTemplateTabSelected ? CreateTitleTemplateName(TemplateEditorContent) : TemplateEditorName.Trim();
 		if (IsSubjectTemplateTabSelected && ManagedTemplateItems.FirstOrDefault((TemplateItemViewModel templateItemViewModel) => templateItemViewModel.Category == TemplateCategory.Subject && templateItemViewModel.Id != (SelectedTemplateItem?.Id ?? 0) && string.Equals(templateItemViewModel.Name.Trim(), trimmedName, StringComparison.OrdinalIgnoreCase)) != null)
 		{
 			StatusMessage = "主体模板“" + trimmedName + "”已存在，未重复添加。";
@@ -3215,7 +3438,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 			Category = _selectedTemplateCategory,
 			Name = trimmedName,
 			Content = (IsSceneTemplateTabSelected ? JoinSceneContentLines() : (IsSubjectTemplateTabSelected ? trimmedName : TemplateEditorContent)),
-			Subject = (IsSceneTemplateTabSelected ? JoinTemplateSubjectTagTexts() : string.Empty),
+			Subject = (IsSceneTemplateTabSelected ? JoinTemplateSubjectTagTexts() : (IsTitleTemplateTabSelected ? _selectedTitleTemplateType : string.Empty)),
 			PreviewImagePath = (IsLayoutTemplateTabSelected ? TemplateEditorPreviewImagePath : string.Empty),
 			ImageType = (IsLayoutTemplateTabSelected ? _selectedLayoutImageType : ImageTemplateType.MainImage),
 			SortOrder = 0,
@@ -3571,6 +3794,146 @@ public sealed class MainWindowViewModel : ViewModelBase
 			select text);
 	}
 
+	private void SetTitleTemplateLines(string content)
+	{
+		foreach (SceneContentLineViewModel line in TitleMainLines)
+		{
+			line.PropertyChanged -= OnTitleTemplateLineChanged;
+		}
+		foreach (SceneContentLineViewModel line in TitleSubLines)
+		{
+			line.PropertyChanged -= OnTitleTemplateLineChanged;
+		}
+		TitleMainLines.Clear();
+		TitleSubLines.Clear();
+		TitleTemplatePayload payload = ParseTitleTemplatePayload(content);
+		foreach (string text in payload.MainTitles.DefaultIfEmpty(string.Empty))
+		{
+			TitleMainLines.Add(CreateTitleTemplateLine(text));
+		}
+		foreach (string text in payload.SubTitles.DefaultIfEmpty(string.Empty))
+		{
+			TitleSubLines.Add(CreateTitleTemplateLine(text));
+		}
+		RefreshTitleTemplateLineStates();
+		_saveTemplateCommand.RaiseCanExecuteChanged();
+	}
+
+	private void AddTitleMainLine()
+	{
+		TitleMainLines.Add(CreateTitleTemplateLine(string.Empty));
+		RefreshTitleTemplateLineStates();
+		_saveTemplateCommand.RaiseCanExecuteChanged();
+	}
+
+	private void RemoveTitleMainLine(SceneContentLineViewModel? line)
+	{
+		if (line != null && TitleMainLines.Count > 1)
+		{
+			line.PropertyChanged -= OnTitleTemplateLineChanged;
+			TitleMainLines.Remove(line);
+			RefreshTitleTemplateLineStates();
+			_saveTemplateCommand.RaiseCanExecuteChanged();
+		}
+	}
+
+	private void AddTitleSubLine()
+	{
+		TitleSubLines.Add(CreateTitleTemplateLine(string.Empty));
+		RefreshTitleTemplateLineStates();
+		_saveTemplateCommand.RaiseCanExecuteChanged();
+	}
+
+	private void RemoveTitleSubLine(SceneContentLineViewModel? line)
+	{
+		if (line != null && TitleSubLines.Count > 1)
+		{
+			line.PropertyChanged -= OnTitleTemplateLineChanged;
+			TitleSubLines.Remove(line);
+			RefreshTitleTemplateLineStates();
+			_saveTemplateCommand.RaiseCanExecuteChanged();
+		}
+	}
+
+	private SceneContentLineViewModel CreateTitleTemplateLine(string text)
+	{
+		SceneContentLineViewModel line = new SceneContentLineViewModel(text);
+		line.PropertyChanged += OnTitleTemplateLineChanged;
+		return line;
+	}
+
+	private void RefreshTitleTemplateLineStates()
+	{
+		foreach (SceneContentLineViewModel line in TitleMainLines)
+		{
+			line.CanRemove = TitleMainLines.Count > 1;
+			line.CanAdd = false;
+		}
+		foreach (SceneContentLineViewModel line in TitleSubLines)
+		{
+			line.CanRemove = TitleSubLines.Count > 1;
+			line.CanAdd = false;
+		}
+		_removeTitleMainLineCommand.RaiseCanExecuteChanged();
+		_removeTitleSubLineCommand.RaiseCanExecuteChanged();
+	}
+
+	private void OnTitleTemplateLineChanged(object? sender, PropertyChangedEventArgs e)
+	{
+		if (e.PropertyName == "Text")
+		{
+			_saveTemplateCommand.RaiseCanExecuteChanged();
+		}
+	}
+
+	private string SerializeTitleTemplateContent()
+	{
+		TitleTemplatePayload payload = new TitleTemplatePayload
+		{
+			MainTitles = TitleMainLines
+				.Select(line => line.Text.Trim())
+				.Where(text => !string.IsNullOrWhiteSpace(text))
+				.Distinct(StringComparer.OrdinalIgnoreCase)
+				.ToList(),
+			SubTitles = TitleSubLines
+				.Select(line => line.Text.Trim())
+				.Where(text => !string.IsNullOrWhiteSpace(text))
+				.Distinct(StringComparer.OrdinalIgnoreCase)
+				.ToList()
+		};
+		return JsonSerializer.Serialize(payload, new JsonSerializerOptions
+		{
+			WriteIndented = true
+		});
+	}
+
+	private static TitleTemplatePayload ParseTitleTemplatePayload(string content)
+	{
+		if (!string.IsNullOrWhiteSpace(content))
+		{
+			try
+			{
+				TitleTemplatePayload? payload = JsonSerializer.Deserialize<TitleTemplatePayload>(content);
+				if (payload != null)
+				{
+					payload.MainTitles = payload.MainTitles
+						.Where(text => !string.IsNullOrWhiteSpace(text))
+						.Select(text => text.Trim())
+						.ToList();
+					payload.SubTitles = payload.SubTitles
+						.Where(text => !string.IsNullOrWhiteSpace(text))
+						.Select(text => text.Trim())
+						.ToList();
+					return payload;
+				}
+			}
+			catch (JsonException)
+			{
+			}
+		}
+		return new TitleTemplatePayload();
+	}
+
 	private async Task DeleteTemplateAsync()
 	{
 		if (SelectedTemplateItem != null && SelectedTemplateItem.Id > 0)
@@ -3599,21 +3962,75 @@ public sealed class MainWindowViewModel : ViewModelBase
 		}
 	}
 
+	private async Task CopyManagedLayoutTemplateAsync(TemplateItemViewModel? item)
+	{
+		if (item == null || item.Category != TemplateCategory.Layout)
+		{
+			return;
+		}
+		string previewImagePath = string.Empty;
+		if (!string.IsNullOrWhiteSpace(item.PreviewImagePath) && File.Exists(item.PreviewImagePath))
+		{
+			previewImagePath = await _templateLibraryService.ImportPreviewImageAsync(item.PreviewImagePath);
+		}
+		string copyName = CreateLayoutTemplateCopyName(item.Name);
+		TemplateItemRecord saved = await _templateLibraryService.SaveAsync(new TemplateItemRecord
+		{
+			Category = TemplateCategory.Layout,
+			Name = copyName,
+			Content = item.Content,
+			Subject = string.Empty,
+			PreviewImagePath = previewImagePath,
+			ImageType = item.ImageType,
+			SortOrder = item.Model.SortOrder,
+			IsEnabled = item.IsEnabled
+		});
+		await LoadManagedTemplatesAsync();
+		SelectedTemplateItem = ManagedTemplateItems.FirstOrDefault((TemplateItemViewModel templateItemViewModel) => templateItemViewModel.Id == saved.Id);
+		StatusMessage = $"已复制布局模板：{saved.Name}";
+	}
+
+	private string CreateLayoutTemplateCopyName(string sourceName)
+	{
+		string baseName = string.IsNullOrWhiteSpace(sourceName) ? "布局模板" : sourceName.Trim();
+		string copyBaseName = baseName.EndsWith(" - 副本", StringComparison.OrdinalIgnoreCase) ? baseName : baseName + " - 副本";
+		HashSet<string> existingNames = ManagedTemplateItems
+			.Where((TemplateItemViewModel item) => item.Category == TemplateCategory.Layout && item.ImageType == _selectedLayoutImageType)
+			.Select((TemplateItemViewModel item) => item.Name.Trim())
+			.ToHashSet(StringComparer.OrdinalIgnoreCase);
+		if (!existingNames.Contains(copyBaseName))
+		{
+			return copyBaseName;
+		}
+		int index = 2;
+		string candidate;
+		do
+		{
+			candidate = copyBaseName + index.ToString(CultureInfo.InvariantCulture);
+			index++;
+		}
+		while (existingNames.Contains(candidate));
+		return candidate;
+	}
+
 	private async Task ImportLayoutTemplatesAsync()
 	{
+		TemplateCategory category = _selectedTemplateCategory;
 		System.Windows.Forms.OpenFileDialog dialog = new System.Windows.Forms.OpenFileDialog
 		{
-			Title = "导入布局模板",
-			Filter = "EcomTool 布局模板包|*.ecomtpl|所有文件|*.*",
+			Title = $"导入{GetTemplateCategoryDisplayName(category)}",
+			Filter = "EcomTool 模板包|*.ecomtpl|所有文件|*.*",
 			Multiselect = false
 		};
 		try
 		{
 			if (dialog.ShowDialog() == DialogResult.OK)
 			{
-				int count = await _templateLibraryService.ImportLayoutTemplatesAsync(dialog.FileName);
+				int count = category == TemplateCategory.Layout
+					? await _templateLibraryService.ImportLayoutTemplatesAsync(dialog.FileName)
+					: await _templateLibraryService.ImportTemplateCategoryAsync(dialog.FileName, category, category == TemplateCategory.Title ? _selectedTitleTemplateType : null);
 				await LoadManagedTemplatesAsync();
-				StatusMessage = $"已导入布局模板：{count} 个";
+				StatusMessage = $"已导入{GetTemplateCategoryDisplayName(category)}：{count} 个";
 			}
 		}
 		finally
@@ -3624,26 +4041,58 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private async Task ExportLayoutTemplatesAsync()
 	{
+		TemplateCategory category = _selectedTemplateCategory;
 		System.Windows.Forms.SaveFileDialog dialog = new System.Windows.Forms.SaveFileDialog
 		{
-			Title = "导出布局模板",
-			Filter = "EcomTool 布局模板包|*.ecomtpl",
+			Title = $"导出{GetTemplateCategoryDisplayName(category)}",
+			Filter = "EcomTool 模板包|*.ecomtpl",
 			DefaultExt = "ecomtpl",
 			AddExtension = true,
-			FileName = $"layout_templates_{DateTimeOffset.Now:yyyyMMdd_HHmmss}.ecomtpl"
+			FileName = $"{GetTemplateCategoryPackagePrefix(category)}_{DateTimeOffset.Now:yyyyMMdd_HHmmss}.ecomtpl"
 		};
 		try
 		{
 			if (dialog.ShowDialog() == DialogResult.OK)
 			{
-				int value = await _templateLibraryService.ExportLayoutTemplatesAsync(dialog.FileName, _selectedLayoutImageType);
-				StatusMessage = $"已导出布局模板：{value} 个";
+				if (category == TemplateCategory.Layout)
+				{
+					long[] selectedIds = ManagedTemplateItems.Where((TemplateItemViewModel item) => item.IsSelectedForExport).Select((TemplateItemViewModel item) => item.Id).ToArray();
+					int value = await _templateLibraryService.ExportLayoutTemplatesAsync(dialog.FileName, _selectedLayoutImageType, selectedIds.Length > 0 ? selectedIds : null);
+					StatusMessage = selectedIds.Length > 0 ? $"已导出选中布局模板：{value} 个" : $"已导出布局模板：{value} 个";
+				}
+				else
+				{
+					int value = await _templateLibraryService.ExportTemplateCategoryAsync(dialog.FileName, category, category == TemplateCategory.Title ? _selectedTitleTemplateType : null);
+					StatusMessage = $"已导出{GetTemplateCategoryDisplayName(category)}：{value} 个";
+				}
 			}
 		}
 		finally
 		{
 			((IDisposable)(object)dialog)?.Dispose();
 		}
+	}
+
+	private static string GetTemplateCategoryDisplayName(TemplateCategory category)
+	{
+		return category switch
+		{
+			TemplateCategory.Scene => "场景模板",
+			TemplateCategory.Subject => "主体模板",
+			TemplateCategory.Title => "标题模板",
+			_ => "布局模板"
+		};
+	}
+
+	private static string GetTemplateCategoryPackagePrefix(TemplateCategory category)
+	{
+		return category switch
+		{
+			TemplateCategory.Scene => "scene_templates",
+			TemplateCategory.Subject => "subject_templates",
+			TemplateCategory.Title => "title_templates",
+			_ => "layout_templates"
+		};
 	}
 
 	private async Task ImportAllTemplatesAsync()
@@ -3737,19 +4186,28 @@ public sealed class MainWindowViewModel : ViewModelBase
 		OnPropertyChanged("IsLayoutTemplateTabSelected");
 		OnPropertyChanged("IsSceneTemplateTabSelected");
 		OnPropertyChanged("IsSubjectTemplateTabSelected");
+		OnPropertyChanged("IsTitleTemplateTabSelected");
 		OnPropertyChanged("TemplateEditorDialogHeight");
 		OnPropertyChanged("IsMainImageLayoutTypeSelected");
 		OnPropertyChanged("IsSceneImageLayoutTypeSelected");
 		OnPropertyChanged("IsCompareImageLayoutTypeSelected");
+		OnPropertyChanged("IsMainTitleTemplateTypeSelected");
+		OnPropertyChanged("IsSubTitleTemplateTypeSelected");
 		OnPropertyChanged("SelectedLayoutImageTypeText");
 		OnPropertyChanged("TemplateManagerTitle");
 		OnPropertyChanged("TemplateManagerDescription");
 		OnPropertyChanged("TemplateEditorContentLabel");
 		OnPropertyChanged("TemplateEmptyText");
+		OnPropertyChanged("CurrentTemplateImportButtonText");
+		OnPropertyChanged("CurrentTemplateExportButtonText");
+		OnPropertyChanged("CurrentNewTemplateButtonText");
 		OnPropertyChanged("IsTemplateEditorPreviewVisible");
 		_openTemplateEditorPreviewCommand.RaiseCanExecuteChanged();
 		OnPropertyChanged("IsTemplateEditorSubjectVisible");
 		OnPropertyChanged("IsTemplateEditorContentVisible");
+		OnPropertyChanged("IsTemplateEditorContentLabelVisible");
+		OnPropertyChanged("IsTemplateEditorNameVisible");
+		OnPropertyChanged("IsTemplateEditorEnabledVisible");
 		OnPropertyChanged("HasTemplateSubjectTags");
 		OnPropertyChanged("HasTemplateSubjectOptions");
 		_chooseTemplatePreviewCommand.RaiseCanExecuteChanged();
@@ -5696,7 +6154,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		TextBlock description = new TextBlock
 		{
 			Margin = new Thickness(0.0, 8.0, 0.0, 10.0),
-			Text = "例如：黑色.png、卡其色.png、咖啡色.png",
+			Text = "例如：黑色.png、深棕色.png、宝蓝色.png",
 			Foreground = new SolidColorBrush(Color.FromRgb(96, 98, 102))
 		};
 		Grid.SetRow(description, 1);
@@ -6169,7 +6627,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 			displayFileName = EnsureImageExtension(renamedFileName.Trim(), Path.GetExtension(imagePath));
 			if (!HasSkuMasterColorToken(displayFileName))
 			{
-				MessageBox.Show("文件名需要包含颜色，例如：黑色.png、卡其色.png、咖啡色.png。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+				MessageBox.Show("文件名需要包含颜色，例如：黑色.png、深棕色.png、宝蓝色.png。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
 				StatusMessage = "SKU 母图文件名未包含颜色，已取消添加。";
 				return;
 			}

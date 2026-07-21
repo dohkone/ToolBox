@@ -87,8 +87,6 @@ COLORS: tuple[ColorSpec, ...] = (
     ColorSpec("darkgray", "Dark gray", "深灰色", "#C4C8CA"),
     ColorSpec("winered", "Wine red", "酒红色", "#722829"),
     ColorSpec("royalblue", "Royal blue", "宝蓝色", "#2E3EA5"),
-    ColorSpec("khaki", "Khaki", "卡其色", "#E8DDBC"),
-    ColorSpec("coffeecolor", "Coffee color", "咖啡色", "#6F4E37"),
 )
 
 COLOR_ALIAS_MAP: dict[str, str] = {
@@ -117,14 +115,6 @@ COLOR_ALIAS_MAP: dict[str, str] = {
     "royal-blue": "royalblue",
     "royal blue": "royalblue",
     "宝蓝色": "royalblue",
-    "khaki": "khaki",
-    "khaki color": "khaki",
-    "卡其色": "khaki",
-    "coffee": "coffeecolor",
-    "coffeecolor": "coffeecolor",
-    "coffee-color": "coffeecolor",
-    "coffee color": "coffeecolor",
-    "咖啡色": "coffeecolor",
 }
 
 

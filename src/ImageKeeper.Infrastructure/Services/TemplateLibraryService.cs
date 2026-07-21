@@ -104,6 +104,8 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 
 	private const string AllTemplatesPackageType = "ecomtool-all-templates";
 
+	private const string TemplateCategoryPackageType = "ecomtool-template-category";
+
 	private const int LayoutPackageVersion = 2;
 
 	private const int AllTemplatesPackageVersion = 1;
@@ -288,6 +290,7 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 			TemplateCategory.Layout => "layout-previews", 
 			TemplateCategory.Scene => "scene", 
 			TemplateCategory.Subject => "subject", 
+			TemplateCategory.Title => "title", 
 			_ => "misc", 
 		});
 	}
@@ -310,13 +313,18 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 		return Task.FromResult(text);
 	}
 
-	public async Task<int> ExportLayoutTemplatesAsync(string packagePath, ImageTemplateType imageType, CancellationToken cancellationToken = default(CancellationToken))
+	public async Task<int> ExportLayoutTemplatesAsync(string packagePath, ImageTemplateType imageType, IReadOnlyList<long>? selectedTemplateIds = null, CancellationToken cancellationToken = default(CancellationToken))
 	{
 		if (string.IsNullOrWhiteSpace(packagePath))
 		{
 			throw new ArgumentException("导出文件路径不能为空。", "packagePath");
 		}
 		IReadOnlyList<TemplateItemRecord> readOnlyList = await GetByCategoryAsync(TemplateCategory.Layout, imageType, cancellationToken);
+		HashSet<long>? selectedIdSet = selectedTemplateIds?.Where((long id) => id > 0).Distinct().ToHashSet();
+		if (selectedIdSet is { Count: > 0 })
+		{
+			readOnlyList = readOnlyList.Where((TemplateItemRecord item) => selectedIdSet.Contains(item.Id)).ToArray();
+		}
 		Directory.CreateDirectory(Path.GetDirectoryName(packagePath));
 		if (File.Exists(packagePath))
 		{
@@ -429,6 +437,189 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 		return importedCount;
 	}
 
+	public async Task<int> ExportTemplateCategoryAsync(string packagePath, TemplateCategory category, string? templateType = null, CancellationToken cancellationToken = default(CancellationToken))
+	{
+		if (category == TemplateCategory.Layout)
+		{
+			throw new ArgumentException("Layout templates must be exported with an image type.", nameof(category));
+		}
+		if (string.IsNullOrWhiteSpace(packagePath))
+		{
+			throw new ArgumentException("Export package path cannot be empty.", nameof(packagePath));
+		}
+		await InitializeAsync(cancellationToken);
+		IReadOnlyList<TemplateItemRecord> categoryItems = await GetByCategoryAsync(category, null, cancellationToken);
+		if (category == TemplateCategory.Title && !string.IsNullOrWhiteSpace(templateType))
+		{
+			categoryItems = categoryItems.Where(item => string.Equals(item.Subject, templateType, StringComparison.OrdinalIgnoreCase) || string.IsNullOrWhiteSpace(item.Subject)).ToArray();
+		}
+		List<TemplateItemRecord> packageItems = new List<TemplateItemRecord>(categoryItems);
+		List<AllTemplatesPackageBinding> packageBindings = new List<AllTemplatesPackageBinding>();
+		if (category == TemplateCategory.Scene)
+		{
+			IReadOnlyDictionary<long, IReadOnlyList<long>> bindings = await GetSceneSubjectBindingsAsync(cancellationToken);
+			HashSet<long> sceneIds = categoryItems.Select(item => item.Id).ToHashSet();
+			HashSet<long> subjectIds = bindings
+				.Where(pair => sceneIds.Contains(pair.Key))
+				.SelectMany(pair => pair.Value)
+				.ToHashSet();
+			if (subjectIds.Count > 0)
+			{
+				IReadOnlyList<TemplateItemRecord> subjects = await GetByCategoryAsync(TemplateCategory.Subject, null, cancellationToken);
+				packageItems.AddRange(subjects.Where(subject => subjectIds.Contains(subject.Id)));
+			}
+			packageBindings.AddRange(bindings
+				.Where(pair => sceneIds.Contains(pair.Key))
+				.SelectMany(pair => pair.Value.Select(subjectId => new AllTemplatesPackageBinding
+				{
+					SceneTemplateId = pair.Key,
+					SubjectTemplateId = subjectId
+				})));
+		}
+		string? directoryName = Path.GetDirectoryName(packagePath);
+		if (!string.IsNullOrWhiteSpace(directoryName))
+		{
+			Directory.CreateDirectory(directoryName);
+		}
+		if (File.Exists(packagePath))
+		{
+			File.Delete(packagePath);
+		}
+		AllTemplatesPackageManifest manifest = new AllTemplatesPackageManifest
+		{
+			Type = TemplateCategoryPackageType,
+			ExportedAt = DateTimeOffset.Now,
+			Items = new List<AllTemplatesPackageItem>(),
+			SceneSubjectBindings = packageBindings
+		};
+		await using (FileStream fileStream = new FileStream(packagePath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None))
+		{
+			using ZipArchive archive = new ZipArchive(fileStream, ZipArchiveMode.Create);
+			foreach (TemplateItemRecord item in packageItems.OrderBy(item => item.Category).ThenBy(item => item.Id))
+			{
+				cancellationToken.ThrowIfCancellationRequested();
+				manifest.Items.Add(new AllTemplatesPackageItem
+				{
+					Id = item.Id,
+					Category = item.Category,
+					Name = item.Name,
+					Content = item.Content,
+					Subject = item.Subject,
+					PreviewFile = string.Empty,
+					ImageType = item.ImageType,
+					SortOrder = item.SortOrder,
+					IsEnabled = item.IsEnabled
+				});
+			}
+			ZipArchiveEntry manifestEntry = archive.CreateEntry("manifest.json", CompressionLevel.Optimal);
+			await using Stream manifestStream = manifestEntry.Open();
+			await JsonSerializer.SerializeAsync(manifestStream, manifest, new JsonSerializerOptions
+			{
+				WriteIndented = true
+			}, cancellationToken);
+		}
+		return categoryItems.Count;
+	}
+
+	public async Task<int> ImportTemplateCategoryAsync(string packagePath, TemplateCategory category, string? templateType = null, CancellationToken cancellationToken = default(CancellationToken))
+	{
+		if (category == TemplateCategory.Layout)
+		{
+			return await ImportLayoutTemplatesAsync(packagePath, cancellationToken);
+		}
+		if (string.IsNullOrWhiteSpace(packagePath) || !File.Exists(packagePath))
+		{
+			throw new FileNotFoundException("Import package does not exist.", packagePath);
+		}
+		await InitializeAsync(cancellationToken);
+		using ZipArchive archive = ZipFile.OpenRead(packagePath);
+		ZipArchiveEntry manifestEntry = archive.GetEntry("manifest.json") ?? throw new InvalidOperationException("Import package is missing manifest.json.");
+		AllTemplatesPackageManifest manifest;
+		await using (Stream manifestStream = manifestEntry.Open())
+		{
+			manifest = await JsonSerializer.DeserializeAsync<AllTemplatesPackageManifest>(manifestStream, (JsonSerializerOptions?)null, cancellationToken);
+		}
+		if (manifest == null || (manifest.Type != TemplateCategoryPackageType && manifest.Type != AllTemplatesPackageType) || manifest.Version < 1)
+		{
+			throw new InvalidOperationException("Import package is not a valid template package.");
+		}
+		List<TemplateCategory> allowedCategories = category == TemplateCategory.Scene
+			? new List<TemplateCategory> { TemplateCategory.Scene, TemplateCategory.Subject }
+			: new List<TemplateCategory> { category };
+		if (category == TemplateCategory.Title && !string.IsNullOrWhiteSpace(templateType))
+		{
+			allowedCategories = new List<TemplateCategory> { TemplateCategory.Title };
+		}
+		Dictionary<TemplateCategory, Dictionary<string, TemplateItemRecord>> existingByName = new Dictionary<TemplateCategory, Dictionary<string, TemplateItemRecord>>();
+		foreach (TemplateCategory allowedCategory in allowedCategories)
+		{
+			IReadOnlyList<TemplateItemRecord> existingItems = await GetByCategoryAsync(allowedCategory, null, cancellationToken);
+			if (allowedCategory == TemplateCategory.Title && !string.IsNullOrWhiteSpace(templateType))
+			{
+				existingItems = existingItems.Where(item => string.Equals(item.Subject, templateType, StringComparison.OrdinalIgnoreCase)).ToArray();
+			}
+			existingByName[allowedCategory] = existingItems
+				.GroupBy(item => item.Name.Trim(), StringComparer.OrdinalIgnoreCase)
+				.ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+		}
+		Dictionary<long, long> idMap = new Dictionary<long, long>();
+		int importedCount = 0;
+		foreach (AllTemplatesPackageItem packageItem in manifest.Items
+			.Where(item => allowedCategories.Contains(item.Category))
+			.Where(item => category != TemplateCategory.Title || string.IsNullOrWhiteSpace(templateType) || string.Equals(item.Subject, templateType, StringComparison.OrdinalIgnoreCase) || string.IsNullOrWhiteSpace(item.Subject))
+			.OrderBy(item => item.Category == TemplateCategory.Subject ? 0 : 1)
+			.ThenBy(item => item.Id))
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+			if (string.IsNullOrWhiteSpace(packageItem.Name) || string.IsNullOrWhiteSpace(packageItem.Content))
+			{
+				continue;
+			}
+			Dictionary<string, TemplateItemRecord> existingItems = existingByName[packageItem.Category];
+			string name = packageItem.Name.Trim();
+			if (existingItems.TryGetValue(name, out TemplateItemRecord? existingItem))
+			{
+				idMap[packageItem.Id] = existingItem.Id;
+				continue;
+			}
+			TemplateItemRecord importedItem = await SaveAsync(new TemplateItemRecord
+			{
+				Category = packageItem.Category,
+				Name = name,
+				Content = packageItem.Content,
+				Subject = packageItem.Category == TemplateCategory.Title && !string.IsNullOrWhiteSpace(templateType) ? templateType : packageItem.Subject,
+				PreviewImagePath = string.Empty,
+				ImageType = packageItem.ImageType,
+				SortOrder = packageItem.SortOrder,
+				IsEnabled = packageItem.IsEnabled
+			}, cancellationToken);
+			existingItems[name] = importedItem;
+			idMap[packageItem.Id] = importedItem.Id;
+			if (packageItem.Category == category)
+			{
+				importedCount++;
+			}
+		}
+		if (category == TemplateCategory.Scene)
+		{
+			IReadOnlyDictionary<long, IReadOnlyList<long>> currentBindings = await GetSceneSubjectBindingsAsync(cancellationToken);
+			foreach (var bindingGroup in manifest.SceneSubjectBindings
+				.Select(binding => idMap.TryGetValue(binding.SceneTemplateId, out long sceneId) && idMap.TryGetValue(binding.SubjectTemplateId, out long subjectId)
+					? new { SceneId = sceneId, SubjectId = subjectId }
+					: null)
+				.Where(item => item != null)
+				.GroupBy(item => item!.SceneId))
+			{
+				cancellationToken.ThrowIfCancellationRequested();
+				long[] subjectTemplateIds = currentBindings.TryGetValue(bindingGroup.Key, out IReadOnlyList<long>? existingSubjectIds)
+					? existingSubjectIds.Concat(bindingGroup.Select(item => item!.SubjectId)).Distinct().ToArray()
+					: bindingGroup.Select(item => item!.SubjectId).Distinct().ToArray();
+				await SetSceneSubjectBindingsAsync(bindingGroup.Key, subjectTemplateIds, cancellationToken);
+			}
+		}
+		return importedCount;
+	}
+
 	public async Task<int> ExportAllTemplatesAsync(string packagePath, CancellationToken cancellationToken = default(CancellationToken))
 	{
 		if (string.IsNullOrWhiteSpace(packagePath))
@@ -449,6 +640,10 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 		TemplateLibraryService templateLibraryService3 = this;
 		cancellationToken2 = cancellationToken;
 		list.AddRange(await templateLibraryService3.GetByCategoryAsync(TemplateCategory.Subject, null, cancellationToken2));
+		list = items;
+		TemplateLibraryService templateLibraryService4 = this;
+		cancellationToken2 = cancellationToken;
+		list.AddRange(await templateLibraryService4.GetByCategoryAsync(TemplateCategory.Title, null, cancellationToken2));
 		IReadOnlyDictionary<long, IReadOnlyList<long>> source = await GetSceneSubjectBindingsAsync(cancellationToken);
 		Directory.CreateDirectory(Path.GetDirectoryName(packagePath));
 		if (File.Exists(packagePath))
@@ -545,6 +740,10 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 		TemplateLibraryService templateLibraryService3 = this;
 		cancellationToken2 = cancellationToken;
 		list.AddRange(await templateLibraryService3.GetByCategoryAsync(TemplateCategory.Subject, null, cancellationToken2));
+		list = existingItems;
+		TemplateLibraryService templateLibraryService4 = this;
+		cancellationToken2 = cancellationToken;
+		list.AddRange(await templateLibraryService4.GetByCategoryAsync(TemplateCategory.Title, null, cancellationToken2));
 		Dictionary<TemplateCategory, HashSet<string>> existingNames = (from item in existingItems
 			group item by item.Category).ToDictionary((IGrouping<TemplateCategory, TemplateItemRecord> group) => group.Key, (IGrouping<TemplateCategory, TemplateItemRecord> group) => new HashSet<string>(group.Select((TemplateItemRecord item) => item.Name), StringComparer.OrdinalIgnoreCase));
 		HashSet<string> existingLayoutNames = new HashSet<string>(existingItems.Where((TemplateItemRecord item) => item.Category == TemplateCategory.Layout).Select(GetLayoutImportKey), StringComparer.OrdinalIgnoreCase);
