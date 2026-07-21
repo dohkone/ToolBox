@@ -3372,11 +3372,11 @@
                                                     <ColumnDefinition Width="52" />
                                                     <ColumnDefinition Width="126" />
                                                     <ColumnDefinition Width="170" />
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="155" />
-                                                    <ColumnDefinition Width="155" />
-                                                    <ColumnDefinition Width="90" />
-                                                    <ColumnDefinition Width="200" />
+                                                    <ColumnDefinition Width="2*" />
+                                                    <ColumnDefinition Width="120" />
+                                                    <ColumnDefinition Width="120" />
+                                                    <ColumnDefinition Width="80" />
+                                                    <ColumnDefinition Width="180" />
                                                 </Grid.ColumnDefinitions>
                                                 <TextBlock FontWeight="SemiBold" Text="选择" />
                                                 <TextBlock Grid.Column="1" FontWeight="SemiBold" Text="预览图" />
@@ -3435,11 +3435,165 @@
                                             </Grid>
                                         </Border>
 
+                                        <ListBox Grid.Row="1"
+                                                 BorderThickness="0"
+                                                 Background="Transparent"
+                                                 HorizontalContentAlignment="Stretch"
+                                                 ItemsSource="{Binding ManagedTemplateItems}"
+                                                 ScrollViewer.CanContentScroll="True"
+                                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                                 VirtualizingPanel.IsVirtualizing="True"
+                                                 VirtualizingPanel.VirtualizationMode="Recycling"
+                                                 Visibility="{Binding IsLayoutTemplateTabSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <ListBox.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <VirtualizingStackPanel />
+                                                </ItemsPanelTemplate>
+                                            </ListBox.ItemsPanel>
+                                            <ListBox.ItemContainerStyle>
+                                                <Style TargetType="ListBoxItem">
+                                                    <Setter Property="Padding" Value="0" />
+                                                    <Setter Property="Margin" Value="0" />
+                                                    <Setter Property="BorderThickness" Value="0" />
+                                                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                                    <Setter Property="Focusable" Value="False" />
+                                                    <Setter Property="Template">
+                                                        <Setter.Value>
+                                                            <ControlTemplate TargetType="ListBoxItem">
+                                                                <ContentPresenter />
+                                                            </ControlTemplate>
+                                                        </Setter.Value>
+                                                    </Setter>
+                                                </Style>
+                                            </ListBox.ItemContainerStyle>
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate DataType="{x:Type viewModels:TemplateItemViewModel}">
+                                                    <Border Padding="10,8"
+                                                            HorizontalAlignment="Stretch"
+                                                            Background="White"
+                                                            BorderBrush="#E5EAF3"
+                                                            BorderThickness="1,0,1,1">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="52" />
+                                                                <ColumnDefinition Width="126" />
+                                                                <ColumnDefinition Width="170" />
+                                                                <ColumnDefinition Width="2*" />
+                                                                <ColumnDefinition Width="120" />
+                                                                <ColumnDefinition Width="120" />
+                                                                <ColumnDefinition Width="80" />
+                                                                <ColumnDefinition Width="180" />
+                                                            </Grid.ColumnDefinitions>
+
+                                                            <CheckBox VerticalAlignment="Center"
+                                                                      IsChecked="{Binding IsSelectedForExport, Mode=TwoWay}" />
+
+                                                            <Border Grid.Column="1"
+                                                                    Width="96"
+                                                                    Height="64"
+                                                                    HorizontalAlignment="Left"
+                                                                    CornerRadius="6">
+                                                                <Grid>
+                                                                    <TextBlock HorizontalAlignment="Center"
+                                                                               VerticalAlignment="Center"
+                                                                               Foreground="{StaticResource MutedTextBrush}"
+                                                                               Text="-"
+                                                                               Visibility="{Binding HasPreviewImage, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
+                                                                    <Image Margin="2"
+                                                                           Cursor="Hand"
+                                                                           RenderOptions.BitmapScalingMode="Fant"
+                                                                           Stretch="Uniform"
+                                                                           Source="{Binding PreviewImagePath}"
+                                                                           Visibility="{Binding HasPreviewImage, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                                        <Image.InputBindings>
+                                                                            <MouseBinding MouseAction="LeftDoubleClick"
+                                                                                          Command="{Binding OpenPreviewImageCommand}" />
+                                                                        </Image.InputBindings>
+                                                                    </Image>
+                                                                </Grid>
+                                                            </Border>
+
+                                                            <TextBlock Grid.Column="2"
+                                                                       VerticalAlignment="Center"
+                                                                       FontWeight="SemiBold"
+                                                                       Foreground="{StaticResource TitleTextBrush}"
+                                                                       Text="{Binding Name}"
+                                                                       TextTrimming="CharacterEllipsis" />
+                                                            <TextBlock Grid.Column="3"
+                                                                       Margin="0,0,14,0"
+                                                                       VerticalAlignment="Center"
+                                                                       Foreground="{StaticResource MutedTextBrush}"
+                                                                       Text="{Binding ContentSummary}"
+                                                                       TextTrimming="CharacterEllipsis" />
+                                                            <TextBlock Grid.Column="4"
+                                                                       VerticalAlignment="Center"
+                                                                       Foreground="{StaticResource MutedTextBrush}"
+                                                                       Text="{Binding CreatedAtText}" />
+                                                            <TextBlock Grid.Column="5"
+                                                                       VerticalAlignment="Center"
+                                                                       Foreground="{StaticResource MutedTextBrush}"
+                                                                       Text="{Binding UpdatedAtText}" />
+                                                            <Border Grid.Column="6"
+                                                                    Width="54"
+                                                                    Padding="8,2"
+                                                                    HorizontalAlignment="Left"
+                                                                    VerticalAlignment="Center"
+                                                                    Background="{Binding EnabledBadgeBackground}"
+                                                                    BorderBrush="{Binding EnabledBadgeBorder}"
+                                                                    BorderThickness="1"
+                                                                    CornerRadius="10">
+                                                                <TextBlock HorizontalAlignment="Center"
+                                                                           FontSize="12"
+                                                                           Foreground="{Binding EnabledBadgeForeground}"
+                                                                           Text="{Binding EnabledText}" />
+                                                            </Border>
+
+                                                            <StackPanel Grid.Column="7"
+                                                                        Orientation="Horizontal"
+                                                                        VerticalAlignment="Center">
+                                                                <Button Height="28"
+                                                                        MinWidth="52"
+                                                                        Padding="10,0"
+                                                                        Content="复制"
+                                                                        Style="{StaticResource ElementSecondaryButtonStyle}"
+                                                                        Command="{Binding DataContext.CopyManagedLayoutTemplateCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                        CommandParameter="{Binding}" />
+                                                                <Button Margin="8,0,0,0"
+                                                                        Height="28"
+                                                                        MinWidth="52"
+                                                                        Padding="10,0"
+                                                                        Content="编辑"
+                                                                        Style="{StaticResource ElementSecondaryButtonStyle}"
+                                                                        Command="{Binding DataContext.SelectManagedTemplateCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                        CommandParameter="{Binding}" />
+                                                                <Button Margin="8,0,0,0"
+                                                                        Height="28"
+                                                                        MinWidth="52"
+                                                                        Padding="10,0"
+                                                                        Background="#F56C6C"
+                                                                        BorderBrush="#F56C6C"
+                                                                        Foreground="White"
+                                                                        Content="删除"
+                                                                        Style="{StaticResource ElementSecondaryButtonStyle}"
+                                                                        Command="{Binding DataContext.DeleteManagedTemplateCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                        CommandParameter="{Binding}" />
+                                                            </StackPanel>
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+
                                         <ScrollViewer VerticalScrollBarVisibility="Auto">
                                             <ScrollViewer.Style>
                                                 <Style TargetType="ScrollViewer">
                                                     <Setter Property="Grid.Row" Value="1" />
+                                                    <Setter Property="Visibility" Value="Visible" />
                                                     <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsLayoutTemplateTabSelected}" Value="True">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                        </DataTrigger>
                                                         <DataTrigger Binding="{Binding IsSubjectTemplateTabSelected}" Value="True">
                                                             <Setter Property="Grid.Row" Value="0" />
                                                             <Setter Property="Grid.RowSpan" Value="2" />

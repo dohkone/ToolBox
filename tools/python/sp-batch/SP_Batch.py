@@ -82,9 +82,9 @@ class Job:
 
 COLORS: tuple[ColorSpec, ...] = (
     ColorSpec("black", "Black", "黑色", "#0A0A0A"),
-    ColorSpec("offwhite", "Off-white", "米白色", "#F4F4F2"),
+    ColorSpec("offwhite", "Off-white", "米白色", "#F2EFE5"),
     ColorSpec("darkbrown", "Dark brown", "深棕色", "#261107"),
-    ColorSpec("darkgray", "Dark gray", "深灰色", "#C4C8CA"),
+    ColorSpec("darkgray", "Dark gray", "深灰色", "#7C7C7A"),
     ColorSpec("winered", "Wine red", "酒红色", "#722829"),
     ColorSpec("royalblue", "Royal blue", "宝蓝色", "#2E3EA5"),
 )
