@@ -49,6 +49,9 @@ FIXED_COLOR_PLACEHOLDER = "{唯一颜色}"
 FIXED_SUBJECT_PLACEHOLDER = "{唯一主体}"
 ALL_COLORS_PLACEHOLDER = "{全部颜色}"
 ALL_SUBJECTS_PLACEHOLDER = "{全部主体}"
+MAIN_TITLE_PLACEHOLDER = "{大标题}"
+SUB_TITLE_PLACEHOLDER = "{小标题}"
+ICON_WORD_PLACEHOLDER = "{图标小词}"
 
 
 class TemplateRandomError(Exception):
@@ -66,6 +69,7 @@ class SelectedTemplate:
     layout_template: str
     scene_template: str
     subject: str
+    subject_pool: list[str]
 
 
 @dataclass
@@ -73,6 +77,9 @@ class TemplateLibrary:
     layout_templates: list[str]
     scene_templates: list[SceneTemplateEntry]
     subject_templates: list[str]
+    main_title_templates: list[str]
+    sub_title_templates: list[str]
+    icon_word_templates: list[str]
 
 
 def parse_args() -> argparse.Namespace:
@@ -158,6 +165,9 @@ def load_template_library_from_json(template_path: Path) -> TemplateLibrary:
     layout_values = payload.get("layout_templates", payload.get("LayoutTemplates", []))
     scene_values = payload.get("scene_templates", payload.get("SceneTemplates", []))
     subject_values = payload.get("subject_templates", payload.get("SubjectTemplates", []))
+    main_title_values = payload.get("main_title_templates", payload.get("MainTitleTemplates", []))
+    sub_title_values = payload.get("sub_title_templates", payload.get("SubTitleTemplates", []))
+    icon_word_values = payload.get("icon_word_templates", payload.get("IconWordTemplates", []))
 
     if is_exported_generation_library:
         layout_templates = dedupe_preserve_order(
@@ -166,9 +176,21 @@ def load_template_library_from_json(template_path: Path) -> TemplateLibrary:
         subject_templates = dedupe_preserve_order(
             [str(value).strip() for value in subject_values if str(value).strip()]
         )
+        main_title_templates = dedupe_preserve_order(
+            [str(value).strip() for value in main_title_values if str(value).strip()]
+        )
+        sub_title_templates = dedupe_preserve_order(
+            [str(value).strip() for value in sub_title_values if str(value).strip()]
+        )
+        icon_word_templates = dedupe_preserve_order(
+            [str(value).strip() for value in icon_word_values if str(value).strip()]
+        )
     else:
         layout_templates = dedupe_preserve_order(split_variants_list(layout_values))
         subject_templates = dedupe_preserve_order(split_variants_list(subject_values))
+        main_title_templates = dedupe_preserve_order(split_variants_list(main_title_values))
+        sub_title_templates = dedupe_preserve_order(split_variants_list(sub_title_values))
+        icon_word_templates = dedupe_preserve_order(split_variants_list(icon_word_values))
 
     scene_entries: list[SceneTemplateEntry] = []
     for raw_scene in scene_values:
@@ -195,7 +217,14 @@ def load_template_library_from_json(template_path: Path) -> TemplateLibrary:
         for content in contents:
             scene_entries.append(SceneTemplateEntry(content=content, subjects=subjects))
 
-    return build_library(layout_templates, scene_entries, subject_templates)
+    return build_library(
+        layout_templates,
+        scene_entries,
+        subject_templates,
+        main_title_templates,
+        sub_title_templates,
+        icon_word_templates,
+    )
 
 
 def load_template_library_from_excel(template_path: Path) -> TemplateLibrary:
@@ -219,6 +248,9 @@ def load_template_library_from_excel(template_path: Path) -> TemplateLibrary:
     layout_templates: list[str] = []
     scene_entries: list[SceneTemplateEntry] = []
     subject_templates: list[str] = []
+    main_title_templates: list[str] = []
+    sub_title_templates: list[str] = []
+    icon_word_templates: list[str] = []
 
     for raw_row in rows[1:]:
         if not raw_row:
@@ -238,17 +270,30 @@ def load_template_library_from_excel(template_path: Path) -> TemplateLibrary:
         for scene_variant in scene_variants:
             scene_entries.append(SceneTemplateEntry(content=scene_variant, subjects=subject_variants))
 
-    return build_library(layout_templates, scene_entries, subject_templates)
+    return build_library(
+        layout_templates,
+        scene_entries,
+        subject_templates,
+        main_title_templates,
+        sub_title_templates,
+        icon_word_templates,
+    )
 
 
 def build_library(
     layout_templates: list[str],
     scene_entries: list[SceneTemplateEntry],
     subject_templates: list[str],
+    main_title_templates: list[str] | None = None,
+    sub_title_templates: list[str] | None = None,
+    icon_word_templates: list[str] | None = None,
 ) -> TemplateLibrary:
     layouts = dedupe_preserve_order(layout_templates)
     scenes = dedupe_scene_entries(scene_entries)
     subjects = dedupe_preserve_order(subject_templates)
+    main_titles = dedupe_preserve_order(main_title_templates or [])
+    sub_titles = dedupe_preserve_order(sub_title_templates or [])
+    icon_words = dedupe_preserve_order(icon_word_templates or [])
 
     if not layouts:
         raise TemplateRandomError("模板库里没有可用的布局模板。")
@@ -259,7 +304,14 @@ def build_library(
     if not has_bound_subjects and not subjects:
         raise TemplateRandomError("模板库里没有可用的主体模板。")
 
-    return TemplateLibrary(layout_templates=layouts, scene_templates=scenes, subject_templates=subjects)
+    return TemplateLibrary(
+        layout_templates=layouts,
+        scene_templates=scenes,
+        subject_templates=subjects,
+        main_title_templates=main_titles,
+        sub_title_templates=sub_titles,
+        icon_word_templates=icon_words,
+    )
 
 
 def pick_subject(scene_entry: SceneTemplateEntry, global_subjects: list[str]) -> str:
@@ -276,6 +328,7 @@ def pick_templates(library: TemplateLibrary, count: int, unique_scene: bool) -> 
                 layout_template=random.choice(library.layout_templates),
                 scene_template=scene_entry.content,
                 subject=pick_subject(scene_entry, library.subject_templates),
+                subject_pool=list(scene_entry.subjects or library.subject_templates),
             )
             for scene_entry in (random.choice(library.scene_templates) for _ in range(count))
         ]
@@ -293,6 +346,7 @@ def pick_templates(library: TemplateLibrary, count: int, unique_scene: bool) -> 
                 layout_template=random.choice(library.layout_templates),
                 scene_template=scene_entry.content,
                 subject=pick_subject(scene_entry, library.subject_templates),
+                subject_pool=list(scene_entry.subjects or library.subject_templates),
             )
         )
 
@@ -386,6 +440,18 @@ def replace_color_placeholders(prompt: str) -> str:
     return prompt
 
 
+def replace_title_placeholder(prompt: str, placeholder: str, title_templates: list[str], label: str) -> str:
+    placeholder_count = prompt.count(placeholder)
+    if placeholder_count == 0:
+        return prompt
+    if not title_templates:
+        raise TemplateRandomError(f"布局模板使用了{placeholder}，但视觉元素里没有可用的{label}。")
+
+    for _ in range(placeholder_count):
+        prompt = prompt.replace(placeholder, random.choice(title_templates), 1)
+    return prompt
+
+
 def replace_color_subject_pairs(
     prompt: str,
     subject_templates: list[str],
@@ -422,17 +488,46 @@ def replace_color_subject_pairs(
     return pair_pattern.sub(replace_pair, prompt)
 
 
+def render_random_subject_text(
+    subject_templates: list[str],
+    color_text: str | None = None,
+    strip_embedded_color: bool = False,
+) -> str:
+    if not subject_templates:
+        return ""
+    return render_subject_text(
+        random.choice(subject_templates),
+        color_text,
+        strip_embedded_color=strip_embedded_color,
+    )
+
+
+def replace_subject_placeholders(
+    prompt: str,
+    subject_templates: list[str],
+    color_text: str | None = None,
+    strip_embedded_color: bool = False,
+) -> str:
+    subject_count = prompt.count(SUBJECT_PLACEHOLDER)
+    if subject_count == 0:
+        return prompt
+
+    for _ in range(subject_count):
+        prompt = prompt.replace(
+            SUBJECT_PLACEHOLDER,
+            render_random_subject_text(subject_templates, color_text, strip_embedded_color),
+            1,
+        )
+    return prompt
+
+
 def render_prompt(template: SelectedTemplate, library: TemplateLibrary) -> str:
     prompt = template.layout_template
+    subject_pool = template.subject_pool or library.subject_templates
     subject_uses_prompt_color = has_color_placeholder_before(prompt, COLOR_PLACEHOLDER, SUBJECT_PLACEHOLDER)
     subject_color = None
-    if COLOR_PLACEHOLDER in template.subject or subject_uses_prompt_color:
+    if any(COLOR_PLACEHOLDER in subject_template for subject_template in subject_pool) or subject_uses_prompt_color:
         subject_color = format_color_option(random.choice(COLOR_OPTIONS))
-    subject_text = render_subject_text(
-        template.subject,
-        subject_color,
-        strip_embedded_color=subject_uses_prompt_color,
-    )
 
     fixed_color_required = FIXED_COLOR_PLACEHOLDER in prompt or FIXED_SUBJECT_PLACEHOLDER in prompt
     fixed_color = format_color_option(random.choice(COLOR_OPTIONS)) if fixed_color_required else None
@@ -451,7 +546,10 @@ def render_prompt(template: SelectedTemplate, library: TemplateLibrary) -> str:
     all_subjects_text = build_all_subjects_text(library.subject_templates)
 
     prompt = prompt.replace(SCENE_PLACEHOLDER, template.scene_template)
-    prompt = replace_color_subject_pairs(prompt, library.subject_templates, COLOR_PLACEHOLDER, SUBJECT_PLACEHOLDER)
+    prompt = replace_title_placeholder(prompt, MAIN_TITLE_PLACEHOLDER, library.main_title_templates, "大标题")
+    prompt = replace_title_placeholder(prompt, SUB_TITLE_PLACEHOLDER, library.sub_title_templates, "小标题")
+    prompt = replace_title_placeholder(prompt, ICON_WORD_PLACEHOLDER, library.icon_word_templates, "图标小词")
+    prompt = replace_color_subject_pairs(prompt, subject_pool, COLOR_PLACEHOLDER, SUBJECT_PLACEHOLDER)
     prompt = replace_color_subject_pairs(
         prompt,
         library.subject_templates,
@@ -467,7 +565,7 @@ def render_prompt(template: SelectedTemplate, library: TemplateLibrary) -> str:
         FIXED_SUBJECT_PLACEHOLDER,
         fixed_color,
     )
-    prompt = prompt.replace(SUBJECT_PLACEHOLDER, subject_text)
+    prompt = replace_subject_placeholders(prompt, subject_pool, subject_color, strip_embedded_color=subject_uses_prompt_color)
     prompt = prompt.replace(FIXED_SUBJECT_PLACEHOLDER, fixed_subject_text)
     prompt = prompt.replace(ALL_SUBJECTS_PLACEHOLDER, all_subjects_text)
     if fixed_color is not None:

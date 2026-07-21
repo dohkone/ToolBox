@@ -44,6 +44,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 		public List<string> MainTitles { get; set; } = new List<string>();
 
 		public List<string> SubTitles { get; set; } = new List<string>();
+
+		public List<string> IconWords { get; set; } = new List<string>();
 	}
 
 	private const string ReviewWorkspaceSection = "review-workspace";
@@ -73,6 +75,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 	private const string MainTitleTemplateType = "main-title";
 
 	private const string SubTitleTemplateType = "sub-title";
+
+	private const string IconWordTemplateType = "icon-word";
 
 	private static readonly string[] SkuMasterColorTokens =
 	{
@@ -167,6 +171,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 	private readonly RelayCommand _showMainTitleTemplateTypeCommand;
 
 	private readonly RelayCommand _showSubTitleTemplateTypeCommand;
+
+	private readonly RelayCommand _showIconWordTemplateTypeCommand;
 
 	private readonly RelayCommand _newTemplateCommand;
 
@@ -329,6 +335,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 	private int _mainTitleTemplateCount;
 
 	private int _subTitleTemplateCount;
+
+	private int _iconWordTemplateCount;
 
 	private bool _isBusy;
 
@@ -614,6 +622,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	public ICommand ShowSubTitleTemplateTypeCommand => _showSubTitleTemplateTypeCommand;
 
+	public ICommand ShowIconWordTemplateTypeCommand => _showIconWordTemplateTypeCommand;
+
 	public ICommand NewTemplateCommand => _newTemplateCommand;
 
 	public ICommand SaveTemplateCommand => _saveTemplateCommand;
@@ -873,6 +883,15 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	public bool IsSubTitleTemplateTypeSelected => _selectedTitleTemplateType == SubTitleTemplateType;
 
+	public bool IsIconWordTemplateTypeSelected => _selectedTitleTemplateType == IconWordTemplateType;
+
+	private string CurrentVisualElementTypeName => _selectedTitleTemplateType switch
+	{
+		SubTitleTemplateType => "小标题",
+		IconWordTemplateType => "图标小词",
+		_ => "大标题"
+	};
+
 	public int MainImageLayoutTemplateCount
 	{
 		get
@@ -933,6 +952,18 @@ public sealed class MainWindowViewModel : ViewModelBase
 		}
 	}
 
+	public int IconWordTemplateCount
+	{
+		get
+		{
+			return _iconWordTemplateCount;
+		}
+		private set
+		{
+			SetProperty(ref _iconWordTemplateCount, value, "IconWordTemplateCount");
+		}
+	}
+
 	public ImageTemplateType CurrentGenerationImageType
 	{
 		get
@@ -976,7 +1007,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 	{
 		TemplateCategory.Scene => "导入场景",
 		TemplateCategory.Subject => "导入主体",
-		TemplateCategory.Title => IsMainTitleTemplateTypeSelected ? "导入大标题" : "导入小标题",
+		TemplateCategory.Title => "导入元素",
 		_ => "导入布局"
 	};
 
@@ -984,11 +1015,11 @@ public sealed class MainWindowViewModel : ViewModelBase
 	{
 		TemplateCategory.Scene => "导出场景",
 		TemplateCategory.Subject => "导出主体",
-		TemplateCategory.Title => IsMainTitleTemplateTypeSelected ? "导出大标题" : "导出小标题",
+		TemplateCategory.Title => "导出元素",
 		_ => "导出布局"
 	};
 
-	public string CurrentNewTemplateButtonText => IsTitleTemplateTabSelected ? "添加标题" : "新增模板";
+	public string CurrentNewTemplateButtonText => IsTitleTemplateTabSelected ? "添加元素" : "新增模板";
 
 	public bool IsTemplateEditorPreviewVisible
 	{
@@ -1020,7 +1051,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 	{
 		TemplateCategory.Scene => "场景模板", 
 		TemplateCategory.Subject => "主体模板", 
-		TemplateCategory.Title => "标题模板", 
+		TemplateCategory.Title => "视觉元素", 
 		_ => "布局模板", 
 	};
 
@@ -1028,7 +1059,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 	{
 		TemplateCategory.Scene => "维护可随机使用的场景描述文本。", 
 		TemplateCategory.Subject => "维护可复用的主体描述文本。", 
-		TemplateCategory.Title => "维护可复用的大标题和小标题文案。", 
+		TemplateCategory.Title => "维护可复用的大标题、小标题和图标小词。", 
 		_ => "维护主图提示词布局，并为每个布局配置一张预览图。", 
 	};
 
@@ -1036,11 +1067,11 @@ public sealed class MainWindowViewModel : ViewModelBase
 	{
 		TemplateCategory.Scene => "场景内容", 
 		TemplateCategory.Subject => "主体内容", 
-		TemplateCategory.Title => "标题内容", 
+		TemplateCategory.Title => "元素内容", 
 		_ => "布局模板内容", 
 	};
 
-	public string TemplateEmptyText => "暂无" + TemplateManagerTitle + "，点击“新增模板”开始维护。";
+	public string TemplateEmptyText => "暂无" + TemplateManagerTitle + "，点击“" + CurrentNewTemplateButtonText + "”开始维护。";
 
 	public string TemplateEditorDialogTitle
 	{
@@ -1048,8 +1079,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		{
 			if (IsTitleTemplateTabSelected)
 			{
-				string titleType = IsMainTitleTemplateTypeSelected ? "大标题" : "小标题";
-				return (SelectedTemplateItem != null ? "编辑" : "新增") + titleType;
+				return (SelectedTemplateItem != null ? "编辑" : "新增") + CurrentVisualElementTypeName;
 			}
 			if (SelectedTemplateItem != null)
 			{
@@ -2657,6 +2687,10 @@ public sealed class MainWindowViewModel : ViewModelBase
 		{
 			SetSelectedTitleTemplateType(SubTitleTemplateType);
 		});
+		_showIconWordTemplateTypeCommand = new RelayCommand(delegate
+		{
+			SetSelectedTitleTemplateType(IconWordTemplateType);
+		});
 		_newTemplateCommand = new RelayCommand(delegate
 		{
 			NewTemplate();
@@ -3156,6 +3190,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 			_selectedTitleTemplateType = titleType;
 			OnPropertyChanged("IsMainTitleTemplateTypeSelected");
 			OnPropertyChanged("IsSubTitleTemplateTypeSelected");
+			OnPropertyChanged("IsIconWordTemplateTypeSelected");
 			OnPropertyChanged("TemplateEditorDialogTitle");
 			OnPropertyChanged("CurrentTemplateImportButtonText");
 			OnPropertyChanged("CurrentTemplateExportButtonText");
@@ -3226,11 +3261,20 @@ public sealed class MainWindowViewModel : ViewModelBase
 	{
 		MainTitleTemplateCount = records.Count(item => GetTitleTemplateType(item) == MainTitleTemplateType);
 		SubTitleTemplateCount = records.Count(item => GetTitleTemplateType(item) == SubTitleTemplateType);
+		IconWordTemplateCount = records.Count(item => GetTitleTemplateType(item) == IconWordTemplateType);
 	}
 
 	private static string GetTitleTemplateType(TemplateItemRecord item)
 	{
-		return string.Equals(item.Subject, SubTitleTemplateType, StringComparison.Ordinal) ? SubTitleTemplateType : MainTitleTemplateType;
+		if (string.Equals(item.Subject, SubTitleTemplateType, StringComparison.Ordinal))
+		{
+			return SubTitleTemplateType;
+		}
+		if (string.Equals(item.Subject, IconWordTemplateType, StringComparison.Ordinal))
+		{
+			return IconWordTemplateType;
+		}
+		return MainTitleTemplateType;
 	}
 
 	private static string CreateTitleTemplateName(string content)
@@ -3327,6 +3371,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 			_selectedTitleTemplateType = GetTitleTemplateType(item.Model);
 			OnPropertyChanged("IsMainTitleTemplateTypeSelected");
 			OnPropertyChanged("IsSubTitleTemplateTypeSelected");
+			OnPropertyChanged("IsIconWordTemplateTypeSelected");
 			OnPropertyChanged("CurrentTemplateImportButtonText");
 			OnPropertyChanged("CurrentTemplateExportButtonText");
 		}
@@ -3366,7 +3411,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		{
 			if (string.IsNullOrWhiteSpace(TemplateEditorContent))
 			{
-				message = "请先填写标题内容。";
+				message = "请先填写元素内容。";
 				return false;
 			}
 			message = string.Empty;
@@ -3425,6 +3470,11 @@ public sealed class MainWindowViewModel : ViewModelBase
 			StatusMessage = "请填写模板名称和模板内容。";
 			return;
 		}
+		if (IsTitleTemplateTabSelected && SelectedTemplateItem == null)
+		{
+			await SaveNewTitleTemplatesAsync();
+			return;
+		}
 		string trimmedName = IsTitleTemplateTabSelected ? CreateTitleTemplateName(TemplateEditorContent) : TemplateEditorName.Trim();
 		if (IsSubjectTemplateTabSelected && ManagedTemplateItems.FirstOrDefault((TemplateItemViewModel templateItemViewModel) => templateItemViewModel.Category == TemplateCategory.Subject && templateItemViewModel.Id != (SelectedTemplateItem?.Id ?? 0) && string.Equals(templateItemViewModel.Name.Trim(), trimmedName, StringComparison.OrdinalIgnoreCase)) != null)
 		{
@@ -3455,6 +3505,90 @@ public sealed class MainWindowViewModel : ViewModelBase
 		SelectedTemplateItem = ManagedTemplateItems.FirstOrDefault((TemplateItemViewModel templateItemViewModel) => templateItemViewModel.Id == saved.Id);
 		IsTemplateEditorDialogOpen = false;
 		StatusMessage = "已保存" + TemplateManagerTitle + "：" + saved.Name;
+	}
+
+	private async Task SaveNewTitleTemplatesAsync()
+	{
+		string titleType = _selectedTitleTemplateType;
+		string titleTypeName = CurrentVisualElementTypeName;
+		IReadOnlyList<string> inputTitles = SplitTitleTemplateInputLines(TemplateEditorContent);
+		if (inputTitles.Count == 0)
+		{
+			string message = "请至少填写一条" + titleTypeName + "。";
+			StatusMessage = message;
+			System.Windows.MessageBox.Show(message, "提示", MessageBoxButton.OK, MessageBoxImage.Asterisk);
+			return;
+		}
+
+		IReadOnlyList<TemplateItemRecord> existingTitleTemplates = await _templateLibraryService.GetByCategoryAsync(TemplateCategory.Title);
+		HashSet<string> existingContents = existingTitleTemplates
+			.Where(item => GetTitleTemplateType(item) == titleType)
+			.Select(item => NormalizeTitleTemplateContent(item.Content))
+			.Where(text => !string.IsNullOrWhiteSpace(text))
+			.ToHashSet(StringComparer.OrdinalIgnoreCase);
+		HashSet<string> inputContents = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+		List<long> savedIds = new List<long>();
+		int skippedCount = 0;
+
+		foreach (string inputTitle in inputTitles)
+		{
+			string normalizedTitle = NormalizeTitleTemplateContent(inputTitle);
+			if (!inputContents.Add(normalizedTitle) || existingContents.Contains(normalizedTitle))
+			{
+				skippedCount++;
+				continue;
+			}
+
+			TemplateItemRecord saved = await _templateLibraryService.SaveAsync(new TemplateItemRecord
+			{
+				Category = TemplateCategory.Title,
+				Name = CreateTitleTemplateName(normalizedTitle),
+				Content = normalizedTitle,
+				Subject = titleType,
+				PreviewImagePath = string.Empty,
+				ImageType = ImageTemplateType.MainImage,
+				SortOrder = 0,
+				IsEnabled = TemplateEditorIsEnabled
+			});
+			existingContents.Add(normalizedTitle);
+			savedIds.Add(saved.Id);
+		}
+
+		if (savedIds.Count == 0)
+		{
+			string message = inputTitles.Count == 1
+				? $"{titleTypeName}“{CreateTitleTemplateName(inputTitles[0])}”已存在，未重复添加。"
+				: $"没有新增{titleTypeName}，已跳过重复 {skippedCount} 条。";
+			StatusMessage = message;
+			System.Windows.MessageBox.Show(message, "提示", MessageBoxButton.OK, MessageBoxImage.Asterisk);
+			return;
+		}
+
+		await LoadManagedTemplatesAsync();
+		SelectedTemplateItem = ManagedTemplateItems.FirstOrDefault(item => savedIds.Contains(item.Id));
+		IsTemplateEditorDialogOpen = false;
+		StatusMessage = skippedCount > 0
+			? $"已新增 {savedIds.Count} 条{titleTypeName}，跳过重复 {skippedCount} 条。"
+			: $"已新增 {savedIds.Count} 条{titleTypeName}。";
+		if (skippedCount > 0)
+		{
+			System.Windows.MessageBox.Show(StatusMessage, "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+		}
+	}
+
+	private static IReadOnlyList<string> SplitTitleTemplateInputLines(string content)
+	{
+		return content
+			.ReplaceLineEndings("\n")
+			.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+			.Select(NormalizeTitleTemplateContent)
+			.Where(text => !string.IsNullOrWhiteSpace(text))
+			.ToArray();
+	}
+
+	private static string NormalizeTitleTemplateContent(string content)
+	{
+		return content.Trim();
 	}
 
 	private IReadOnlyList<long> GetSceneSubjectIdsForEditor(TemplateItemViewModel item)
@@ -4079,7 +4213,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		{
 			TemplateCategory.Scene => "场景模板",
 			TemplateCategory.Subject => "主体模板",
-			TemplateCategory.Title => "标题模板",
+			TemplateCategory.Title => "视觉元素",
 			_ => "布局模板"
 		};
 	}
@@ -4090,7 +4224,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		{
 			TemplateCategory.Scene => "scene_templates",
 			TemplateCategory.Subject => "subject_templates",
-			TemplateCategory.Title => "title_templates",
+			TemplateCategory.Title => "visual_elements",
 			_ => "layout_templates"
 		};
 	}
@@ -4193,6 +4327,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		OnPropertyChanged("IsCompareImageLayoutTypeSelected");
 		OnPropertyChanged("IsMainTitleTemplateTypeSelected");
 		OnPropertyChanged("IsSubTitleTemplateTypeSelected");
+		OnPropertyChanged("IsIconWordTemplateTypeSelected");
 		OnPropertyChanged("SelectedLayoutImageTypeText");
 		OnPropertyChanged("TemplateManagerTitle");
 		OnPropertyChanged("TemplateManagerDescription");

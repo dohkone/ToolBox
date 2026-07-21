@@ -3190,7 +3190,7 @@
                                         </Style.Triggers>
                                     </Style>
                                 </Button.Style>
-                                <TextBlock Text="标题模板" />
+                                <TextBlock Text="视觉元素" />
                             </Button>
                         </WrapPanel>
                     </StackPanel>
@@ -3307,6 +3307,25 @@
                                                 <Run Text="{Binding SubTitleTemplateCount, Mode=OneWay, StringFormat=({0})}" />
                                             </TextBlock>
                                         </Button>
+                                        <Button Margin="8,0,0,0"
+                                                Padding="12,5"
+                                                Command="{Binding ShowIconWordTemplateTypeCommand}">
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsIconWordTemplateTypeSelected}" Value="True">
+                                                            <Setter Property="Background" Value="#2D6AE3" />
+                                                            <Setter Property="BorderBrush" Value="#2D6AE3" />
+                                                            <Setter Property="Foreground" Value="White" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                            <TextBlock>
+                                                <Run Text="图标小词 " />
+                                                <Run Text="{Binding IconWordTemplateCount, Mode=OneWay, StringFormat=({0})}" />
+                                            </TextBlock>
+                                        </Button>
                                     </WrapPanel>
                                     <StackPanel HorizontalAlignment="Right"
                                                 Orientation="Horizontal">
@@ -3409,7 +3428,7 @@
                                                     <ColumnDefinition Width="145" />
                                                     <ColumnDefinition Width="140" />
                                                 </Grid.ColumnDefinitions>
-                                                <TextBlock FontWeight="SemiBold" Text="标题内容" />
+                                                <TextBlock FontWeight="SemiBold" Text="元素内容" />
                                                 <TextBlock Grid.Column="1" FontWeight="SemiBold" Text="创建时间" />
                                                 <TextBlock Grid.Column="2" FontWeight="SemiBold" Text="更新" />
                                                 <TextBlock Grid.Column="3" FontWeight="SemiBold" Text="操作" />

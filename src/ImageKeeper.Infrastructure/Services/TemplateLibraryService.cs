@@ -91,6 +91,12 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 		public GenerationSceneTemplatePayload[] SceneTemplates { get; set; } = Array.Empty<GenerationSceneTemplatePayload>();
 
 		public string[] SubjectTemplates { get; set; } = Array.Empty<string>();
+
+		public string[] MainTitleTemplates { get; set; } = Array.Empty<string>();
+
+		public string[] SubTitleTemplates { get; set; } = Array.Empty<string>();
+
+		public string[] IconWordTemplates { get; set; } = Array.Empty<string>();
 	}
 
 	private sealed class GenerationSceneTemplatePayload
@@ -109,6 +115,12 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 	private const int LayoutPackageVersion = 2;
 
 	private const int AllTemplatesPackageVersion = 1;
+
+	private const string MainTitleTemplateType = "main-title";
+
+	private const string SubTitleTemplateType = "sub-title";
+
+	private const string IconWordTemplateType = "icon-word";
 
 	private readonly string _databasePath;
 
@@ -839,6 +851,9 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 		TemplateLibraryService templateLibraryService2 = this;
 		cancellationToken2 = cancellationToken;
 		IReadOnlyList<TemplateItemRecord> subjects = await templateLibraryService2.GetByCategoryAsync(TemplateCategory.Subject, null, cancellationToken2);
+		TemplateLibraryService templateLibraryService3 = this;
+		cancellationToken2 = cancellationToken;
+		IReadOnlyList<TemplateItemRecord> titles = await templateLibraryService3.GetByCategoryAsync(TemplateCategory.Title, null, cancellationToken2);
 		IReadOnlyDictionary<long, IReadOnlyList<long>> sceneSubjectBindings = await GetSceneSubjectBindingsAsync(cancellationToken);
 		Dictionary<long, TemplateItemRecord> enabledSubjectsById = subjects.Where((TemplateItemRecord item) => item.IsEnabled).ToDictionary((TemplateItemRecord item) => item.Id);
 		HashSet<long> selectedLayoutIdSet = selectedLayoutTemplateIds?.Where((long id) => id > 0).Distinct().ToHashSet();
@@ -861,6 +876,24 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 				select item).ToArray(),
 			SubjectTemplates = (from item in subjects
 				where item.IsEnabled
+				select item.Content.Trim() into text
+				where !string.IsNullOrWhiteSpace(text)
+				select text).Distinct<string>(StringComparer.OrdinalIgnoreCase).ToArray(),
+			MainTitleTemplates = (from item in titles
+				where item.IsEnabled
+				where GetTitleTemplateType(item) == MainTitleTemplateType
+				select item.Content.Trim() into text
+				where !string.IsNullOrWhiteSpace(text)
+				select text).Distinct<string>(StringComparer.OrdinalIgnoreCase).ToArray(),
+			SubTitleTemplates = (from item in titles
+				where item.IsEnabled
+				where GetTitleTemplateType(item) == SubTitleTemplateType
+				select item.Content.Trim() into text
+				where !string.IsNullOrWhiteSpace(text)
+				select text).Distinct<string>(StringComparer.OrdinalIgnoreCase).ToArray(),
+			IconWordTemplates = (from item in titles
+				where item.IsEnabled
+				where GetTitleTemplateType(item) == IconWordTemplateType
 				select item.Content.Trim() into text
 				where !string.IsNullOrWhiteSpace(text)
 				select text).Distinct<string>(StringComparer.OrdinalIgnoreCase).ToArray()
@@ -890,6 +923,19 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 			}, cancellationToken);
 		}
 		return outputPath;
+	}
+
+	private static string GetTitleTemplateType(TemplateItemRecord item)
+	{
+		if (string.Equals(item.Subject, SubTitleTemplateType, StringComparison.OrdinalIgnoreCase))
+		{
+			return SubTitleTemplateType;
+		}
+		if (string.Equals(item.Subject, IconWordTemplateType, StringComparison.OrdinalIgnoreCase))
+		{
+			return IconWordTemplateType;
+		}
+		return MainTitleTemplateType;
 	}
 
 	private SqliteConnection CreateConnection()
