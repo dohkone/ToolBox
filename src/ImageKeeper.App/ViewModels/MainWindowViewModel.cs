@@ -66,8 +66,6 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private const string Image2GenerationProvider = "image2";
 
-	private const string BananaGenerationProvider = "banana";
-
 	private const string GitHubLatestReleaseApiUrl = "https://api.github.com/repos/dohkone/ToolBox/releases/latest";
 
 	private const string GitHubReleaseDownloadUrl = "https://github.com/dohkone/ToolBox/releases/latest";
@@ -300,6 +298,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private TemplateItemViewModel? _selectedTemplateItem;
 
+	private ObservableCollection<TemplateItemViewModel> _managedTemplateItems = new ObservableCollection<TemplateItemViewModel>();
+
 	private string _selectedSection = "image-generate";
 
 	private string _selectedImageGenerateTab = "main-image-generate";
@@ -393,8 +393,6 @@ public sealed class MainWindowViewModel : ViewModelBase
 	private bool _isImageGenerationKeyDialogOpen;
 
 	private string _imageGenerationKeyText = string.Empty;
-
-	private string _bananaImageGenerationKeyText = string.Empty;
 
 	private string _selectedImageGenerationProvider = Image2GenerationProvider;
 
@@ -522,7 +520,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private static string DefaultTemplateLibraryPath => ResolveTemplateLibraryPath();
 
-	private string CurrentImageGenerationScriptPath => ResolveImageGenerationScriptPath(SelectedImageGenerationProvider);
+	private string CurrentImageGenerationScriptPath => ResolveImage2ScriptPath();
 
 	private static string DefaultFolderPickerDirectory => ResolveDefaultFolderPickerDirectory();
 
@@ -546,7 +544,17 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	public ObservableCollection<SpBatchResultCardViewModel> SkuOptimizeResultCards { get; } = new ObservableCollection<SpBatchResultCardViewModel>();
 
-	public ObservableCollection<TemplateItemViewModel> ManagedTemplateItems { get; } = new ObservableCollection<TemplateItemViewModel>();
+	public ObservableCollection<TemplateItemViewModel> ManagedTemplateItems
+	{
+		get
+		{
+			return _managedTemplateItems;
+		}
+		private set
+		{
+			SetProperty(ref _managedTemplateItems, value, "ManagedTemplateItems");
+		}
+	}
 
 	public ObservableCollection<SceneContentLineViewModel> SceneContentLines { get; } = new ObservableCollection<SceneContentLineViewModel>();
 
@@ -2256,21 +2264,6 @@ public sealed class MainWindowViewModel : ViewModelBase
 		}
 	}
 
-	public string BananaImageGenerationKeyText
-	{
-		get
-		{
-			return _bananaImageGenerationKeyText;
-		}
-		set
-		{
-			if (SetProperty(ref _bananaImageGenerationKeyText, value, "BananaImageGenerationKeyText"))
-			{
-				_saveImageGenerationKeyCommand.RaiseCanExecuteChanged();
-			}
-		}
-	}
-
 	public string SelectedImageGenerationProvider
 	{
 		get
@@ -2283,7 +2276,6 @@ public sealed class MainWindowViewModel : ViewModelBase
 			if (SetProperty(ref _selectedImageGenerationProvider, normalized, "SelectedImageGenerationProvider"))
 			{
 				OnPropertyChanged("IsImage2GenerationProviderSelected");
-				OnPropertyChanged("IsBananaGenerationProviderSelected");
 				OnPropertyChanged("ImageGenerationProviderText");
 			}
 		}
@@ -2291,13 +2283,9 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	public bool IsImage2GenerationProviderSelected => string.Equals(SelectedImageGenerationProvider, Image2GenerationProvider, StringComparison.OrdinalIgnoreCase);
 
-	public bool IsBananaGenerationProviderSelected => string.Equals(SelectedImageGenerationProvider, BananaGenerationProvider, StringComparison.OrdinalIgnoreCase);
-
-	public string ImageGenerationProviderText => IsBananaGenerationProviderSelected ? "banana" : "image2";
+	public string ImageGenerationProviderText => "image2";
 
 	public string ImageGenerationKeyPathText => "image2 保存位置：" + GetUserImageGenerationKeyPath();
-
-	public string BananaImageGenerationKeyPathText => "banana 保存位置：" + GetUserBananaImageGenerationKeyPath();
 
 	public string GenerationStatusText
 	{
@@ -2841,7 +2829,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		_saveImageGenerationKeyCommand = new RelayCommand(delegate
 		{
 			SaveImageGenerationKey();
-		}, (object? _) => !string.IsNullOrWhiteSpace(ImageGenerationKeyText) || !string.IsNullOrWhiteSpace(BananaImageGenerationKeyText));
+		}, (object? _) => !string.IsNullOrWhiteSpace(ImageGenerationKeyText));
 		_cancelImageGenerationKeyCommand = new RelayCommand(delegate
 		{
 			CloseImageGenerationKeyDialog();
@@ -2856,6 +2844,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		await _autoPublishStateService.MarkIncompletePublishingAsFailedAsync();
 		await _cardSizeInfoService.InitializeAsync();
 		await _templateLibraryService.InitializeAsync();
+		await LoadTemplateTabCountsAsync();
 		await LoadManagedTemplatesAsync();
 		AppUserPathsState appUserPathsState = _appSettingsService.LoadUserPaths();
 		ApplyUserPathSettings(appUserPathsState);
@@ -3135,6 +3124,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		}
 		else if (IsTemplateManagerSelected)
 		{
+			await LoadTemplateTabCountsAsync();
 			await LoadManagedTemplatesAsync();
 			StatusMessage = "已刷新模板管理页。";
 		}
@@ -3200,43 +3190,62 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private async Task LoadManagedTemplatesAsync()
 	{
-		Task<IReadOnlyList<TemplateItemRecord>> recordsTask = _templateLibraryService.GetByCategoryAsync(_selectedTemplateCategory, IsLayoutTemplateTabSelected ? new ImageTemplateType?(_selectedLayoutImageType) : ((ImageTemplateType?)null));
-		Task<IReadOnlyList<TemplateItemRecord>> layoutTemplatesTask = _templateLibraryService.GetByCategoryAsync(TemplateCategory.Layout);
-		Task<IReadOnlyList<TemplateItemRecord>> titleTemplatesTask = _templateLibraryService.GetByCategoryAsync(TemplateCategory.Title);
-		Task<IReadOnlyList<TemplateItemRecord>> subjectTemplatesTask = _templateLibraryService.GetByCategoryAsync(TemplateCategory.Subject);
-		Task<IReadOnlyDictionary<long, IReadOnlyList<long>>> sceneBindingsTask = _templateLibraryService.GetSceneSubjectBindingsAsync();
-		await Task.WhenAll(recordsTask, layoutTemplatesTask, titleTemplatesTask, subjectTemplatesTask, sceneBindingsTask);
+		TemplateCategory selectedCategory = _selectedTemplateCategory;
+		ImageTemplateType selectedLayoutImageType = _selectedLayoutImageType;
+		string selectedTitleTemplateType = _selectedTitleTemplateType;
+		bool isLayoutTemplateTabSelected = selectedCategory == TemplateCategory.Layout;
+		bool isSceneTemplateTabSelected = selectedCategory == TemplateCategory.Scene;
+		bool isTitleTemplateTabSelected = selectedCategory == TemplateCategory.Title;
+		Task<IReadOnlyList<TemplateItemRecord>> recordsTask = _templateLibraryService.GetByCategoryAsync(selectedCategory, isLayoutTemplateTabSelected ? new ImageTemplateType?(selectedLayoutImageType) : ((ImageTemplateType?)null));
+		Task<IReadOnlyList<TemplateItemRecord>>? subjectTemplatesTask = isSceneTemplateTabSelected ? _templateLibraryService.GetByCategoryAsync(TemplateCategory.Subject) : null;
+		Task<IReadOnlyDictionary<long, IReadOnlyList<long>>>? sceneBindingsTask = isSceneTemplateTabSelected ? _templateLibraryService.GetSceneSubjectBindingsAsync() : null;
+		await recordsTask;
+		if (subjectTemplatesTask != null && sceneBindingsTask != null)
+		{
+			await Task.WhenAll(subjectTemplatesTask, sceneBindingsTask);
+		}
 		IReadOnlyList<TemplateItemRecord> records = await recordsTask;
-		IReadOnlyList<TemplateItemRecord> layoutTemplates = await layoutTemplatesTask;
-		IReadOnlyList<TemplateItemRecord> titleTemplates = await titleTemplatesTask;
-		IReadOnlyList<TemplateItemRecord> subjectTemplates = await subjectTemplatesTask;
-		IReadOnlyDictionary<long, IReadOnlyList<long>> readOnlyDictionary = await sceneBindingsTask;
-		UpdateLayoutTemplateCounts(layoutTemplates);
-		UpdateTitleTemplateCounts(titleTemplates);
-		if (IsTitleTemplateTabSelected)
+		if (isTitleTemplateTabSelected)
 		{
-			records = titleTemplates.Where(item => GetTitleTemplateType(item) == _selectedTitleTemplateType).ToArray();
+			records = records.Where(item => GetTitleTemplateType(item) == selectedTitleTemplateType).ToArray();
 		}
-		_subjectTemplateLookup.Clear();
-		foreach (TemplateItemRecord item in subjectTemplates)
+		if (isSceneTemplateTabSelected)
 		{
-			_subjectTemplateLookup[item.Id] = item;
+			_subjectTemplateLookup.Clear();
+			foreach (TemplateItemRecord item in await subjectTemplatesTask!)
+			{
+				_subjectTemplateLookup[item.Id] = item;
+			}
+			_sceneSubjectBindingCache.Clear();
+			foreach (KeyValuePair<long, IReadOnlyList<long>> item2 in await sceneBindingsTask!)
+			{
+				_sceneSubjectBindingCache[item2.Key] = item2.Value;
+			}
 		}
-		_sceneSubjectBindingCache.Clear();
-		foreach (KeyValuePair<long, IReadOnlyList<long>> item2 in readOnlyDictionary)
-		{
-			_sceneSubjectBindingCache[item2.Key] = item2.Value;
-		}
-		ManagedTemplateItems.Clear();
-		foreach (TemplateItemRecord item3 in records)
-		{
-			ManagedTemplateItems.Add(CreateTemplateItemViewModel(item3));
-		}
+		ManagedTemplateItems = new ObservableCollection<TemplateItemViewModel>(records.Select(CreateTemplateItemViewModel));
 		OnPropertyChanged("HasManagedTemplateItems");
 		OnPropertyChanged("TemplateEmptyText");
 		OnTemplateExportSelectionChanged();
-		await LoadGenerationTemplateOptionsAsync();
-		ResetTemplateEditor();
+		if (isLayoutTemplateTabSelected)
+		{
+			await LoadGenerationTemplateOptionsAsync();
+		}
+		ResetTemplateEditor(refreshSubjectOptions: false);
+	}
+
+	private async Task ReloadManagedTemplatesAfterMutationAsync()
+	{
+		await LoadTemplateTabCountsAsync();
+		await LoadManagedTemplatesAsync();
+	}
+
+	private async Task LoadTemplateTabCountsAsync()
+	{
+		Task<IReadOnlyList<TemplateItemRecord>> layoutTemplatesTask = _templateLibraryService.GetByCategoryAsync(TemplateCategory.Layout);
+		Task<IReadOnlyList<TemplateItemRecord>> titleTemplatesTask = _templateLibraryService.GetByCategoryAsync(TemplateCategory.Title);
+		await Task.WhenAll(layoutTemplatesTask, titleTemplatesTask);
+		UpdateLayoutTemplateCounts(await layoutTemplatesTask);
+		UpdateTitleTemplateCounts(await titleTemplatesTask);
 	}
 
 	private TemplateItemViewModel CreateTemplateItemViewModel(TemplateItemRecord record)
@@ -3337,14 +3346,17 @@ public sealed class MainWindowViewModel : ViewModelBase
 		IsTemplateEditorDialogOpen = true;
 	}
 
-	private void ResetTemplateEditor()
+	private void ResetTemplateEditor(bool refreshSubjectOptions = true)
 	{
 		SelectedTemplateItem = null;
 		TemplateEditorName = string.Empty;
 		TemplateEditorContent = string.Empty;
 		IsTemplateSubjectPickerOpen = false;
 		SetTemplateSubjectTags(Array.Empty<long>());
-		RefreshTemplateSubjectOptions();
+		if (refreshSubjectOptions)
+		{
+			RefreshTemplateSubjectOptions();
+		}
 		SetSceneContentLines(string.Empty);
 		TemplateEditorPreviewImagePath = string.Empty;
 		TemplateEditorIsEnabled = true;
@@ -3501,7 +3513,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 				where tag.IsTag && tag.Id > 0
 				select tag.Id).ToArray());
 		}
-		await LoadManagedTemplatesAsync();
+		await ReloadManagedTemplatesAfterMutationAsync();
 		SelectedTemplateItem = ManagedTemplateItems.FirstOrDefault((TemplateItemViewModel templateItemViewModel) => templateItemViewModel.Id == saved.Id);
 		IsTemplateEditorDialogOpen = false;
 		StatusMessage = "已保存" + TemplateManagerTitle + "：" + saved.Name;
@@ -3564,7 +3576,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 			return;
 		}
 
-		await LoadManagedTemplatesAsync();
+		await ReloadManagedTemplatesAfterMutationAsync();
 		SelectedTemplateItem = ManagedTemplateItems.FirstOrDefault(item => savedIds.Contains(item.Id));
 		IsTemplateEditorDialogOpen = false;
 		StatusMessage = skippedCount > 0
@@ -4074,7 +4086,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		{
 			string name = SelectedTemplateItem.Name;
 			await _templateLibraryService.DeleteAsync(SelectedTemplateItem.Id);
-			await LoadManagedTemplatesAsync();
+			await ReloadManagedTemplatesAfterMutationAsync();
 			IsTemplateEditorDialogOpen = false;
 			StatusMessage = "已删除" + TemplateManagerTitle + "：" + name;
 		}
@@ -4087,7 +4099,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 			string name = item.Name;
 			bool wasEditing = SelectedTemplateItem?.Id == item.Id;
 			await _templateLibraryService.DeleteAsync(item.Id);
-			await LoadManagedTemplatesAsync();
+			await ReloadManagedTemplatesAfterMutationAsync();
 			if (wasEditing)
 			{
 				IsTemplateEditorDialogOpen = false;
@@ -4119,7 +4131,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 			SortOrder = item.Model.SortOrder,
 			IsEnabled = item.IsEnabled
 		});
-		await LoadManagedTemplatesAsync();
+		await ReloadManagedTemplatesAfterMutationAsync();
 		SelectedTemplateItem = ManagedTemplateItems.FirstOrDefault((TemplateItemViewModel templateItemViewModel) => templateItemViewModel.Id == saved.Id);
 		StatusMessage = $"已复制布局模板：{saved.Name}";
 	}
@@ -4163,7 +4175,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 				int count = category == TemplateCategory.Layout
 					? await _templateLibraryService.ImportLayoutTemplatesAsync(dialog.FileName)
 					: await _templateLibraryService.ImportTemplateCategoryAsync(dialog.FileName, category, category == TemplateCategory.Title ? _selectedTitleTemplateType : null);
-				await LoadManagedTemplatesAsync();
+				await ReloadManagedTemplatesAfterMutationAsync();
 				StatusMessage = $"已导入{GetTemplateCategoryDisplayName(category)}：{count} 个";
 			}
 		}
@@ -4242,7 +4254,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 			if (dialog.ShowDialog() == DialogResult.OK)
 			{
 				int count = await _templateLibraryService.ImportAllTemplatesAsync(dialog.FileName);
-				await LoadManagedTemplatesAsync();
+				await ReloadManagedTemplatesAfterMutationAsync();
 				StatusMessage = $"已导入全部模板：{count} 个";
 			}
 		}
@@ -5998,11 +6010,6 @@ public sealed class MainWindowViewModel : ViewModelBase
 		return array.FirstOrDefault(File.Exists) ?? array[0];
 	}
 
-	private static string ResolveImageGenerationScriptPath(string provider)
-	{
-		return string.Equals(NormalizeImageGenerationProvider(provider), BananaGenerationProvider, StringComparison.OrdinalIgnoreCase) ? ResolveBananaScriptPath() : ResolveImage2ScriptPath();
-	}
-
 	private static string ResolveImage2ScriptPath()
 	{
 		string baseDirectory = AppContext.BaseDirectory;
@@ -6014,17 +6021,6 @@ public sealed class MainWindowViewModel : ViewModelBase
 		return array.FirstOrDefault(File.Exists) ?? array[0];
 	}
 
-	private static string ResolveBananaScriptPath()
-	{
-		string baseDirectory = AppContext.BaseDirectory;
-		string[] array = new string[2]
-		{
-			Path.Combine(baseDirectory, "tools", "python", "banana-generate", "scripts", "generate_image.py"),
-			Path.Combine("D:\\new_project\\tools\\python", "banana-generate", "scripts", "generate_image.py")
-		};
-		return array.FirstOrDefault(File.Exists) ?? array[0];
-	}
-
 	private static string GetUserImageGenerationKeyPath()
 	{
 		string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
@@ -6032,21 +6028,9 @@ public sealed class MainWindowViewModel : ViewModelBase
 		return Path.Combine(root, "image2_api_key");
 	}
 
-	private static string GetUserBananaImageGenerationKeyPath()
-	{
-		string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-		string root = string.IsNullOrWhiteSpace(localAppData) ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".toolbox") : Path.Combine(localAppData, "ToolBox");
-		return Path.Combine(root, "banana_api_key");
-	}
-
 	private static string GetBundledImageGenerationKeyPath()
 	{
 		return Path.Combine(AppContext.BaseDirectory, "tools", "python", "image2-generate", ".image2_api_key");
-	}
-
-	private static string GetBundledBananaImageGenerationKeyPath()
-	{
-		return Path.Combine(AppContext.BaseDirectory, "tools", "python", "banana-generate", ".banana_api_key");
 	}
 
 	private void OpenImageGenerationKeyDialog()
@@ -6055,20 +6039,14 @@ public sealed class MainWindowViewModel : ViewModelBase
 		string bundledKeyPath = GetBundledImageGenerationKeyPath();
 		string keyPath = File.Exists(userKeyPath) ? userKeyPath : bundledKeyPath;
 		ImageGenerationKeyText = File.Exists(keyPath) ? File.ReadAllText(keyPath, Encoding.UTF8).Trim().TrimStart('\ufeff') : string.Empty;
-		string bananaUserKeyPath = GetUserBananaImageGenerationKeyPath();
-		string bananaBundledKeyPath = GetBundledBananaImageGenerationKeyPath();
-		string bananaKeyPath = File.Exists(bananaUserKeyPath) ? bananaUserKeyPath : bananaBundledKeyPath;
-		BananaImageGenerationKeyText = File.Exists(bananaKeyPath) ? File.ReadAllText(bananaKeyPath, Encoding.UTF8).Trim().TrimStart('\ufeff') : string.Empty;
 		OnPropertyChanged("ImageGenerationKeyPathText");
-		OnPropertyChanged("BananaImageGenerationKeyPathText");
 		IsImageGenerationKeyDialogOpen = true;
 	}
 
 	private void SaveImageGenerationKey()
 	{
 		string key = ImageGenerationKeyText.Trim().TrimStart('\ufeff');
-		string bananaKey = BananaImageGenerationKeyText.Trim().TrimStart('\ufeff');
-		if (string.IsNullOrWhiteSpace(key) && string.IsNullOrWhiteSpace(bananaKey))
+		if (string.IsNullOrWhiteSpace(key))
 		{
 			StatusMessage = "至少填写一个生图 Key。";
 			return;
@@ -6076,10 +6054,6 @@ public sealed class MainWindowViewModel : ViewModelBase
 		if (!string.IsNullOrWhiteSpace(key))
 		{
 			WriteImageGenerationKey(GetUserImageGenerationKeyPath(), key);
-		}
-		if (!string.IsNullOrWhiteSpace(bananaKey))
-		{
-			WriteImageGenerationKey(GetUserBananaImageGenerationKeyPath(), bananaKey);
 		}
 		StatusMessage = "已保存生图 Key。";
 		CloseImageGenerationKeyDialog();
@@ -6114,7 +6088,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private static string NormalizeImageGenerationProvider(string? provider)
 	{
-		return string.Equals(provider?.Trim(), BananaGenerationProvider, StringComparison.OrdinalIgnoreCase) ? BananaGenerationProvider : Image2GenerationProvider;
+		return Image2GenerationProvider;
 	}
 
 	private static string ResolveDefaultFolderPickerDirectory()

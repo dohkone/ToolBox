@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
@@ -73,6 +74,23 @@ public sealed class TemplateGenerationService : ITemplateGenerationService
 		processStartInfo.ArgumentList.Add(request.OutputDirectory);
 		processStartInfo.ArgumentList.Add("--image2-script");
 		processStartInfo.ArgumentList.Add(request.Image2ScriptPath);
+		processStartInfo.ArgumentList.Add("--image-type");
+		processStartInfo.ArgumentList.Add(request.ImageType switch
+		{
+			ImageTemplateType.SceneImage => "scene",
+			ImageTemplateType.CompareImage => "compare",
+			_ => "main"
+		});
+		if (request.ImageType == ImageTemplateType.MainImage && IsImage2Script(request.Image2ScriptPath))
+		{
+			string textureReferencePath = ResolveTextureReferencePath();
+			if (!File.Exists(textureReferencePath))
+			{
+				throw new InvalidOperationException("Texture reference image not found: " + textureReferencePath);
+			}
+			processStartInfo.ArgumentList.Add("--texture-reference");
+			processStartInfo.ArgumentList.Add(textureReferencePath);
+		}
 		processStartInfo.ArgumentList.Add("--count");
 		processStartInfo.ArgumentList.Add(request.Count.ToString());
 		processStartInfo.ArgumentList.Add("--concurrency");
@@ -136,6 +154,40 @@ public sealed class TemplateGenerationService : ITemplateGenerationService
 				ImagePath = (item.ImagePath ?? string.Empty)
 			}).ToArray() ?? Array.Empty<TemplateGenerateItem>())
 		};
+	}
+
+	private static bool IsImage2Script(string scriptPath)
+	{
+		return scriptPath.Contains("image2-generate", StringComparison.OrdinalIgnoreCase);
+	}
+
+	private static string ResolveTextureReferencePath()
+	{
+		string userTexturePath = ResolveUserTextureReferencePath();
+		string bundledTexturePath = ResolveBundledTextureReferencePath();
+		if (File.Exists(bundledTexturePath))
+		{
+			Directory.CreateDirectory(Path.GetDirectoryName(userTexturePath) ?? string.Empty);
+			FileInfo bundledFile = new FileInfo(bundledTexturePath);
+			FileInfo userFile = new FileInfo(userTexturePath);
+			if (!userFile.Exists || userFile.Length != bundledFile.Length || userFile.LastWriteTimeUtc < bundledFile.LastWriteTimeUtc)
+			{
+				File.Copy(bundledTexturePath, userTexturePath, overwrite: true);
+			}
+		}
+		return userTexturePath;
+	}
+
+	private static string ResolveUserTextureReferencePath()
+	{
+		string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+		string root = string.IsNullOrWhiteSpace(localAppData) ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".toolbox") : Path.Combine(localAppData, "ToolBox");
+		return Path.Combine(root, "assets", "textures", "texure.jpg");
+	}
+
+	private static string ResolveBundledTextureReferencePath()
+	{
+		return Path.Combine(AppContext.BaseDirectory, "assets", "textures", "texure.jpg");
 	}
 
 	public void CancelCurrentRun()

@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 from datetime import date
+from math import ceil
 from pathlib import Path
 
 
@@ -312,12 +313,12 @@ def parse_sizes_from_ocr_text(text):
     matches = list(re.finditer(r"(\d+(?:\.\d+)?)\s*(?:cm)?\s*[*xX]\s*(\d+(?:\.\d+)?)\s*cm", normalized, re.I))
     for index, match in enumerate(matches):
         width_text, length_text = match.groups()
-        width_cm = int(float(width_text))
-        length_cm = int(float(length_text))
+        width_cm = float(width_text)
+        length_cm = float(length_text)
         if not is_plausible_sku_size(width_cm, length_cm):
             continue
 
-        size_text = f"{width_cm}*{length_cm}cm"
+        size_text = f"{format_cm(width_cm)}*{format_cm(length_cm)}cm"
         if size_text in seen:
             continue
 
@@ -357,18 +358,18 @@ def parse_fuzzy_sizes_from_ocr_text(text):
     seen = set()
     normalized = normalize_ocr_size_text(text)
     pattern = re.compile(
-        r"(?<!\d)(\d{1,3})\D{0,8}(\d{2,3})\s*(?:cm|c\s*m|\(\s*m)\s*/\s*(.{0,60}?)(?:inch|in\s*\(?\s*h)",
+        r"(?<!\d)(\d{1,3}(?:\.\d+)?)\D{0,8}(\d{2,3}(?:\.\d+)?)\s*(?:cm|c\s*m|\(\s*m)\s*/\s*(.{0,60}?)(?:inch|in\s*\(?\s*h)",
         re.I,
     )
     for match in pattern.finditer(normalized):
         width_token, length_token, inch_text = match.groups()
-        width_cm = int(width_token)
-        length_cm = int(length_token)
+        width_cm = float(width_token)
+        length_cm = float(length_token)
 
         if not is_plausible_sku_size(width_cm, length_cm):
             continue
 
-        size_text = f"{width_cm}*{length_cm}cm"
+        size_text = f"{format_cm(width_cm)}*{format_cm(length_cm)}cm"
         if size_text in seen:
             continue
 
@@ -433,6 +434,10 @@ def is_plausible_sku_size(width_cm, length_cm):
     return 30 <= width_cm <= 100 and 100 <= length_cm <= 400
 
 
+def format_cm(cm_value):
+    return f"{cm_value:.2f}".rstrip("0").rstrip(".")
+
+
 def format_inches(cm_value):
     return f"{cm_value / 2.54:.2f}".rstrip("0").rstrip(".")
 
@@ -457,8 +462,8 @@ def parse_size(size_text):
     match = re.search(r"^\s*(\d+(?:\.\d+)?)\s*(?:cm)?\s*\*\s*(\d+(?:\.\d+)?)\s*cm\b", size_text, re.I)
     if not match:
         raise ValueError(f"Unsupported size format: {size_text}")
-    width = int(float(match.group(1)))
-    length = int(float(match.group(2)))
+    width = float(match.group(1))
+    length = float(match.group(2))
     return width, length
 
 
@@ -501,8 +506,24 @@ def load_titles(title_json_path):
 
 
 def match_record(records, width, length):
+    record = match_record_by_values(records, width, length)
+    if record is not None:
+        return record
+
+    rounded_width = ceil(width)
+    rounded_length = ceil(length)
+    if rounded_width == width and rounded_length == length:
+        return None
+    return match_record_by_values(records, rounded_width, rounded_length)
+
+
+def match_record_by_values(records, width, length):
     for record in records:
-        if record["width_cm"] != width:
+        width_min = record.get("width_min_cm", record.get("width_cm"))
+        width_max = record.get("width_max_cm", record.get("width_cm"))
+        if width_min is None or width_max is None:
+            continue
+        if not (width_min <= width <= width_max):
             continue
         if record["length_min_cm"] is None or record["length_max_cm"] is None:
             continue
@@ -519,7 +540,8 @@ def random_price(record):
     min_cents = int(round(price_min * 100))
     max_cents = int(round(price_max * 100))
     if max_cents < min_cents:
-        raise ValueError(f"Invalid price range: {record['declared_price_range_text']}")
+        row_number = record.get("row_number", "?")
+        raise ValueError(f"Invalid price range at size_specs row {row_number}: {record['declared_price_range_text']}")
     return random.randint(min_cents, max_cents) / 100.0
 
 

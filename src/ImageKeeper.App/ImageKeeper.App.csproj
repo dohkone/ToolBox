@@ -10,10 +10,10 @@
     <UseWindowsForms>true</UseWindowsForms>
     <AssemblyName>EcomTool</AssemblyName>
     <Product>EcomTool</Product>
-    <Version>1.0.8</Version>
-    <AssemblyVersion>1.0.8.0</AssemblyVersion>
-    <FileVersion>1.0.8.0</FileVersion>
-    <InformationalVersion>1.0.8</InformationalVersion>
+    <Version>1.0.9</Version>
+    <AssemblyVersion>1.0.9.0</AssemblyVersion>
+    <FileVersion>1.0.9.0</FileVersion>
+    <InformationalVersion>1.0.9</InformationalVersion>
     <Description>E-commerce image, generation, product sheet, and listing automation studio.</Description>
     <ApplicationIcon>..\..\logo\new_logo.ico</ApplicationIcon>
   </PropertyGroup>
@@ -70,8 +70,8 @@
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <CopyToPublishDirectory>Always</CopyToPublishDirectory>
     </None>
-    <None Include="..\..\tools\python\banana-generate\**\*">
-      <Link>tools\python\banana-generate\%(RecursiveDir)%(Filename)%(Extension)</Link>
+    <None Include="..\..\assets\textures\**\*">
+      <Link>assets\textures\%(RecursiveDir)%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <CopyToPublishDirectory>Always</CopyToPublishDirectory>
     </None>

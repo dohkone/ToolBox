@@ -51,8 +51,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--size",
-        default="1024x1024",
-        help="Requested image size, for example 1024x1024.",
+        default="2880x2880",
+        help="Requested image size, for example 2880x2880.",
     )
     parser.add_argument(
         "--quality",
@@ -382,6 +382,19 @@ def resolve_input_paths(paths: list[str] | None, label: str) -> list[Path]:
     return resolved
 
 
+def decode_subprocess_output(data: bytes | str | None) -> str:
+    if data is None:
+        return ""
+    if isinstance(data, str):
+        return data
+    for encoding in ("utf-8", "gbk", "cp936"):
+        try:
+            return data.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return data.decode("utf-8", errors="replace")
+
+
 def run_curl_json(url: str, payload: dict[str, Any], api_key: str) -> tuple[int, str]:
     with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False, suffix=".json") as handle:
         json.dump(payload, handle, ensure_ascii=False)
@@ -410,9 +423,7 @@ def run_curl_json(url: str, payload: dict[str, Any], api_key: str) -> tuple[int,
         completed = subprocess.run(
             command,
             capture_output=True,
-            text=True,
             check=False,
-            encoding="utf-8",
         )
     finally:
         try:
@@ -420,8 +431,8 @@ def run_curl_json(url: str, payload: dict[str, Any], api_key: str) -> tuple[int,
         except OSError:
             pass
 
-    stdout = completed.stdout or ""
-    stderr = completed.stderr.strip()
+    stdout = decode_subprocess_output(completed.stdout)
+    stderr = decode_subprocess_output(completed.stderr).strip()
     if completed.returncode != 0:
         message = stderr or stdout.strip() or f"curl failed with exit code {completed.returncode}"
         raise Image2Error(message)
@@ -483,13 +494,11 @@ def run_curl_multipart(
     completed = subprocess.run(
         command,
         capture_output=True,
-        text=True,
         check=False,
-        encoding="utf-8",
     )
 
-    stdout = completed.stdout or ""
-    stderr = completed.stderr.strip()
+    stdout = decode_subprocess_output(completed.stdout)
+    stderr = decode_subprocess_output(completed.stderr).strip()
     if completed.returncode != 0:
         message = stderr or stdout.strip() or f"curl failed with exit code {completed.returncode}"
         raise Image2Error(message)
@@ -519,12 +528,10 @@ def run_curl_download(url: str, output_path: Path) -> None:
     completed = subprocess.run(
         command,
         capture_output=True,
-        text=True,
         check=False,
-        encoding="utf-8",
     )
     if completed.returncode != 0:
-        message = completed.stderr.strip() or completed.stdout.strip()
+        message = decode_subprocess_output(completed.stderr).strip() or decode_subprocess_output(completed.stdout).strip()
         raise Image2Error(message or "Failed to download generated image URL.")
 
 
@@ -570,12 +577,10 @@ def list_image_models(models_endpoint: str, api_key: str) -> list[str]:
     completed = subprocess.run(
         command,
         capture_output=True,
-        text=True,
         check=False,
-        encoding="utf-8",
     )
-    stdout = completed.stdout or ""
-    stderr = completed.stderr.strip()
+    stdout = decode_subprocess_output(completed.stdout)
+    stderr = decode_subprocess_output(completed.stderr).strip()
     if completed.returncode != 0:
         raise Image2Error(stderr or stdout.strip() or "Failed to query /v1/models.")
     if "\n" not in stdout:

@@ -79,10 +79,24 @@ def read_sheet_names(archive):
 
 
 def parse_length_range(text):
-    match = re.fullmatch(r"\s*(\d+)\s*-\s*(\d+)\s*", text or "")
+    match = re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\s*", text or "")
     if not match:
         return None, None
-    return int(match.group(1)), int(match.group(2))
+    return float(match.group(1)), float(match.group(2))
+
+
+def parse_width_range(value):
+    if value in ("", None):
+        return None, None, ""
+    text = str(value).strip()
+    range_match = re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\s*", text)
+    if range_match:
+        return float(range_match.group(1)), float(range_match.group(2)), text
+    number_match = re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*", text)
+    if number_match:
+        width = float(number_match.group(1))
+        return width, width, text
+    return None, None, text
 
 
 def parse_price_range(text):
@@ -107,12 +121,16 @@ def build_payload(source_path):
     headers = rows[0]
     records = []
     for row_number, row in enumerate(rows[1:], start=2):
+        width_min, width_max, width_range_text = parse_width_range(row.get("A", ""))
         length_min, length_max = parse_length_range(row.get("B", ""))
         price_min, price_max = parse_price_range(row.get("G", ""))
         records.append(
             {
                 "row_number": row_number,
-                "width_cm": int(float(row["A"])) if row.get("A") not in ("", None) else None,
+                "width_cm": width_max if width_min == width_max else None,
+                "width_range_text": width_range_text,
+                "width_min_cm": width_min,
+                "width_max_cm": width_max,
                 "length_range_text": row.get("B", ""),
                 "length_min_cm": length_min,
                 "length_max_cm": length_max,

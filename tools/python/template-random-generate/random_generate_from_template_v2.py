@@ -89,6 +89,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--count", type=int, default=5)
     parser.add_argument("--concurrency", type=int, default=2)
     parser.add_argument("--image2-script")
+    parser.add_argument("--image-type", choices=("main", "scene", "compare"), default="main")
+    parser.add_argument("--texture-reference")
     parser.add_argument("--seed", type=int)
     parser.add_argument("--unique-scene", action="store_true")
     parser.add_argument("--prompts-only", action="store_true")
@@ -452,6 +454,23 @@ def replace_title_placeholder(prompt: str, placeholder: str, title_templates: li
     return prompt
 
 
+def replace_title_placeholder_without_repeat(prompt: str, placeholder: str, title_templates: list[str], label: str) -> str:
+    placeholder_count = prompt.count(placeholder)
+    if placeholder_count == 0:
+        return prompt
+    if not title_templates:
+        raise TemplateRandomError(f"布局模板使用了{placeholder}，但视觉元素里没有可用的{label}。")
+
+    replacement_pool = list(dict.fromkeys(title_templates))
+    random.shuffle(replacement_pool)
+    for _ in range(placeholder_count):
+        if not replacement_pool:
+            replacement_pool = list(dict.fromkeys(title_templates))
+            random.shuffle(replacement_pool)
+        prompt = prompt.replace(placeholder, replacement_pool.pop(), 1)
+    return prompt
+
+
 def replace_color_subject_pairs(
     prompt: str,
     subject_templates: list[str],
@@ -548,7 +567,7 @@ def render_prompt(template: SelectedTemplate, library: TemplateLibrary) -> str:
     prompt = prompt.replace(SCENE_PLACEHOLDER, template.scene_template)
     prompt = replace_title_placeholder(prompt, MAIN_TITLE_PLACEHOLDER, library.main_title_templates, "大标题")
     prompt = replace_title_placeholder(prompt, SUB_TITLE_PLACEHOLDER, library.sub_title_templates, "小标题")
-    prompt = replace_title_placeholder(prompt, ICON_WORD_PLACEHOLDER, library.icon_word_templates, "图标小词")
+    prompt = replace_title_placeholder_without_repeat(prompt, ICON_WORD_PLACEHOLDER, library.icon_word_templates, "图标小词")
     prompt = replace_color_subject_pairs(prompt, subject_pool, COLOR_PLACEHOLDER, SUBJECT_PLACEHOLDER)
     prompt = replace_color_subject_pairs(
         prompt,
@@ -610,7 +629,33 @@ def is_retryable_generation_error(error_text: str) -> bool:
     return any(marker in lowered for marker in retryable_markers)
 
 
-def run_image_generation(prompt: str, output_dir: str, filename: str, image2_script: str | None) -> str:
+def is_image2_script(script_path: str) -> bool:
+    return "image2-generate" in script_path.lower()
+
+
+def resolve_texture_reference(texture_reference: str | None, image_type: str, script_path: str) -> Path | None:
+    if image_type != "main" or not is_image2_script(script_path) or not texture_reference:
+        return None
+
+    path = Path(texture_reference).expanduser()
+    if path.exists() and path.is_file():
+        return path.resolve()
+    raise TemplateRandomError(f"texture reference image not found: {path}")
+
+
+def append_texture_reference_prompt(prompt: str) -> str:
+    return (
+        prompt.rstrip()
+        + "\n\n"
+        + "TEXTURE REFERENCE LOCK: use the uploaded texture reference image only for PU leather surface texture, "
+        + "fine lychee-grain scale, shallow micro embossing depth, gloss level, specular highlight behavior, and "
+        + "surface detail. Do not copy or transfer the reference image color. Ignore the reference image color "
+        + "completely. Do not copy its object, shape, scene, lighting, background, crop, or composition. Keep the "
+        + "product color and full image content strictly controlled by the main prompt."
+    )
+
+
+def run_image_generation(prompt: str, output_dir: str, filename: str, image2_script: str | None, texture_reference: Path | None = None) -> str:
     script_path = image2_script or str((Path(__file__).resolve().parents[1] / "image2-generate" / "scripts" / "generate_image.py").resolve())
     command = [
         sys.executable,
@@ -622,6 +667,8 @@ def run_image_generation(prompt: str, output_dir: str, filename: str, image2_scr
         "--output-dir",
         output_dir,
     ]
+    if texture_reference is not None:
+        command.extend(["--input-image", str(texture_reference)])
 
     last_error = ""
     for attempt in range(1, 4):
@@ -644,9 +691,9 @@ def run_image_generation(prompt: str, output_dir: str, filename: str, image2_scr
     raise TemplateRandomError(f"生图失败：{last_error}")
 
 
-def generate_one(index: int, prompt: str, output_dir: str, batch_timestamp: str, total_count: int, image2_script: str | None) -> dict:
+def generate_one(index: int, prompt: str, output_dir: str, batch_timestamp: str, total_count: int, image2_script: str | None, texture_reference: Path | None = None) -> dict:
     filename = build_unique_filename(batch_timestamp, index, total_count)
-    image_path = run_image_generation(prompt, output_dir, filename, image2_script)
+    image_path = run_image_generation(prompt, output_dir, filename, image2_script, texture_reference)
     return {
         "index": index,
         "prompt": prompt,
@@ -655,7 +702,7 @@ def generate_one(index: int, prompt: str, output_dir: str, batch_timestamp: str,
     }
 
 
-def generate_images(prompts: list[str], output_dir: str, concurrency: int, image2_script: str | None) -> list[dict]:
+def generate_images(prompts: list[str], output_dir: str, concurrency: int, image2_script: str | None, texture_reference: Path | None = None) -> list[dict]:
     batch_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     total_count = len(prompts)
     results: dict[int, dict] = {}
@@ -663,7 +710,7 @@ def generate_images(prompts: list[str], output_dir: str, concurrency: int, image
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=concurrency) as executor:
         future_map = {
-            executor.submit(generate_one, index, prompt, output_dir, batch_timestamp, total_count, image2_script): index
+            executor.submit(generate_one, index, prompt, output_dir, batch_timestamp, total_count, image2_script, texture_reference): index
             for index, prompt in enumerate(prompts, start=1)
         }
         for future in concurrent.futures.as_completed(future_map):
@@ -693,6 +740,10 @@ def main() -> int:
         library = load_template_library(Path(args.template_path))
         selected_templates = pick_templates(library, count, args.unique_scene)
         prompts = [render_prompt(item, library) for item in selected_templates]
+        script_path = args.image2_script or str((Path(__file__).resolve().parents[1] / "image2-generate" / "scripts" / "generate_image.py").resolve())
+        texture_reference = resolve_texture_reference(args.texture_reference, args.image_type, script_path)
+        if texture_reference is not None:
+            prompts = [append_texture_reference_prompt(prompt) for prompt in prompts]
 
         if args.prompts_only:
             print(
@@ -707,7 +758,7 @@ def main() -> int:
             )
             return 0
 
-        results = generate_images(prompts, output_dir, concurrency, args.image2_script)
+        results = generate_images(prompts, output_dir, concurrency, args.image2_script, texture_reference)
         print(
             json.dumps(
                 {
