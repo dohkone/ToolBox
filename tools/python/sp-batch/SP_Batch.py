@@ -51,6 +51,7 @@ class RequestOptions:
     input_dir: Path
     output_dir: Path
     image2_script: Path
+    texture_reference: Path | None
     concurrency: int
     retries: int
     overwrite: bool
@@ -152,6 +153,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--input-dir", help="Override input image directory.")
     parser.add_argument("--output-dir", help="Override output image directory.")
     parser.add_argument("--image2-script", required=True, help="Path to the image2 generation script.")
+    parser.add_argument("--texture-reference", help="Optional PU leather texture reference image for master SKU generation.")
     parser.add_argument("--concurrency", type=int, help="Override worker count.")
     parser.add_argument("--retries", type=int, help="Override retry count per job.")
     parser.add_argument("--overwrite", action="store_true", help="Regenerate outputs even if they already exist.")
@@ -215,6 +217,11 @@ def resolve_options(args: argparse.Namespace) -> RequestOptions:
     input_dir = Path(args.input_dir or parsed.get("input_dir") or DEFAULT_INPUT_DIR).expanduser().resolve()
     output_dir = Path(args.output_dir or parsed.get("output_dir") or DEFAULT_OUTPUT_DIR).expanduser().resolve()
     image2_script = Path(args.image2_script).expanduser().resolve()
+    texture_reference = None
+    if args.texture_reference:
+        texture_reference = Path(args.texture_reference).expanduser().resolve()
+        if not texture_reference.exists() or not texture_reference.is_file():
+            raise SkuColorBatchError(f"Texture reference image not found: {texture_reference}")
     concurrency = max(1, int(args.concurrency or parsed.get("concurrency") or DEFAULT_CONCURRENCY))
     retries = max(1, int(args.retries or parsed.get("retries") or DEFAULT_RETRIES))
     overwrite = bool(args.overwrite or parsed.get("overwrite", False))
@@ -236,6 +243,7 @@ def resolve_options(args: argparse.Namespace) -> RequestOptions:
         input_dir=input_dir,
         output_dir=output_dir,
         image2_script=image2_script,
+        texture_reference=texture_reference,
         concurrency=concurrency,
         retries=retries,
         overwrite=overwrite,
@@ -537,6 +545,37 @@ def build_master_prompt(color: ColorSpec) -> str:
         "Create the MASTER SKU image for this product. This master image will be used as the only reference "
         "for all other color variants, so the composition must be clean, balanced, and reusable.\n"
         f"Target color: {color.label} {color.hex_code}.\n"
+        "HIGHEST PRIORITY MATERIAL LOCK: use the uploaded texture reference image as the only PU leather material "
+        "standard for the visible PU leather repair roll and repair patch/product surface.\n"
+        "The visible PU leather roll surface must strictly match the texture reference in texture type, grain "
+        "density, embossing depth, gloss strength, reflection behavior, surface smoothness, and overall PU leather "
+        "material feel. Only the roll color may change to the target SKU color. Do not redesign the leather texture. "
+        "Do not copy the reference image color, object, lighting, background, crop, composition, or aspect ratio.\n"
+        "The roll surface must look smooth, clean, continuous, refined, and premium. The leather base should be "
+        "smooth first, with only subtle shallow micro leather grain visible on the surface.\n"
+        "The grain must be fine, soft, low-profile, naturally distributed, and gently pressed into the smooth leather "
+        "surface. It must not form obvious raised bumps, rough particles, coarse pebble grain, orange-peel texture, "
+        "sandblasted texture, hard granular texture, deep lychee grain, or strong embossed relief.\n"
+        "The gloss must be soft semi-gloss with a slight oily PU leather sheen. Do not create strong mirror "
+        "reflection, plastic shine, PVC shine, matte dry leather, powdery surface, or overly three-dimensional "
+        "texture.\n"
+        "The texture should remain visible but soft-edged, with smooth transitions, giving a more delicate, smoother, "
+        "more premium leather finish. All PU leather rolls must use exactly the same texture, grain scale, embossing "
+        "depth, gloss, and material feel. Only the SKU color may differ.\n"
+        "Apply the texture reference only to the visible outer PU leather roll surface and visible repair "
+        "patch/product material surface. Do not apply it to furniture, walls, floor, background, props, paper core, "
+        "kraft paper release liner, or any non-product object.\n"
+        "COMPOSITION AND CAMERA PRIORITY: the leather repair roll is the primary product hero and must occupy a "
+        "large, clear, central foreground area of the image. Use a close-up product photography composition. The "
+        "camera should be close enough for the roll surface texture and material details to be clearly visible.\n"
+        "Do not use a distant room-wide shot. Do not make the roll small, tiny, secondary, or hidden in the scene. "
+        "The roll should be placed in the foreground or near-middle foreground, physically touching, leaning on, or "
+        "resting on the main subject.\n"
+        "The main subject should support the product story, but it must not dominate the frame or push the roll into "
+        "the background. Keep the lifestyle scene visible but softly simplified. Background elements may be slightly "
+        "blurred or de-emphasized.\n"
+        "The final image should clearly focus on the PU leather repair roll as the main commercial product, with "
+        "enough scale and sharpness to show the material texture.\n"
         "MANDATORY SKU COLOR MATCH: the main leather or upholstered subject surface and the visible outer PU leather "
         "repair roll surface must both use the exact same target SKU color. This is not optional. The final master "
         "image must clearly read as one matching color set: target-color subject plus target-color roll. Do not leave "
@@ -571,7 +610,7 @@ def build_master_prompt(color: ColorSpec) -> str:
         "SLIM LONG ROLL PROPORTION REQUIREMENT: if a leather repair roll is visible, optimize it into a unified slim "
         "and elongated product shape. Compared with a normal compact leather repair roll, reduce the apparent roll "
         "diameter by one third, so the diameter becomes approximately two thirds of the regular roll diameter. "
-        "Increase the apparent roll length to approximately 2.5 times the regular roll length. The final roll must "
+        "Increase the apparent roll length to approximately 4 times the regular roll length. The final roll must "
         "look clearly slimmer and much longer, with an obvious elongated cylindrical silhouette. Do not keep the roll "
         "short, thick, bulky, tape-like, or compact.\n"
         "STRICT ROLL SPECIFICATION: every visible roll must be a high-quality PU leather repair roll kept in a fully "
@@ -580,17 +619,6 @@ def build_master_prompt(color: ColorSpec) -> str:
         "The roll must clearly use a dual-layer structure: the front side is the premium PU leather layer, and the back "
         "side is a kraft paper release liner. The release liner must remain tightly attached, flush with the PU leather "
         "edge, and never form a protruding paper lip, loose edge, or exposed raised liner.\n"
-        "HIGHEST PRIORITY MATERIAL LOCK: if an uploaded texture reference image is provided, use that texture "
-        "reference image as the only PU leather material standard for the product roll.\n"
-        "Only the visible outer PU leather surface of the leather repair roll and the visible repair patch/product "
-        "material surface must strictly follow the texture reference image. The roll surface texture, grain scale, "
-        "grain density, embossing depth, gloss level, reflection behavior, softness, and overall PU leather material "
-        "feel must match the texture reference exactly.\n"
-        "Do not apply the texture reference material to furniture, sofa, chair, wall, floor, background, props, paper "
-        "core, kraft release liner, or any non-product object. Furniture and background may keep their original "
-        "material appearance.\n"
-        "Only product color may change to the target SKU color. Do not copy the texture reference image color, object, "
-        "scene, lighting, background, crop, or composition.\n"
         "If no separate texture reference image is provided, the roll must still look like high-quality fine-grain PU "
         "leather with subtle micro embossing and a refined semi-gloss leather sheen.\n"
         "Do not generate coarse pebble grain, deep embossing, rough leather, suede, matte leather, plastic, PVC, rubber, "
@@ -689,6 +717,7 @@ def run_job(
     input_image_path: Path | None = None,
     prompt: str | None = None,
     stage: str = "generated",
+    texture_reference_path: Path | None = None,
 ) -> dict[str, Any]:
     if not overwrite and job.output_path.exists() and job.output_path.stat().st_size > 0:
         return {
@@ -716,6 +745,8 @@ def run_job(
         "--filename",
         job.output_path.name,
     ]
+    if texture_reference_path is not None:
+        command.extend(["--input-image", str(texture_reference_path)])
 
     last_error = ""
     for attempt in range(1, retries + 1):
@@ -791,6 +822,7 @@ def execute_job_group(group_jobs: list[Job], options: RequestOptions) -> list[di
         input_image_path=master_job.image_path,
         prompt=build_master_prompt(master_job.color),
         stage="master",
+        texture_reference_path=options.texture_reference,
     )
     results = [master_result]
     if master_result.get("status") == "failed":
@@ -862,6 +894,7 @@ def execute_master_jobs(jobs: list[Job], options: RequestOptions) -> list[dict[s
                 job.image_path,
                 build_master_prompt(job.color),
                 "master",
+                options.texture_reference,
             ): job
             for job in jobs
         }

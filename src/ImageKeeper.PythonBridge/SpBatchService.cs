@@ -153,6 +153,16 @@ public sealed class SpBatchService : ISpBatchService
 		processStartInfo.ArgumentList.Add(request.OutputDirectory);
 		processStartInfo.ArgumentList.Add("--image2-script");
 		processStartInfo.ArgumentList.Add(request.Image2ScriptPath);
+		if ((request.Mode == SpBatchMode.Generate || request.Mode == SpBatchMode.GenerateMaster) && IsImage2Script(request.Image2ScriptPath))
+		{
+			string textureReferencePath = ResolveTextureReferencePath();
+			if (!File.Exists(textureReferencePath))
+			{
+				throw new InvalidOperationException("Texture reference image not found: " + textureReferencePath);
+			}
+			processStartInfo.ArgumentList.Add("--texture-reference");
+			processStartInfo.ArgumentList.Add(textureReferencePath);
+		}
 		processStartInfo.ArgumentList.Add("--concurrency");
 		processStartInfo.ArgumentList.Add(request.Concurrency.ToString());
 		processStartInfo.ArgumentList.Add("--retries");
@@ -261,6 +271,46 @@ public sealed class SpBatchService : ISpBatchService
 			_ => "正式生成", 
 		};
 		return $"基于 {request.InputDirectory} 的图片，输出到 {request.OutputDirectory}，并发 {request.Concurrency}，重试 {request.Retries}，{value}";
+	}
+
+	private static bool IsImage2Script(string scriptPath)
+	{
+		return scriptPath.Contains("image2-generate", StringComparison.OrdinalIgnoreCase);
+	}
+
+	private static string ResolveTextureReferencePath()
+	{
+		string userTexturePath = ResolveUserTextureReferencePath();
+		string bundledTexturePath = ResolveBundledTextureReferencePath();
+		if (File.Exists(bundledTexturePath))
+		{
+			Directory.CreateDirectory(Path.GetDirectoryName(userTexturePath) ?? string.Empty);
+			FileInfo bundledFile = new FileInfo(bundledTexturePath);
+			FileInfo userFile = new FileInfo(userTexturePath);
+			if (!userFile.Exists || userFile.Length != bundledFile.Length || userFile.LastWriteTimeUtc < bundledFile.LastWriteTimeUtc)
+			{
+				File.Copy(bundledTexturePath, userTexturePath, overwrite: true);
+			}
+		}
+		return userTexturePath;
+	}
+
+	private static string ResolveUserTextureReferencePath()
+	{
+		string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+		string root = string.IsNullOrWhiteSpace(localAppData) ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".toolbox") : Path.Combine(localAppData, "ToolBox");
+		return Path.Combine(root, "assets", "textures", "texure.png");
+	}
+
+	private static string ResolveBundledTextureReferencePath()
+	{
+		string textureRoot = Path.Combine(AppContext.BaseDirectory, "assets", "textures");
+		string pngPath = Path.Combine(textureRoot, "texure.png");
+		if (File.Exists(pngPath))
+		{
+			return pngPath;
+		}
+		return Path.Combine(textureRoot, "texure.jpg");
 	}
 
 	public void CancelCurrentRun()

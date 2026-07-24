@@ -182,12 +182,18 @@ public sealed class TemplateGenerationService : ITemplateGenerationService
 	{
 		string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
 		string root = string.IsNullOrWhiteSpace(localAppData) ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".toolbox") : Path.Combine(localAppData, "ToolBox");
-		return Path.Combine(root, "assets", "textures", "texure.jpg");
+		return Path.Combine(root, "assets", "textures", "texure.png");
 	}
 
 	private static string ResolveBundledTextureReferencePath()
 	{
-		return Path.Combine(AppContext.BaseDirectory, "assets", "textures", "texure.jpg");
+		string textureRoot = Path.Combine(AppContext.BaseDirectory, "assets", "textures");
+		string pngPath = Path.Combine(textureRoot, "texure.png");
+		if (File.Exists(pngPath))
+		{
+			return pngPath;
+		}
+		return Path.Combine(textureRoot, "texure.jpg");
 	}
 
 	public void CancelCurrentRun()
