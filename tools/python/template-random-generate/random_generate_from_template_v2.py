@@ -91,10 +91,34 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--image2-script")
     parser.add_argument("--image-type", choices=("main", "scene", "compare"), default="main")
     parser.add_argument("--texture-reference")
+    parser.add_argument("--color-template")
     parser.add_argument("--seed", type=int)
     parser.add_argument("--unique-scene", action="store_true")
     parser.add_argument("--prompts-only", action="store_true")
     return parser.parse_args()
+
+
+def load_color_options(path_text: str | None) -> tuple[tuple[str, str], ...]:
+    if not path_text:
+        return COLOR_OPTIONS
+    path = Path(path_text).expanduser()
+    if not path.exists():
+        return COLOR_OPTIONS
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError):
+        return COLOR_OPTIONS
+    if not isinstance(payload, list):
+        return COLOR_OPTIONS
+    colors: list[tuple[str, str]] = []
+    for item in payload:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name") or item.get("Name") or "").strip()
+        hex_code = str(item.get("hex") or item.get("HexCode") or "").strip().upper()
+        if name and re.fullmatch(r"#[0-9A-F]{6}", hex_code):
+            colors.append((name, hex_code))
+    return tuple(colors) or COLOR_OPTIONS
 
 
 def split_variants(value: str | None) -> list[str]:
@@ -727,6 +751,7 @@ def generate_images(prompts: list[str], output_dir: str, concurrency: int, image
 
 
 def main() -> int:
+    global COLOR_OPTIONS
     args = parse_args()
 
     if args.seed is not None:
@@ -737,6 +762,7 @@ def main() -> int:
     output_dir = str(Path(args.output_dir))
 
     try:
+        COLOR_OPTIONS = load_color_options(args.color_template)
         library = load_template_library(Path(args.template_path))
         selected_templates = pick_templates(library, count, args.unique_scene)
         prompts = [render_prompt(item, library) for item in selected_templates]

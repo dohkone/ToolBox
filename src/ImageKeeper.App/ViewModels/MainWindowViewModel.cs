@@ -144,6 +144,16 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private readonly RelayCommand _sendSelectedSpBatchMasterToSkuOptimizeCommand;
 
+	private readonly RelayCommand _openSpBatchColorSelectionCommand;
+
+	private readonly RelayCommand _closeSpBatchColorSelectionCommand;
+
+	private readonly RelayCommand _selectAllSpBatchColorSelectionCommand;
+
+	private readonly RelayCommand _clearAllSpBatchColorSelectionCommand;
+
+	private readonly RelayCommand _saveSpBatchColorSelectionCommand;
+
 	private readonly AsyncRelayCommand _chooseSpBatchSourceImagesCommand;
 
 	private readonly AsyncRelayCommand _chooseSpBatchMasterImagesCommand;
@@ -159,6 +169,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 	private readonly AsyncRelayCommand _showSubjectTemplateTabCommand;
 
 	private readonly AsyncRelayCommand _showTitleTemplateTabCommand;
+
+	private readonly AsyncRelayCommand _showColorTemplateTabCommand;
 
 	private readonly RelayCommand _showMainImageLayoutTypeCommand;
 
@@ -182,7 +194,11 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private readonly AsyncRelayCommand _copyManagedLayoutTemplateCommand;
 
+	private readonly AsyncRelayCommand _deleteColorTemplateGroupCommand;
+
 	private readonly RelayCommand _selectManagedTemplateCommand;
+
+	private readonly RelayCommand _selectColorTemplateGroupCommand;
 
 	private readonly AsyncRelayCommand _chooseTemplatePreviewCommand;
 
@@ -284,6 +300,18 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private readonly RelayCommand _cancelImageGenerationKeyCommand;
 
+	private readonly RelayCommand _addColorTemplateRowCommand;
+
+	private readonly RelayCommand _removeColorTemplateRowCommand;
+
+	private readonly RelayCommand _openColorTemplateColorPreviewCommand;
+
+	private readonly RelayCommand _closeColorTemplateColorPreviewCommand;
+
+	private readonly AsyncRelayCommand _saveColorTemplateGroupCommand;
+
+	private readonly RelayCommand _closeColorTemplateGroupEditorCommand;
+
 	private readonly AsyncRelayCommand _runAppUpdateCommand;
 
 	private CancellationTokenSource? _previewCancellationTokenSource;
@@ -298,7 +326,19 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private TemplateItemViewModel? _selectedTemplateItem;
 
+	private ColorTemplateGroupViewModel? _selectedColorTemplateGroup;
+
+	private ColorTemplateGroupViewModel? _selectedColorTemplateGroupForGeneration;
+
+	private ColorTemplateGroupViewModel? _selectedSpBatchColorTemplateGroupForGeneration;
+
+	private ColorTemplateColorViewModel? _selectedColorTemplateColorPreview;
+
 	private ObservableCollection<TemplateItemViewModel> _managedTemplateItems = new ObservableCollection<TemplateItemViewModel>();
+
+	private ObservableCollection<ColorTemplateGroupViewModel> _colorTemplateGroups = new ObservableCollection<ColorTemplateGroupViewModel>();
+
+	private readonly ObservableCollection<ColorTemplateColorViewModel> _spBatchColorSelectionColors = new ObservableCollection<ColorTemplateColorViewModel>();
 
 	private string _selectedSection = "image-generate";
 
@@ -309,6 +349,16 @@ public sealed class MainWindowViewModel : ViewModelBase
 	private ImageTemplateType _selectedLayoutImageType;
 
 	private string _selectedTitleTemplateType = MainTitleTemplateType;
+
+	private long _selectedColorTemplateGroupId;
+
+	private long _selectedGenerationColorTemplateGroupId;
+
+	private long _selectedSpBatchColorTemplateGroupId;
+
+	private readonly Dictionary<long, HashSet<string>> _spBatchSelectedColorNamesByGroupId = new Dictionary<long, HashSet<string>>();
+
+	private bool _isSpBatchColorSelectionOpen;
 
 	private readonly string _appCurrentVersion = GetCurrentAppVersion();
 
@@ -337,6 +387,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 	private int _subTitleTemplateCount;
 
 	private int _iconWordTemplateCount;
+
+	private int _colorTemplateGroupCount;
 
 	private bool _isBusy;
 
@@ -508,6 +560,12 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private bool _isTemplateSubjectPickerOpen;
 
+	private bool _isColorTemplateGroupEditorOpen;
+
+	private bool _isColorTemplateColorPreviewOpen;
+
+	private string _colorTemplateGroupEditorName = string.Empty;
+
 	private bool _isSpBatchStagingDropTarget;
 
 	private bool _isSpBatchMasterDropTarget;
@@ -556,6 +614,43 @@ public sealed class MainWindowViewModel : ViewModelBase
 		}
 	}
 
+	public ObservableCollection<ColorTemplateGroupViewModel> ColorTemplateGroups
+	{
+		get => _colorTemplateGroups;
+		private set => SetProperty(ref _colorTemplateGroups, value, "ColorTemplateGroups");
+	}
+
+	public ColorTemplateGroupViewModel? SelectedColorTemplateGroupForGeneration
+	{
+		get => _selectedColorTemplateGroupForGeneration;
+		set
+		{
+			if (SetProperty(ref _selectedColorTemplateGroupForGeneration, value, "SelectedColorTemplateGroupForGeneration"))
+			{
+				_selectedGenerationColorTemplateGroupId = value?.Id ?? 0;
+			}
+		}
+	}
+
+	public ColorTemplateGroupViewModel? SelectedSpBatchColorTemplateGroupForGeneration
+	{
+		get => _selectedSpBatchColorTemplateGroupForGeneration;
+		set
+		{
+			if (SetProperty(ref _selectedSpBatchColorTemplateGroupForGeneration, value, "SelectedSpBatchColorTemplateGroupForGeneration"))
+			{
+				_selectedSpBatchColorTemplateGroupId = value?.Id ?? 0;
+				RefreshSpBatchColorSelectionForCurrentGroup();
+				OnPropertyChanged("SpBatchColorSelectionTitle");
+				OnPropertyChanged("SpBatchColorSelectionSummaryText");
+				_openSpBatchColorSelectionCommand.RaiseCanExecuteChanged();
+				_generateSpBatchColorSkusCommand.RaiseCanExecuteChanged();
+			}
+		}
+	}
+
+	public ObservableCollection<ColorTemplateColorViewModel> SpBatchColorSelectionColors => _spBatchColorSelectionColors;
+
 	public ObservableCollection<SceneContentLineViewModel> SceneContentLines { get; } = new ObservableCollection<SceneContentLineViewModel>();
 
 	public ObservableCollection<SceneContentLineViewModel> TitleMainLines { get; } = new ObservableCollection<SceneContentLineViewModel>();
@@ -567,6 +662,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 	public ObservableCollection<TemplateSubjectOptionViewModel> TemplateSubjectOptions { get; } = new ObservableCollection<TemplateSubjectOptionViewModel>();
 
 	public ObservableCollection<GenerationTemplateOptionViewModel> GenerationTemplateOptions { get; } = new ObservableCollection<GenerationTemplateOptionViewModel>();
+
+	public ObservableCollection<ColorTemplateColorViewModel> ColorTemplateEditorColors { get; } = new ObservableCollection<ColorTemplateColorViewModel>();
 
 	public ICommand ChooseFolderCommand => _chooseFolderCommand;
 
@@ -600,6 +697,16 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	public ICommand SendSelectedSpBatchMasterToSkuOptimizeCommand => _sendSelectedSpBatchMasterToSkuOptimizeCommand;
 
+	public ICommand OpenSpBatchColorSelectionCommand => _openSpBatchColorSelectionCommand;
+
+	public ICommand CloseSpBatchColorSelectionCommand => _closeSpBatchColorSelectionCommand;
+
+	public ICommand SelectAllSpBatchColorSelectionCommand => _selectAllSpBatchColorSelectionCommand;
+
+	public ICommand ClearAllSpBatchColorSelectionCommand => _clearAllSpBatchColorSelectionCommand;
+
+	public ICommand SaveSpBatchColorSelectionCommand => _saveSpBatchColorSelectionCommand;
+
 	public ICommand ChooseSpBatchSourceImagesCommand => _chooseSpBatchSourceImagesCommand;
 
 	public ICommand ChooseSpBatchMasterImagesCommand => _chooseSpBatchMasterImagesCommand;
@@ -619,6 +726,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 	public ICommand ShowSubjectTemplateTabCommand => _showSubjectTemplateTabCommand;
 
 	public ICommand ShowTitleTemplateTabCommand => _showTitleTemplateTabCommand;
+
+	public ICommand ShowColorTemplateTabCommand => _showColorTemplateTabCommand;
 
 	public ICommand ShowMainImageLayoutTypeCommand => _showMainImageLayoutTypeCommand;
 
@@ -642,7 +751,11 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	public ICommand CopyManagedLayoutTemplateCommand => _copyManagedLayoutTemplateCommand;
 
+	public ICommand DeleteColorTemplateGroupCommand => _deleteColorTemplateGroupCommand;
+
 	public ICommand SelectManagedTemplateCommand => _selectManagedTemplateCommand;
+
+	public ICommand SelectColorTemplateGroupCommand => _selectColorTemplateGroupCommand;
 
 	public ICommand ChooseTemplatePreviewCommand => _chooseTemplatePreviewCommand;
 
@@ -747,6 +860,18 @@ public sealed class MainWindowViewModel : ViewModelBase
 	public ICommand SaveImageGenerationKeyCommand => _saveImageGenerationKeyCommand;
 
 	public ICommand CancelImageGenerationKeyCommand => _cancelImageGenerationKeyCommand;
+
+	public ICommand AddColorTemplateRowCommand => _addColorTemplateRowCommand;
+
+	public ICommand RemoveColorTemplateRowCommand => _removeColorTemplateRowCommand;
+
+	public ICommand OpenColorTemplateColorPreviewCommand => _openColorTemplateColorPreviewCommand;
+
+	public ICommand CloseColorTemplateColorPreviewCommand => _closeColorTemplateColorPreviewCommand;
+
+	public ICommand SaveColorTemplateGroupCommand => _saveColorTemplateGroupCommand;
+
+	public ICommand CloseColorTemplateGroupEditorCommand => _closeColorTemplateGroupEditorCommand;
 
 	public ICommand RunAppUpdateCommand => _runAppUpdateCommand;
 
@@ -879,6 +1004,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	public bool IsTitleTemplateTabSelected => _selectedTemplateCategory == TemplateCategory.Title;
 
+	public bool IsColorTemplateTabSelected => _selectedTemplateCategory == TemplateCategory.Color;
+
 	public double TemplateEditorDialogHeight => IsSubjectTemplateTabSelected ? 230 : (IsTitleTemplateTabSelected ? 310 : 760);
 
 	public bool IsMainImageLayoutTypeSelected => _selectedLayoutImageType == ImageTemplateType.MainImage;
@@ -972,6 +1099,26 @@ public sealed class MainWindowViewModel : ViewModelBase
 		}
 	}
 
+	public int ColorTemplateGroupCount
+	{
+		get
+		{
+			return _colorTemplateGroupCount;
+		}
+		private set
+		{
+			SetProperty(ref _colorTemplateGroupCount, value, "ColorTemplateGroupCount");
+		}
+	}
+
+	public string SelectedColorTemplateGroupName
+	{
+		get
+		{
+			return ColorTemplateGroups.FirstOrDefault(item => item.Id == _selectedColorTemplateGroupId)?.Name ?? "默认颜色组";
+		}
+	}
+
 	public ImageTemplateType CurrentGenerationImageType
 	{
 		get
@@ -1005,7 +1152,9 @@ public sealed class MainWindowViewModel : ViewModelBase
 		_ => "主图", 
 	};
 
-	public bool HasManagedTemplateItems => ManagedTemplateItems.Count > 0;
+	public bool HasManagedTemplateItems => IsColorTemplateTabSelected ? ColorTemplateGroups.Count > 0 : ManagedTemplateItems.Count > 0;
+
+	public bool IsTemplateContentPanelVisible => IsColorTemplateTabSelected || HasManagedTemplateItems;
 
 	public int SelectedLayoutExportCount => IsLayoutTemplateTabSelected ? ManagedTemplateItems.Count((TemplateItemViewModel item) => item.IsSelectedForExport) : 0;
 
@@ -1016,6 +1165,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		TemplateCategory.Scene => "导入场景",
 		TemplateCategory.Subject => "导入主体",
 		TemplateCategory.Title => "导入元素",
+		TemplateCategory.Color => "导入颜色",
 		_ => "导入布局"
 	};
 
@@ -1024,10 +1174,13 @@ public sealed class MainWindowViewModel : ViewModelBase
 		TemplateCategory.Scene => "导出场景",
 		TemplateCategory.Subject => "导出主体",
 		TemplateCategory.Title => "导出元素",
+		TemplateCategory.Color => "导出颜色",
 		_ => "导出布局"
 	};
 
-	public string CurrentNewTemplateButtonText => IsTitleTemplateTabSelected ? "添加元素" : "新增模板";
+	public string CurrentNewTemplateButtonText => IsColorTemplateTabSelected ? "新增颜色组" : (IsTitleTemplateTabSelected ? "添加元素" : "新增模板");
+
+	public bool IsTemplateImportExportVisible => !IsColorTemplateTabSelected;
 
 	public bool IsTemplateEditorPreviewVisible
 	{
@@ -1060,6 +1213,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		TemplateCategory.Scene => "场景模板", 
 		TemplateCategory.Subject => "主体模板", 
 		TemplateCategory.Title => "视觉元素", 
+		TemplateCategory.Color => "颜色模板",
 		_ => "布局模板", 
 	};
 
@@ -1068,6 +1222,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		TemplateCategory.Scene => "维护可随机使用的场景描述文本。", 
 		TemplateCategory.Subject => "维护可复用的主体描述文本。", 
 		TemplateCategory.Title => "维护可复用的大标题、小标题和图标小词。", 
+		TemplateCategory.Color => "维护可用于模板生图和 SKU 裂变的颜色组。",
 		_ => "维护主图提示词布局，并为每个布局配置一张预览图。", 
 	};
 
@@ -1299,6 +1454,52 @@ public sealed class MainWindowViewModel : ViewModelBase
 				return "停止执行";
 			}
 			return "正在停止...";
+		}
+	}
+
+	public bool IsSpBatchColorSelectionOpen
+	{
+		get => _isSpBatchColorSelectionOpen;
+		private set
+		{
+			if (SetProperty(ref _isSpBatchColorSelectionOpen, value, "IsSpBatchColorSelectionOpen"))
+			{
+				_closeSpBatchColorSelectionCommand.RaiseCanExecuteChanged();
+				_saveSpBatchColorSelectionCommand.RaiseCanExecuteChanged();
+				_selectAllSpBatchColorSelectionCommand.RaiseCanExecuteChanged();
+				_clearAllSpBatchColorSelectionCommand.RaiseCanExecuteChanged();
+			}
+		}
+	}
+
+	public string SpBatchColorSelectionTitle => SelectedSpBatchColorTemplateGroupForGeneration == null
+		? "选择颜色"
+		: $"选择颜色 - {SelectedSpBatchColorTemplateGroupForGeneration.Name}";
+
+	public string SpBatchColorSelectionSummaryText
+	{
+		get
+		{
+			ColorTemplateGroupViewModel? group = SelectedSpBatchColorTemplateGroupForGeneration;
+			if (group == null)
+			{
+				return "已选颜色：未选择颜色组";
+			}
+			IReadOnlyList<string> names = GetVisibleSpBatchColorSelectionNames();
+			if (names.Count == 0)
+			{
+				return "已选颜色：未选择颜色";
+			}
+			if (names.Count >= group.Colors.Count)
+			{
+				return "已选颜色：全部颜色";
+			}
+			string summary = string.Join("、", names.Take(4));
+			if (names.Count > 4)
+			{
+				summary += " ...";
+			}
+			return "已选颜色：" + summary;
 		}
 	}
 
@@ -1715,6 +1916,38 @@ public sealed class MainWindowViewModel : ViewModelBase
 		}
 	}
 
+	public bool IsColorTemplateGroupEditorOpen
+	{
+		get
+		{
+			return _isColorTemplateGroupEditorOpen;
+		}
+		private set
+		{
+			if (SetProperty(ref _isColorTemplateGroupEditorOpen, value, "IsColorTemplateGroupEditorOpen"))
+			{
+				_saveColorTemplateGroupCommand.RaiseCanExecuteChanged();
+			}
+		}
+	}
+
+	public string ColorTemplateGroupEditorTitle => _selectedColorTemplateGroup == null ? "新增颜色组" : "编辑颜色组";
+
+	public string ColorTemplateGroupEditorName
+	{
+		get
+		{
+			return _colorTemplateGroupEditorName;
+		}
+		set
+		{
+			if (SetProperty(ref _colorTemplateGroupEditorName, value, "ColorTemplateGroupEditorName"))
+			{
+				_saveColorTemplateGroupCommand.RaiseCanExecuteChanged();
+			}
+		}
+	}
+
 	public string TemplateEditorName
 	{
 		get
@@ -1744,6 +1977,35 @@ public sealed class MainWindowViewModel : ViewModelBase
 			}
 		}
 	}
+
+	public bool IsColorTemplateColorPreviewOpen
+	{
+		get
+		{
+			return _isColorTemplateColorPreviewOpen;
+		}
+		private set
+		{
+			SetProperty(ref _isColorTemplateColorPreviewOpen, value, "IsColorTemplateColorPreviewOpen");
+		}
+	}
+
+	public ColorTemplateColorViewModel? SelectedColorTemplateColorPreview
+	{
+		get
+		{
+			return _selectedColorTemplateColorPreview;
+		}
+		private set
+		{
+			if (SetProperty(ref _selectedColorTemplateColorPreview, value, "SelectedColorTemplateColorPreview"))
+			{
+				OnPropertyChanged("ColorTemplateColorPreviewTitle");
+			}
+		}
+	}
+
+	public string ColorTemplateColorPreviewTitle => "颜色预览";
 
 	public string TemplateEditorPreviewImagePath
 	{
@@ -2641,6 +2903,26 @@ public sealed class MainWindowViewModel : ViewModelBase
 				SetSelectedImageGenerateTab("sku-optimize");
 			}
 		});
+		_openSpBatchColorSelectionCommand = new RelayCommand(delegate
+		{
+			OpenSpBatchColorSelection();
+		}, (object? _) => CanOpenSpBatchColorSelection());
+		_closeSpBatchColorSelectionCommand = new RelayCommand(delegate
+		{
+			CloseSpBatchColorSelection();
+		});
+		_selectAllSpBatchColorSelectionCommand = new RelayCommand(delegate
+		{
+			SelectAllSpBatchColors();
+		}, (object? _) => IsSpBatchColorSelectionOpen);
+		_clearAllSpBatchColorSelectionCommand = new RelayCommand(delegate
+		{
+			ClearAllSpBatchColors();
+		}, (object? _) => IsSpBatchColorSelectionOpen);
+		_saveSpBatchColorSelectionCommand = new RelayCommand(delegate
+		{
+			SaveSpBatchColorSelection();
+		}, (object? _) => IsSpBatchColorSelectionOpen);
 		_chooseSpBatchSourceImagesCommand = new AsyncRelayCommand((object? _) => ChooseSpBatchSourceImagesAsync(), (object? _) => true);
 		_chooseSpBatchMasterImagesCommand = new AsyncRelayCommand((object? _) => ChooseSpBatchMasterImagesAsync(), (object? _) => true);
 		_showSceneImageGenerateTabCommand = new RelayCommand(delegate
@@ -2655,6 +2937,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		_showSceneTemplateTabCommand = new AsyncRelayCommand((object? _) => SelectTemplateCategoryAsync(TemplateCategory.Scene));
 		_showSubjectTemplateTabCommand = new AsyncRelayCommand((object? _) => SelectTemplateCategoryAsync(TemplateCategory.Subject));
 		_showTitleTemplateTabCommand = new AsyncRelayCommand((object? _) => SelectTemplateCategoryAsync(TemplateCategory.Title));
+		_showColorTemplateTabCommand = new AsyncRelayCommand((object? _) => SelectTemplateCategoryAsync(TemplateCategory.Color));
 		_showMainImageLayoutTypeCommand = new RelayCommand(delegate
 		{
 			SetSelectedLayoutImageType(ImageTemplateType.MainImage);
@@ -2687,10 +2970,15 @@ public sealed class MainWindowViewModel : ViewModelBase
 		_deleteTemplateCommand = new AsyncRelayCommand((object? _) => DeleteTemplateAsync(), (object? _) => SelectedTemplateItem != null && SelectedTemplateItem.Id > 0);
 		_deleteManagedTemplateCommand = new AsyncRelayCommand((object? item) => DeleteManagedTemplateAsync(item as TemplateItemViewModel), (object? item) => item is TemplateItemViewModel);
 		_copyManagedLayoutTemplateCommand = new AsyncRelayCommand((object? item) => CopyManagedLayoutTemplateAsync(item as TemplateItemViewModel), (object? item) => item is TemplateItemViewModel template && template.Category == TemplateCategory.Layout);
+		_deleteColorTemplateGroupCommand = new AsyncRelayCommand((object? item) => DeleteColorTemplateGroupAsync(item as ColorTemplateGroupViewModel), (object? item) => item is ColorTemplateGroupViewModel);
 		_selectManagedTemplateCommand = new RelayCommand(delegate(object? item)
 		{
 			SelectManagedTemplate(item as TemplateItemViewModel);
 		}, (object? item) => item is TemplateItemViewModel);
+		_selectColorTemplateGroupCommand = new RelayCommand(delegate(object? item)
+		{
+			SelectColorTemplateGroup(item as ColorTemplateGroupViewModel);
+		}, (object? item) => item is ColorTemplateGroupViewModel);
 		_chooseTemplatePreviewCommand = new AsyncRelayCommand((object? _) => ChooseTemplatePreviewAsync(), (object? _) => IsLayoutTemplateTabSelected);
 		_openTemplateEditorPreviewCommand = new RelayCommand(delegate
 		{
@@ -2834,6 +3122,27 @@ public sealed class MainWindowViewModel : ViewModelBase
 		{
 			CloseImageGenerationKeyDialog();
 		});
+		_addColorTemplateRowCommand = new RelayCommand(delegate
+		{
+			AddColorTemplateEditorRow();
+		});
+		_removeColorTemplateRowCommand = new RelayCommand(delegate(object? item)
+		{
+			RemoveColorTemplateEditorRow(item as ColorTemplateColorViewModel);
+		}, (object? item) => ColorTemplateEditorColors.Count > 1 && item is ColorTemplateColorViewModel);
+		_openColorTemplateColorPreviewCommand = new RelayCommand(delegate(object? item)
+		{
+			OpenColorTemplateColorPreview(item as ColorTemplateColorViewModel);
+		}, (object? item) => item is ColorTemplateColorViewModel);
+		_closeColorTemplateColorPreviewCommand = new RelayCommand(delegate
+		{
+			CloseColorTemplateColorPreview();
+		});
+		_saveColorTemplateGroupCommand = new AsyncRelayCommand((object? _) => SaveColorTemplateGroupAsync(), (object? _) => CanSaveColorTemplateGroup());
+		_closeColorTemplateGroupEditorCommand = new RelayCommand(delegate
+		{
+			CloseColorTemplateGroupEditor();
+		});
 		_runAppUpdateCommand = new AsyncRelayCommand((object? _) => RunAppUpdateAsync(), (object? _) => IsAppUpdateAvailable && !IsAppUpdateDownloading);
 	}
 
@@ -2846,6 +3155,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		await _templateLibraryService.InitializeAsync();
 		await LoadTemplateTabCountsAsync();
 		await LoadManagedTemplatesAsync();
+		await LoadColorTemplateGroupsAsync();
 		AppUserPathsState appUserPathsState = _appSettingsService.LoadUserPaths();
 		ApplyUserPathSettings(appUserPathsState);
 		EnsurePlaceholderTab();
@@ -3191,6 +3501,17 @@ public sealed class MainWindowViewModel : ViewModelBase
 	private async Task LoadManagedTemplatesAsync()
 	{
 		TemplateCategory selectedCategory = _selectedTemplateCategory;
+		if (selectedCategory == TemplateCategory.Color)
+		{
+			await LoadColorTemplateGroupsAsync();
+			ManagedTemplateItems = new ObservableCollection<TemplateItemViewModel>();
+			OnPropertyChanged("HasManagedTemplateItems");
+			OnPropertyChanged("IsTemplateContentPanelVisible");
+			OnPropertyChanged("TemplateEmptyText");
+			ResetTemplateEditor(refreshSubjectOptions: false);
+			CloseColorTemplateGroupEditor();
+			return;
+		}
 		ImageTemplateType selectedLayoutImageType = _selectedLayoutImageType;
 		string selectedTitleTemplateType = _selectedTitleTemplateType;
 		bool isLayoutTemplateTabSelected = selectedCategory == TemplateCategory.Layout;
@@ -3224,6 +3545,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		}
 		ManagedTemplateItems = new ObservableCollection<TemplateItemViewModel>(records.Select(CreateTemplateItemViewModel));
 		OnPropertyChanged("HasManagedTemplateItems");
+		OnPropertyChanged("IsTemplateContentPanelVisible");
 		OnPropertyChanged("TemplateEmptyText");
 		OnTemplateExportSelectionChanged();
 		if (isLayoutTemplateTabSelected)
@@ -3243,9 +3565,161 @@ public sealed class MainWindowViewModel : ViewModelBase
 	{
 		Task<IReadOnlyList<TemplateItemRecord>> layoutTemplatesTask = _templateLibraryService.GetByCategoryAsync(TemplateCategory.Layout);
 		Task<IReadOnlyList<TemplateItemRecord>> titleTemplatesTask = _templateLibraryService.GetByCategoryAsync(TemplateCategory.Title);
-		await Task.WhenAll(layoutTemplatesTask, titleTemplatesTask);
+		Task<IReadOnlyList<ColorTemplateGroupRecord>> colorGroupsTask = _templateLibraryService.GetColorGroupsAsync();
+		await Task.WhenAll(layoutTemplatesTask, titleTemplatesTask, colorGroupsTask);
 		UpdateLayoutTemplateCounts(await layoutTemplatesTask);
 		UpdateTitleTemplateCounts(await titleTemplatesTask);
+		ColorTemplateGroupCount = (await colorGroupsTask).Count;
+	}
+
+	private async Task LoadColorTemplateGroupsAsync()
+	{
+		IReadOnlyList<ColorTemplateGroupRecord> records = await _templateLibraryService.GetColorGroupsAsync();
+		ColorTemplateGroups = new ObservableCollection<ColorTemplateGroupViewModel>(records.Select(item => new ColorTemplateGroupViewModel(item)));
+		ColorTemplateGroupCount = records.Count;
+		if (_selectedColorTemplateGroupId <= 0 || ColorTemplateGroups.All(item => item.Id != _selectedColorTemplateGroupId))
+		{
+			_selectedColorTemplateGroupId = ColorTemplateGroups.FirstOrDefault()?.Id ?? 0;
+		}
+		if (_selectedGenerationColorTemplateGroupId <= 0 || ColorTemplateGroups.All(item => item.Id != _selectedGenerationColorTemplateGroupId))
+		{
+			_selectedGenerationColorTemplateGroupId = ColorTemplateGroups.FirstOrDefault()?.Id ?? 0;
+		}
+		if (_selectedSpBatchColorTemplateGroupId <= 0 || ColorTemplateGroups.All(item => item.Id != _selectedSpBatchColorTemplateGroupId))
+		{
+			_selectedSpBatchColorTemplateGroupId = ColorTemplateGroups.FirstOrDefault()?.Id ?? 0;
+		}
+		_selectedColorTemplateGroupForGeneration = ColorTemplateGroups.FirstOrDefault(item => item.Id == _selectedGenerationColorTemplateGroupId);
+		_selectedSpBatchColorTemplateGroupForGeneration = ColorTemplateGroups.FirstOrDefault(item => item.Id == _selectedSpBatchColorTemplateGroupId);
+		RefreshSpBatchColorSelectionForCurrentGroup();
+		OnPropertyChanged("HasManagedTemplateItems");
+		OnPropertyChanged("IsTemplateContentPanelVisible");
+		OnPropertyChanged("SelectedColorTemplateGroupName");
+		OnPropertyChanged("SelectedColorTemplateGroupForGeneration");
+		OnPropertyChanged("SelectedSpBatchColorTemplateGroupForGeneration");
+		OnPropertyChanged("SpBatchColorSelectionTitle");
+		OnPropertyChanged("SpBatchColorSelectionSummaryText");
+		_openSpBatchColorSelectionCommand.RaiseCanExecuteChanged();
+		_generateSpBatchColorSkusCommand.RaiseCanExecuteChanged();
+	}
+
+	private IReadOnlyList<ColorTemplateColorRecord> GetSelectedColorTemplateColors()
+	{
+		ColorTemplateGroupViewModel? group = ColorTemplateGroups.FirstOrDefault(item => item.Id == _selectedGenerationColorTemplateGroupId);
+		return group?.Colors
+			.Select((ColorTemplateColorViewModel color, int index) => color.ToRecord(group.Id, index))
+			.ToArray()
+			?? Array.Empty<ColorTemplateColorRecord>();
+	}
+
+	private ColorTemplateGroupViewModel? GetSelectedSpBatchColorTemplateGroup()
+	{
+		return ColorTemplateGroups.FirstOrDefault(item => item.Id == _selectedSpBatchColorTemplateGroupId);
+	}
+
+	private IReadOnlyList<string> GetSelectedSpBatchColorNamesForCurrentGroup()
+	{
+		ColorTemplateGroupViewModel? group = GetSelectedSpBatchColorTemplateGroup();
+		if (group == null || group.Colors.Count == 0)
+		{
+			return Array.Empty<string>();
+		}
+
+		if (!_spBatchSelectedColorNamesByGroupId.TryGetValue(group.Id, out HashSet<string>? selectedNames) || selectedNames.Count == 0)
+		{
+			return Array.Empty<string>();
+		}
+
+		string[] names = group.Colors
+			.Where(item => selectedNames.Contains(item.Name.Trim()))
+			.Select(item => item.Name.Trim())
+			.ToArray();
+
+		if (names.Length == 0 || names.Length >= group.Colors.Count)
+		{
+			return Array.Empty<string>();
+		}
+
+		return names;
+	}
+
+	private IReadOnlyList<ColorTemplateColorRecord> GetSelectedSpBatchColorTemplateColors()
+	{
+		ColorTemplateGroupViewModel? group = GetSelectedSpBatchColorTemplateGroup();
+		if (group == null)
+		{
+			return Array.Empty<ColorTemplateColorRecord>();
+		}
+
+		IReadOnlyList<string> selectedNames = GetSelectedSpBatchColorNamesForCurrentGroup();
+		if (selectedNames.Count == 0)
+		{
+			return group.Colors.Select(color => color.ToRecord(group.Id, color.SortOrder)).ToArray();
+		}
+
+		HashSet<string> selectedSet = new HashSet<string>(selectedNames, StringComparer.OrdinalIgnoreCase);
+		return group.Colors
+			.Where(item => selectedSet.Contains(item.Name.Trim()))
+			.Select(color => color.ToRecord(group.Id, color.SortOrder))
+			.ToArray();
+	}
+
+	private void RefreshSpBatchColorSelectionForCurrentGroup()
+	{
+		foreach (ColorTemplateColorViewModel item in SpBatchColorSelectionColors)
+		{
+			item.PropertyChanged -= SpBatchColorSelectionItem_PropertyChanged;
+		}
+		SpBatchColorSelectionColors.Clear();
+		ColorTemplateGroupViewModel? group = GetSelectedSpBatchColorTemplateGroup();
+		if (group == null || group.Colors.Count == 0)
+		{
+			return;
+		}
+
+		bool selectAll = !_spBatchSelectedColorNamesByGroupId.TryGetValue(group.Id, out HashSet<string>? selectedNames) || selectedNames.Count == 0;
+		foreach (ColorTemplateColorViewModel color in group.Colors)
+		{
+			ColorTemplateColorViewModel selectionItem = new ColorTemplateColorViewModel(color.ToRecord(group.Id, color.SortOrder));
+			selectionItem.IsSelected = selectAll || (selectedNames != null && selectedNames.Contains(selectionItem.Name.Trim()));
+			selectionItem.PropertyChanged += SpBatchColorSelectionItem_PropertyChanged;
+			SpBatchColorSelectionColors.Add(selectionItem);
+		}
+	}
+
+	private void SpBatchColorSelectionItem_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+	{
+		if (string.Equals(e.PropertyName, "IsSelected", StringComparison.Ordinal))
+		{
+			OnPropertyChanged("SpBatchColorSelectionSummaryText");
+			_generateSpBatchColorSkusCommand.RaiseCanExecuteChanged();
+		}
+	}
+
+	private void StoreSpBatchColorSelectionForCurrentGroup()
+	{
+		ColorTemplateGroupViewModel? group = GetSelectedSpBatchColorTemplateGroup();
+		if (group == null)
+		{
+			return;
+		}
+
+		string[] selectedNames = SpBatchColorSelectionColors
+			.Where(item => item.IsSelected && !string.IsNullOrWhiteSpace(item.Name))
+			.Select(item => item.Name.Trim())
+			.Distinct(StringComparer.OrdinalIgnoreCase)
+			.ToArray();
+
+		if (selectedNames.Length == 0 || selectedNames.Length >= group.Colors.Count)
+		{
+			_spBatchSelectedColorNamesByGroupId.Remove(group.Id);
+		}
+		else
+		{
+			_spBatchSelectedColorNamesByGroupId[group.Id] = new HashSet<string>(selectedNames, StringComparer.OrdinalIgnoreCase);
+		}
+
+		OnPropertyChanged("SpBatchColorSelectionSummaryText");
 	}
 
 	private TemplateItemViewModel CreateTemplateItemViewModel(TemplateItemRecord record)
@@ -3342,6 +3816,11 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private void NewTemplate()
 	{
+		if (IsColorTemplateTabSelected)
+		{
+			NewColorTemplateGroup();
+			return;
+		}
 		ResetTemplateEditor();
 		IsTemplateEditorDialogOpen = true;
 	}
@@ -3586,6 +4065,173 @@ public sealed class MainWindowViewModel : ViewModelBase
 		{
 			System.Windows.MessageBox.Show(StatusMessage, "提示", MessageBoxButton.OK, MessageBoxImage.Information);
 		}
+	}
+
+	private void NewColorTemplateGroup()
+	{
+		_selectedColorTemplateGroup = null;
+		ColorTemplateGroupEditorName = string.Empty;
+		ColorTemplateEditorColors.Clear();
+		AddColorTemplateEditorRow();
+		OnPropertyChanged("ColorTemplateGroupEditorTitle");
+		IsColorTemplateGroupEditorOpen = true;
+	}
+
+	private void SelectColorTemplateGroup(ColorTemplateGroupViewModel? item)
+	{
+		if (item == null)
+		{
+			return;
+		}
+		_selectedColorTemplateGroup = item;
+		_selectedColorTemplateGroupId = item.Id;
+		ColorTemplateGroupEditorName = item.Name;
+		ColorTemplateEditorColors.Clear();
+		foreach (ColorTemplateColorViewModel color in item.Colors)
+		{
+			ColorTemplateEditorColors.Add(new ColorTemplateColorViewModel(color.ToRecord(item.Id, color.SortOrder)));
+		}
+		if (ColorTemplateEditorColors.Count == 0)
+		{
+			AddColorTemplateEditorRow();
+		}
+		OnPropertyChanged("ColorTemplateGroupEditorTitle");
+		OnPropertyChanged("SelectedColorTemplateGroupName");
+		IsColorTemplateGroupEditorOpen = true;
+	}
+
+	private void AddColorTemplateEditorRow()
+	{
+		ColorTemplateEditorColors.Add(new ColorTemplateColorViewModel());
+		_saveColorTemplateGroupCommand.RaiseCanExecuteChanged();
+		_removeColorTemplateRowCommand.RaiseCanExecuteChanged();
+	}
+
+	private void RemoveColorTemplateEditorRow(ColorTemplateColorViewModel? item)
+	{
+		if (item != null && ColorTemplateEditorColors.Count > 1 && ColorTemplateEditorColors.Contains(item))
+		{
+			ColorTemplateEditorColors.Remove(item);
+			_saveColorTemplateGroupCommand.RaiseCanExecuteChanged();
+			_removeColorTemplateRowCommand.RaiseCanExecuteChanged();
+		}
+	}
+
+	private void OpenColorTemplateColorPreview(ColorTemplateColorViewModel? item)
+	{
+		if (item == null)
+		{
+			return;
+		}
+		SelectedColorTemplateColorPreview = item;
+		IsColorTemplateColorPreviewOpen = true;
+	}
+
+	private void CloseColorTemplateColorPreview()
+	{
+		IsColorTemplateColorPreviewOpen = false;
+		SelectedColorTemplateColorPreview = null;
+	}
+
+	private bool CanSaveColorTemplateGroup()
+	{
+		return !IsBusy && IsColorTemplateGroupEditorOpen;
+	}
+
+	private async Task SaveColorTemplateGroupAsync()
+	{
+		string groupName = ColorTemplateGroupEditorName.Trim();
+		if (string.IsNullOrWhiteSpace(groupName))
+		{
+			StatusMessage = "请填写颜色组名称。";
+			MessageBox.Show(StatusMessage, "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+			return;
+		}
+		if (ColorTemplateEditorColors.Count == 0)
+		{
+			StatusMessage = "请至少添加一个颜色。";
+			MessageBox.Show(StatusMessage, "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+			return;
+		}
+		List<ColorTemplateColorRecord> colors = new List<ColorTemplateColorRecord>();
+		HashSet<string> colorNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+		for (int index = 0; index < ColorTemplateEditorColors.Count; index++)
+		{
+			ColorTemplateColorViewModel color = ColorTemplateEditorColors[index];
+			string colorName = color.Name.Trim();
+			string hexCode = color.HexCode.Trim();
+			if (string.IsNullOrWhiteSpace(colorName))
+			{
+				StatusMessage = $"第 {index + 1} 行颜色中文名不能为空。";
+				MessageBox.Show(StatusMessage, "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+				return;
+			}
+			if (string.IsNullOrWhiteSpace(hexCode))
+			{
+				StatusMessage = $"第 {index + 1} 行颜色 HEX 不能为空。";
+				MessageBox.Show(StatusMessage, "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+				return;
+			}
+			if (!ColorTemplateColorViewModel.IsValidHex(hexCode))
+			{
+				StatusMessage = $"第 {index + 1} 行颜色 HEX 格式不正确，请使用 #RRGGBB。";
+				MessageBox.Show(StatusMessage, "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+				return;
+			}
+			if (!colorNames.Add(colorName))
+			{
+				StatusMessage = $"颜色“{colorName}”重复，请修改后再保存。";
+				MessageBox.Show(StatusMessage, "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+				return;
+			}
+			colors.Add(new ColorTemplateColorRecord
+			{
+				Name = colorName,
+				HexCode = ColorTemplateColorViewModel.NormalizeHex(hexCode),
+				SortOrder = index
+			});
+		}
+		ColorTemplateGroupRecord saved = await _templateLibraryService.SaveColorGroupAsync(new ColorTemplateGroupRecord
+		{
+			Id = _selectedColorTemplateGroup?.Id ?? 0,
+			Name = groupName,
+			SortOrder = _selectedColorTemplateGroup?.Model.SortOrder ?? ColorTemplateGroups.Count,
+			IsEnabled = true,
+			Colors = colors
+		});
+		_selectedColorTemplateGroupId = saved.Id;
+		CloseColorTemplateGroupEditor();
+		await LoadColorTemplateGroupsAsync();
+		StatusMessage = "已保存颜色组：" + saved.Name;
+	}
+
+	private async Task DeleteColorTemplateGroupAsync(ColorTemplateGroupViewModel? item)
+	{
+		if (item == null)
+		{
+			return;
+		}
+		if (MessageBox.Show($"确定删除颜色组“{item.Name}”吗？", "确认删除", MessageBoxButton.OKCancel, MessageBoxImage.Warning) != MessageBoxResult.OK)
+		{
+			return;
+		}
+		await _templateLibraryService.DeleteColorGroupAsync(item.Id);
+		if (_selectedColorTemplateGroupId == item.Id)
+		{
+			_selectedColorTemplateGroupId = 0;
+		}
+		await LoadColorTemplateGroupsAsync();
+		StatusMessage = "已删除颜色组：" + item.Name;
+	}
+
+	private void CloseColorTemplateGroupEditor()
+	{
+		IsColorTemplateGroupEditorOpen = false;
+		CloseColorTemplateColorPreview();
+		_selectedColorTemplateGroup = null;
+		ColorTemplateGroupEditorName = string.Empty;
+		ColorTemplateEditorColors.Clear();
+		OnPropertyChanged("ColorTemplateGroupEditorTitle");
 	}
 
 	private static IReadOnlyList<string> SplitTitleTemplateInputLines(string content)
@@ -4333,6 +4979,9 @@ public sealed class MainWindowViewModel : ViewModelBase
 		OnPropertyChanged("IsSceneTemplateTabSelected");
 		OnPropertyChanged("IsSubjectTemplateTabSelected");
 		OnPropertyChanged("IsTitleTemplateTabSelected");
+		OnPropertyChanged("IsColorTemplateTabSelected");
+		OnPropertyChanged("HasManagedTemplateItems");
+		OnPropertyChanged("IsTemplateContentPanelVisible");
 		OnPropertyChanged("TemplateEditorDialogHeight");
 		OnPropertyChanged("IsMainImageLayoutTypeSelected");
 		OnPropertyChanged("IsSceneImageLayoutTypeSelected");
@@ -4572,9 +5221,71 @@ public sealed class MainWindowViewModel : ViewModelBase
 	{
 		if (CanEditSpBatchSettings() && HasSpBatchMasterImageCards)
 		{
-			return !string.IsNullOrWhiteSpace(SpBatchOutputDirectory);
+			return !string.IsNullOrWhiteSpace(SpBatchOutputDirectory) && GetSelectedSpBatchColorTemplateColors().Count > 0;
 		}
 		return false;
+	}
+
+	private bool CanOpenSpBatchColorSelection()
+	{
+		return CanEditSpBatchSettings() && GetSelectedSpBatchColorTemplateGroup() != null;
+	}
+
+	private void OpenSpBatchColorSelection()
+	{
+		ColorTemplateGroupViewModel? group = GetSelectedSpBatchColorTemplateGroup();
+		if (group == null)
+		{
+			throw new InvalidOperationException("请先选择颜色组。");
+		}
+		if (group.Colors.Count == 0)
+		{
+			throw new InvalidOperationException("当前颜色组没有可选颜色。");
+		}
+		RefreshSpBatchColorSelectionForCurrentGroup();
+		IsSpBatchColorSelectionOpen = true;
+	}
+
+	private void CloseSpBatchColorSelection()
+	{
+		RefreshSpBatchColorSelectionForCurrentGroup();
+		IsSpBatchColorSelectionOpen = false;
+	}
+
+	private void SelectAllSpBatchColors()
+	{
+		foreach (ColorTemplateColorViewModel color in SpBatchColorSelectionColors)
+		{
+			color.IsSelected = true;
+		}
+	}
+
+	private void ClearAllSpBatchColors()
+	{
+		foreach (ColorTemplateColorViewModel color in SpBatchColorSelectionColors)
+		{
+			color.IsSelected = false;
+		}
+	}
+
+	private void SaveSpBatchColorSelection()
+	{
+		if (!IsSpBatchColorSelectionOpen)
+		{
+			return;
+		}
+		ColorTemplateGroupViewModel? group = GetSelectedSpBatchColorTemplateGroup();
+		if (group == null)
+		{
+			throw new InvalidOperationException("请先选择颜色组。");
+		}
+		if (SpBatchColorSelectionColors.All(item => !item.IsSelected))
+		{
+			throw new InvalidOperationException("请至少选择一种颜色。");
+		}
+		StoreSpBatchColorSelectionForCurrentGroup();
+		CloseSpBatchColorSelection();
+		_generateSpBatchColorSkusCommand.RaiseCanExecuteChanged();
 	}
 
 	private bool CanEditSkuOptimizeSettings()
@@ -4953,6 +5664,24 @@ public sealed class MainWindowViewModel : ViewModelBase
 		return Array.Empty<string>();
 	}
 
+	private IReadOnlyList<string> GetVisibleSpBatchColorSelectionNames()
+	{
+		if (SpBatchColorSelectionColors.Count > 0)
+		{
+			string[] names = SpBatchColorSelectionColors
+				.Where(item => item.IsSelected && !string.IsNullOrWhiteSpace(item.Name))
+				.Select(item => item.Name.Trim())
+				.Distinct(StringComparer.OrdinalIgnoreCase)
+				.ToArray();
+			if (names.Length > 0)
+			{
+				return names;
+			}
+		}
+
+		return GetSelectedSpBatchColorNamesForCurrentGroup();
+	}
+
 	private void OpenGenerationOutputFolder()
 	{
 		TryOpenFolder(GenerationOutputDirectory, "输出目录");
@@ -5143,7 +5872,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 				Count = value,
 				Concurrency = value2,
 				UniqueScene = IsGenerationUniqueScene,
-				PromptsOnly = IsGenerationPromptsOnly
+				PromptsOnly = IsGenerationPromptsOnly,
+				ColorTemplateColors = GetSelectedColorTemplateColors()
 			};
 			TemplateGenerateResult templateGenerateResult = await _templateGenerationService.GenerateAsync(request, _templateGenerationCancellationTokenSource.Token);
 			_lastExecutedGenerationPromptsOnly = IsGenerationPromptsOnly;
@@ -5250,7 +5980,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 				Concurrency = value,
 				Retries = retries,
 				Mode = _spBatchMode,
-				Overwrite = true
+				Overwrite = true,
+				ColorTemplateColors = GetSelectedColorTemplateColors()
 			};
 			ApplySpBatchVisualResult(await _spBatchService.GenerateAsync(request, _spBatchCancellationTokenSource.Token));
 			StatusMessage = SpBatchSummaryText;
@@ -7014,7 +7745,9 @@ public sealed class MainWindowViewModel : ViewModelBase
 				Concurrency = value,
 				Retries = retries,
 				Mode = mode,
-				Overwrite = true
+				Overwrite = true,
+				ColorTemplateColors = GetSelectedSpBatchColorTemplateColors(),
+				SelectedColors = GetSelectedSpBatchColorNamesForCurrentGroup()
 			};
 			ApplySpBatchVisualResult(await _spBatchService.GenerateAsync(request, _spBatchCancellationTokenSource.Token));
 			StatusMessage = SpBatchSummaryText;
@@ -7314,7 +8047,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 				Concurrency = value,
 				LengthMultiplier = value2,
 				DiameterMultiplier = value3,
-				Overwrite = true
+				Overwrite = true,
+				ColorTemplateColors = GetSelectedColorTemplateColors()
 			};
 			ApplySkuOptimizeVisualResult(await _skuOptimizeService.GenerateAsync(request, _skuOptimizeCancellationTokenSource.Token));
 			StatusMessage = SkuOptimizeSummaryText;

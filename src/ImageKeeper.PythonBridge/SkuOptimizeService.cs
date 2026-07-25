@@ -90,6 +90,12 @@ public sealed class SkuOptimizeService : ISkuOptimizeService
 		processStartInfo.ArgumentList.Add(request.OutputDirectory);
 		processStartInfo.ArgumentList.Add("--image2-script");
 		processStartInfo.ArgumentList.Add(request.Image2ScriptPath);
+		string? colorTemplatePath = ColorTemplateFileHelper.Write(request.ColorTemplateColors);
+		if (!string.IsNullOrWhiteSpace(colorTemplatePath))
+		{
+			processStartInfo.ArgumentList.Add("--color-template");
+			processStartInfo.ArgumentList.Add(colorTemplatePath);
+		}
 		processStartInfo.ArgumentList.Add("--concurrency");
 		processStartInfo.ArgumentList.Add(request.Concurrency.ToString());
 		processStartInfo.ArgumentList.Add("--length-multiplier");

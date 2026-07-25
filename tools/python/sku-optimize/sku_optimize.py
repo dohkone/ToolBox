@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import concurrent.futures
 import json
+import re
 import subprocess
 import sys
 import time
@@ -67,8 +68,39 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--concurrency", type=int, default=1)
     parser.add_argument("--length-multiplier", type=float, required=True)
     parser.add_argument("--diameter-multiplier", type=float, required=True)
+    parser.add_argument("--color-template", help="Optional JSON color template exported by the desktop app.")
     parser.add_argument("--overwrite", action="store_true")
     return parser.parse_args()
+
+
+def load_color_specs(path_text: str | None) -> tuple[ColorSpec, ...]:
+    if not path_text:
+        return COLORS
+
+    path = Path(path_text).expanduser()
+    if not path.exists():
+        return COLORS
+
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError):
+        return COLORS
+
+    if not isinstance(payload, list):
+        return COLORS
+
+    colors: list[ColorSpec] = []
+    for index, item in enumerate(payload, start=1):
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name") or item.get("Name") or "").strip()
+        hex_code = str(item.get("hex") or item.get("HexCode") or "").strip().upper()
+        if not name or not re.fullmatch(r"#[0-9A-F]{6}", hex_code):
+            continue
+        token = re.sub(r"[\s_\-#]+", "", name.casefold()) or f"color{index}"
+        colors.append(ColorSpec(token, name, hex_code, (name, token, hex_code, hex_code.lstrip("#"))))
+
+    return tuple(colors) or COLORS
 
 
 def resolve_options(args: argparse.Namespace) -> RequestOptions:
@@ -601,8 +633,11 @@ def run_recolor(job: Job, options: RequestOptions, master_image_path: Path) -> d
 
 
 def main() -> None:
+    global COLORS
     try:
-        options = resolve_options(parse_args())
+        args = parse_args()
+        COLORS = load_color_specs(args.color_template)
+        options = resolve_options(args)
         result_root = build_result_root(options.output_dir)
         result_root.mkdir(parents=True, exist_ok=True)
         jobs = build_jobs(options.input_dir, result_root)

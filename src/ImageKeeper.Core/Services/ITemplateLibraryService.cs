@@ -15,6 +15,12 @@ public interface ITemplateLibraryService
 
 	Task DeleteAsync(long id, CancellationToken cancellationToken = default(CancellationToken));
 
+	Task<IReadOnlyList<ColorTemplateGroupRecord>> GetColorGroupsAsync(CancellationToken cancellationToken = default(CancellationToken));
+
+	Task<ColorTemplateGroupRecord> SaveColorGroupAsync(ColorTemplateGroupRecord group, CancellationToken cancellationToken = default(CancellationToken));
+
+	Task DeleteColorGroupAsync(long id, CancellationToken cancellationToken = default(CancellationToken));
+
 	Task<IReadOnlyDictionary<long, IReadOnlyList<long>>> GetSceneSubjectBindingsAsync(CancellationToken cancellationToken = default(CancellationToken));
 
 	Task SetSceneSubjectBindingsAsync(long sceneTemplateId, IReadOnlyList<long> subjectTemplateIds, CancellationToken cancellationToken = default(CancellationToken));

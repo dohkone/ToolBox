@@ -81,6 +81,12 @@ public sealed class TemplateGenerationService : ITemplateGenerationService
 			ImageTemplateType.CompareImage => "compare",
 			_ => "main"
 		});
+		string? colorTemplatePath = ColorTemplateFileHelper.Write(request.ColorTemplateColors);
+		if (!string.IsNullOrWhiteSpace(colorTemplatePath))
+		{
+			processStartInfo.ArgumentList.Add("--color-template");
+			processStartInfo.ArgumentList.Add(colorTemplatePath);
+		}
 		if (request.ImageType == ImageTemplateType.MainImage && IsImage2Script(request.Image2ScriptPath))
 		{
 			string textureReferencePath = ResolveTextureReferencePath();

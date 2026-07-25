@@ -73,6 +73,15 @@ public partial class MainWindow : Window
 
     private async void OnPreviewKeyDownAsync(object sender, System.Windows.Input.KeyEventArgs e)
     {
+        if (e.Key == Key.Escape)
+        {
+            if (TryCloseTopMostOverlay())
+            {
+                e.Handled = true;
+            }
+            return;
+        }
+
         if (e.Key != Key.F5)
         {
             return;
@@ -80,6 +89,59 @@ public partial class MainWindow : Window
 
         e.Handled = true;
         await _viewModel.RefreshCurrentPageAsync();
+    }
+
+    private bool TryCloseTopMostOverlay()
+    {
+        if (_viewModel.IsImageGenerationKeyDialogOpen)
+        {
+            _viewModel.CancelImageGenerationKeyCommand.Execute(null);
+            return true;
+        }
+
+        if (_viewModel.IsCardSizeDialogOpen)
+        {
+            _viewModel.CancelCardSizeInfoCommand.Execute(null);
+            return true;
+        }
+
+        if (_viewModel.IsColorTemplateColorPreviewOpen)
+        {
+            _viewModel.CloseColorTemplateColorPreviewCommand.Execute(null);
+            return true;
+        }
+
+        if (_viewModel.IsColorTemplateGroupEditorOpen)
+        {
+            _viewModel.CloseColorTemplateGroupEditorCommand.Execute(null);
+            return true;
+        }
+
+        if (_viewModel.IsSpBatchColorSelectionOpen)
+        {
+            _viewModel.CloseSpBatchColorSelectionCommand.Execute(null);
+            return true;
+        }
+
+        if (_viewModel.IsTemplateSubjectPickerOpen)
+        {
+            _viewModel.CloseTemplateSubjectPickerCommand.Execute(null);
+            return true;
+        }
+
+        if (_viewModel.IsTemplateEditorDialogOpen)
+        {
+            _viewModel.CloseTemplateEditorCommand.Execute(null);
+            return true;
+        }
+
+        if (_viewModel.IsGenerationTemplatePickerOpen)
+        {
+            _viewModel.CloseGenerationTemplatePickerCommand.Execute(null);
+            return true;
+        }
+
+        return false;
     }
 
     private static IFolderScanService CreateFolderScanService()

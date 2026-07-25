@@ -15,4 +15,6 @@ public sealed class SkuOptimizeRequest
 	public double DiameterMultiplier { get; init; } = 0.67;
 
 	public bool Overwrite { get; init; }
+
+	public IReadOnlyList<ColorTemplateColorRecord> ColorTemplateColors { get; init; } = Array.Empty<ColorTemplateColorRecord>();
 }

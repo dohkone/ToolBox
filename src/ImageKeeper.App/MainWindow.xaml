@@ -233,6 +233,163 @@
             </Setter>
         </Style>
 
+        <Style x:Key="CompactElementInputTextBoxStyle" TargetType="TextBox" BasedOn="{StaticResource ElementInputTextBoxStyle}">
+            <Setter Property="MinHeight" Value="34" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+
+        <Style x:Key="ElementComboBoxItemStyle" TargetType="ComboBoxItem">
+            <Setter Property="MinHeight" Value="32" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="Foreground" Value="#606266" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBoxItem">
+                        <Border x:Name="ItemBorder"
+                                Margin="4,2"
+                                Padding="{TemplateBinding Padding}"
+                                Background="Transparent"
+                                CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="ItemBorder" Property="Background" Value="#F5F7FA" />
+                                <Setter Property="Foreground" Value="#409EFF" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="ItemBorder" Property="Background" Value="#ECF5FF" />
+                                <Setter Property="Foreground" Value="#409EFF" />
+                                <Setter Property="FontWeight" Value="SemiBold" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="#C0C4CC" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="ElementComboBoxStyle" TargetType="ComboBox">
+            <Setter Property="Height" Value="34" />
+            <Setter Property="MinHeight" Value="34" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Foreground" Value="#303133" />
+            <Setter Property="Background" Value="White" />
+            <Setter Property="BorderBrush" Value="#DCDFE6" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="ItemTemplate">
+                <Setter.Value>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding Name}" />
+                    </DataTemplate>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="ItemContainerStyle" Value="{StaticResource ElementComboBoxItemStyle}" />
+            <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <ToggleButton x:Name="ToggleButton"
+                                          Background="{TemplateBinding Background}"
+                                          BorderBrush="{TemplateBinding BorderBrush}"
+                                          BorderThickness="{TemplateBinding BorderThickness}"
+                                          ClickMode="Press"
+                                          Focusable="False"
+                                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
+                                          Padding="{TemplateBinding Padding}">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border x:Name="Root"
+                                                Background="{TemplateBinding Background}"
+                                                BorderBrush="{Binding BorderBrush, RelativeSource={RelativeSource TemplatedParent}}"
+                                                BorderThickness="{Binding BorderThickness, RelativeSource={RelativeSource TemplatedParent}}"
+                                                CornerRadius="4">
+                                            <Grid>
+                                                <ContentPresenter Margin="{Binding Padding, RelativeSource={RelativeSource TemplatedParent}}"
+                                                                  HorizontalAlignment="Left"
+                                                                  VerticalAlignment="Center"
+                                                                  Content="{Binding SelectionBoxItem, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                                                                  ContentTemplate="{Binding SelectionBoxItemTemplate, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                                                                  ContentStringFormat="{Binding SelectionBoxItemStringFormat, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                                                                  RecognizesAccessKey="True" />
+                                                <Path x:Name="Arrow"
+                                                      Width="9"
+                                                      Height="5"
+                                                      Margin="0,0,12,0"
+                                                      HorizontalAlignment="Right"
+                                                      VerticalAlignment="Center"
+                                                      Data="M 0 0 L 4.5 5 L 9 0 Z"
+                                                      Fill="#A8ABB2"
+                                                      Stretch="Fill" />
+                                            </Grid>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Root" Property="BorderBrush" Value="#C0C4CC" />
+                                            </Trigger>
+                                            <Trigger Property="IsChecked" Value="True">
+                                                <Setter TargetName="Root" Property="BorderBrush" Value="#409EFF" />
+                                                <Setter TargetName="Root" Property="BorderThickness" Value="1" />
+                                                <Setter TargetName="Arrow" Property="Fill" Value="#409EFF" />
+                                            </Trigger>
+                                            <Trigger Property="IsEnabled" Value="False">
+                                                <Setter TargetName="Root" Property="Background" Value="#F5F7FA" />
+                                                <Setter TargetName="Root" Property="BorderBrush" Value="#E4E7ED" />
+                                                <Setter TargetName="Arrow" Property="Fill" Value="#C0C4CC" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+                            <Popup x:Name="PART_Popup"
+                                   AllowsTransparency="True"
+                                   Focusable="False"
+                                   IsOpen="{TemplateBinding IsDropDownOpen}"
+                                   Placement="Bottom"
+                                   PopupAnimation="Fade">
+                                <Border MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
+                                        Margin="0,4,0,0"
+                                        Padding="0,6"
+                                        Background="White"
+                                        BorderBrush="#E4E7ED"
+                                        BorderThickness="1"
+                                        CornerRadius="4">
+                                    <Border.Effect>
+                                        <DropShadowEffect BlurRadius="12"
+                                                          Direction="270"
+                                                          Opacity="0.14"
+                                                          ShadowDepth="3"
+                                                          Color="#000000" />
+                                    </Border.Effect>
+                                    <ScrollViewer MaxHeight="260"
+                                                  CanContentScroll="True">
+                                        <ItemsPresenter />
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="HasItems" Value="False">
+                                <Setter TargetName="PART_Popup" Property="MinHeight" Value="32" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="#C0C4CC" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="MultiLineTextBoxStyle" TargetType="TextBox" BasedOn="{StaticResource InputTextBoxStyle}">
             <Setter Property="AcceptsReturn" Value="True" />
             <Setter Property="TextWrapping" Value="Wrap" />
@@ -1581,6 +1738,7 @@
                                         <RowDefinition Height="*" />
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
 
                                     <StackPanel Orientation="Horizontal"
@@ -1711,7 +1869,35 @@
                                         </Grid>
                                     </Border>
 
-                                    <Grid Grid.Row="2"
+                                    <StackPanel Grid.Row="2"
+                                                Margin="0,10,0,0">
+                                        <TextBlock Margin="0,0,0,6"
+                                                   Text="生成其他颜色 SKU 图" />
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <ComboBox Grid.Column="0"
+                                                      Height="30"
+                                                      Style="{StaticResource ElementComboBoxStyle}"
+                                                      ItemsSource="{Binding ColorTemplateGroups}"
+                                                      SelectedItem="{Binding SelectedSpBatchColorTemplateGroupForGeneration, Mode=TwoWay}" />
+                                            <Button Grid.Column="1"
+                                                    Margin="8,0,0,0"
+                                                    Padding="12,4"
+                                                    Content="指定颜色"
+                                                    Style="{StaticResource ElementSecondaryButtonStyle}"
+                                                    Command="{Binding OpenSpBatchColorSelectionCommand}" />
+                                        </Grid>
+                                        <TextBlock Margin="0,6,0,0"
+                                                   FontSize="12"
+                                                   Foreground="{StaticResource MutedTextBrush}"
+                                                   Text="{Binding SpBatchColorSelectionSummaryText}"
+                                                   TextWrapping="Wrap" />
+                                    </StackPanel>
+
+                                    <Grid Grid.Row="3"
                                           Margin="0,10,0,0">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="1*" />
@@ -1747,7 +1933,7 @@
                                                 Style="{StaticResource ElementSecondaryButtonStyle}" />
                                     </Grid>
 
-                                    <Border Grid.Row="3"
+                                    <Border Grid.Row="4"
                                             Margin="0,10,0,0"
                                             Padding="12"
                                             Background="#FFFFFF"
@@ -1957,6 +2143,7 @@
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
 
                                     <TextBlock FontSize="16"
@@ -1982,10 +2169,25 @@
                                                 Command="{Binding OpenGenerationTemplatePickerCommand}" />
                                     </Grid>
 
-                                    <TextBlock Grid.Row="3"
+                                    <Grid Grid.Row="3"
+                                          Margin="0,10,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock VerticalAlignment="Center"
+                                                   Text="颜色组" />
+                                        <ComboBox Grid.Column="1"
+                                                  Margin="10,0,0,0"
+                                                  Style="{StaticResource ElementComboBoxStyle}"
+                                                  ItemsSource="{Binding ColorTemplateGroups}"
+                                                  SelectedItem="{Binding SelectedColorTemplateGroupForGeneration, Mode=TwoWay}" />
+                                    </Grid>
+
+                                    <TextBlock Grid.Row="4"
                                                Margin="0,10,0,6"
                                                Text="输出目录" />
-                                    <Grid Grid.Row="4">
+                                    <Grid Grid.Row="5">
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto" />
                                             <RowDefinition Height="Auto" />
@@ -2062,7 +2264,7 @@
                                         </Border>
                                     </Grid>
 
-                                    <StackPanel Grid.Row="5"
+                                    <StackPanel Grid.Row="6"
                                                 Margin="0,12,0,0">
                                         <Button Margin="0,10,0,0"
                                                 FontWeight="SemiBold"
@@ -2110,9 +2312,47 @@
                                         <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
 
-                                    <TextBlock FontSize="16"
-                                               FontWeight="SemiBold"
-                                               Text="SKU图生成" />
+                                    <StackPanel Grid.Row="0">
+                                        <TextBlock FontSize="16"
+                                                   FontWeight="SemiBold"
+                                                   Text="SKU图生成" />
+
+                                        <Border Margin="0,8,0,0"
+                                                Padding="10"
+                                                Background="#F8FAFD"
+                                                BorderBrush="#D9E1EC"
+                                                BorderThickness="1"
+                                                CornerRadius="8">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock VerticalAlignment="Center"
+                                                           Margin="0,0,10,0"
+                                                           Text="生成其他颜色 SKU 图" />
+                                                <ComboBox Grid.Column="1"
+                                                          Height="30"
+                                                          VerticalAlignment="Center"
+                                                          Style="{StaticResource ElementComboBoxStyle}"
+                                                          ItemsSource="{Binding ColorTemplateGroups}"
+                                                          SelectedItem="{Binding SelectedSpBatchColorTemplateGroupForGeneration, Mode=TwoWay}" />
+                                                <Button Grid.Column="2"
+                                                        Margin="8,0,0,0"
+                                                        Padding="12,4"
+                                                        Content="指定颜色"
+                                                        Style="{StaticResource ElementSecondaryButtonStyle}"
+                                                        Command="{Binding OpenSpBatchColorSelectionCommand}" />
+                                            </Grid>
+                                        </Border>
+
+                                        <TextBlock Margin="0,8,0,0"
+                                                   FontSize="12"
+                                                   Foreground="{StaticResource MutedTextBrush}"
+                                                   Text="{Binding SpBatchColorSelectionSummaryText}"
+                                                   TextWrapping="Wrap" />
+                                    </StackPanel>
 
                                     <Border Grid.Row="1"
                                             Margin="0,10,0,0"
@@ -2253,15 +2493,15 @@
                                             </Grid>
                                         </StackPanel>
 
-                                        <StackPanel Grid.Column="1"
-                                                    Margin="10,0,0,0">
-                                            <TextBlock Margin="0,0,0,6"
-                                                       Text="并发数量" />
-                                            <TextBox Width="120"
-                                                     HorizontalAlignment="Left"
-                                                     Style="{StaticResource ElementInputTextBoxStyle}"
-                                                     Text="{Binding SpBatchConcurrencyText, UpdateSourceTrigger=PropertyChanged}" />
-                                        </StackPanel>
+                                            <StackPanel Grid.Column="1"
+                                                        Margin="10,0,0,0">
+                                                <TextBlock Margin="0,0,0,6"
+                                                           Text="并发数量" />
+                                                <TextBox Width="120"
+                                                         HorizontalAlignment="Left"
+                                                         Style="{StaticResource ElementInputTextBoxStyle}"
+                                                         Text="{Binding SpBatchConcurrencyText, UpdateSourceTrigger=PropertyChanged}" />
+                                            </StackPanel>
                                     </Grid>
 
                                     <StackPanel Grid.Row="3"
@@ -3149,6 +3389,25 @@
                                 </Button.Style>
                                 <TextBlock Text="视觉元素" />
                             </Button>
+                            <Button Margin="8,0,0,0"
+                                    Padding="12,5"
+                                    Command="{Binding ShowColorTemplateTabCommand}">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsColorTemplateTabSelected}" Value="True">
+                                                <Setter Property="Background" Value="#2D6AE3" />
+                                                <Setter Property="BorderBrush" Value="#2D6AE3" />
+                                                <Setter Property="Foreground" Value="White" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                                <TextBlock>
+                                    <Run Text="颜色模板 " />
+                                    <Run Text="{Binding ColorTemplateGroupCount, Mode=OneWay, StringFormat=({0})}" />
+                                </TextBlock>
+                            </Button>
                         </WrapPanel>
                     </StackPanel>
 
@@ -3293,11 +3552,13 @@
                                                    Visibility="{Binding IsLayoutTemplateTabSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                         <Button Content="{Binding CurrentTemplateImportButtonText}"
                                                 Style="{StaticResource ElementSecondaryButtonStyle}"
-                                                Command="{Binding ImportLayoutTemplatesCommand}" />
+                                                Command="{Binding ImportLayoutTemplatesCommand}"
+                                                Visibility="{Binding IsTemplateImportExportVisible, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                         <Button Margin="8,0,0,0"
                                                 Content="{Binding CurrentTemplateExportButtonText}"
                                                 Style="{StaticResource ElementSecondaryButtonStyle}"
-                                                Command="{Binding ExportLayoutTemplatesCommand}" />
+                                                Command="{Binding ExportLayoutTemplatesCommand}"
+                                                Visibility="{Binding IsTemplateImportExportVisible, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                         <Button Margin="8,0,0,0"
                                                 Content="{Binding CurrentNewTemplateButtonText}"
                                                 Style="{StaticResource ElementPrimaryButtonStyle}"
@@ -3312,7 +3573,7 @@
                                                Foreground="{StaticResource MutedTextBrush}"
                                                Text="{Binding TemplateEmptyText}"
                                                Visibility="{Binding HasManagedTemplateItems, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
-                                    <Grid Visibility="{Binding HasManagedTemplateItems, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <Grid Visibility="{Binding IsTemplateContentPanelVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto" />
                                             <RowDefinition Height="*" />
@@ -3389,6 +3650,24 @@
                                                 <TextBlock Grid.Column="1" FontWeight="SemiBold" Text="创建时间" />
                                                 <TextBlock Grid.Column="2" FontWeight="SemiBold" Text="更新" />
                                                 <TextBlock Grid.Column="3" FontWeight="SemiBold" Text="操作" />
+                                                </Grid>
+                                            </Border>
+
+                                        <Border Padding="10,8"
+                                                Background="#E8EDF5"
+                                                BorderBrush="#E5EAF3"
+                                                BorderThickness="1"
+                                                CornerRadius="8,8,0,0"
+                                                Visibility="{Binding IsColorTemplateTabSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="180" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="180" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock FontWeight="SemiBold" Text="颜色组名称" />
+                                                <TextBlock Grid.Column="1" FontWeight="SemiBold" Text="颜色展示" />
+                                                <TextBlock Grid.Column="2" FontWeight="SemiBold" Text="操作" />
                                             </Grid>
                                         </Border>
 
@@ -3860,6 +4139,106 @@
                                                                                 Content="删除"
                                                                                 Style="{StaticResource ElementSecondaryButtonStyle}"
                                                                                 Command="{Binding DataContext.DeleteManagedTemplateCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                                CommandParameter="{Binding}" />
+                                                                    </StackPanel>
+                                                                </Grid>
+                                                            </Border>
+                                                    </DataTemplate>
+                                                </ListBox.ItemTemplate>
+                                                </ListBox>
+
+                                                <ListBox BorderThickness="0"
+                                                         Background="Transparent"
+                                                         HorizontalContentAlignment="Stretch"
+                                                         ItemsSource="{Binding ColorTemplateGroups}"
+                                                         ScrollViewer.CanContentScroll="True"
+                                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                                         ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                                         VirtualizingPanel.IsVirtualizing="True"
+                                                         VirtualizingPanel.ScrollUnit="Pixel"
+                                                         Visibility="{Binding IsColorTemplateTabSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                    <ListBox.ItemContainerStyle>
+                                                        <Style TargetType="ListBoxItem">
+                                                            <Setter Property="Padding" Value="0" />
+                                                            <Setter Property="Margin" Value="0" />
+                                                            <Setter Property="BorderThickness" Value="0" />
+                                                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                                            <Setter Property="Focusable" Value="False" />
+                                                            <Setter Property="Template">
+                                                                <Setter.Value>
+                                                                    <ControlTemplate TargetType="ListBoxItem">
+                                                                        <ContentPresenter />
+                                                                    </ControlTemplate>
+                                                                </Setter.Value>
+                                                            </Setter>
+                                                        </Style>
+                                                    </ListBox.ItemContainerStyle>
+                                                    <ListBox.ItemTemplate>
+                                                        <DataTemplate DataType="{x:Type viewModels:ColorTemplateGroupViewModel}">
+                                                                    <Border Padding="10,8"
+                                                                    MinHeight="92"
+                                                                    Background="White"
+                                                                    BorderBrush="#E5EAF3"
+                                                                    BorderThickness="1,0,1,1">
+                                                                <Grid>
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="180" />
+                                                                        <ColumnDefinition Width="*" />
+                                                                        <ColumnDefinition Width="180" />
+                                                                    </Grid.ColumnDefinitions>
+                                                                    <TextBlock VerticalAlignment="Center"
+                                                                               FontWeight="SemiBold"
+                                                                               Foreground="{StaticResource TitleTextBrush}"
+                                                                               Text="{Binding Name}"
+                                                                               TextTrimming="CharacterEllipsis" />
+                                                                    <ItemsControl Grid.Column="1"
+                                                                                  Margin="12,0"
+                                                                                  ItemsSource="{Binding Colors}">
+                                                                        <ItemsControl.ItemsPanel>
+                                                                            <ItemsPanelTemplate>
+                                                                                <WrapPanel />
+                                                                            </ItemsPanelTemplate>
+                                                                        </ItemsControl.ItemsPanel>
+                                                                        <ItemsControl.ItemTemplate>
+                                                                            <DataTemplate DataType="{x:Type viewModels:ColorTemplateColorViewModel}">
+                                                                                <Border Width="150"
+                                                                                        Height="45"
+                                                                                        Margin="0,5,12,5"
+                                                                                        Cursor="Hand"
+                                                                                        Background="{Binding PreviewBrush}"
+                                                                                        BorderBrush="#AEB8C8"
+                                                                                        BorderThickness="1"
+                                                                                        CornerRadius="3"
+                                                                                        ToolTip="{Binding DisplayText}">
+                                                                                    <Border.InputBindings>
+                                                                                        <MouseBinding Command="{Binding DataContext.OpenColorTemplateColorPreviewCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                                                      CommandParameter="{Binding}"
+                                                                                                      Gesture="LeftDoubleClick" />
+                                                                                    </Border.InputBindings>
+                                                                                </Border>
+                                                                            </DataTemplate>
+                                                                        </ItemsControl.ItemTemplate>
+                                                                    </ItemsControl>
+                                                                    <StackPanel Grid.Column="2"
+                                                                                Orientation="Horizontal"
+                                                                                VerticalAlignment="Center">
+                                                                        <Button Height="28"
+                                                                                MinWidth="52"
+                                                                                Padding="10,0"
+                                                                                Content="编辑"
+                                                                                Style="{StaticResource ElementSecondaryButtonStyle}"
+                                                                                Command="{Binding DataContext.SelectColorTemplateGroupCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                                CommandParameter="{Binding}" />
+                                                                        <Button Margin="8,0,0,0"
+                                                                                Height="28"
+                                                                                MinWidth="52"
+                                                                                Padding="10,0"
+                                                                                Background="#F56C6C"
+                                                                                BorderBrush="#F56C6C"
+                                                                                Foreground="White"
+                                                                                Content="删除"
+                                                                                Style="{StaticResource ElementSecondaryButtonStyle}"
+                                                                                Command="{Binding DataContext.DeleteColorTemplateGroupCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                                                 CommandParameter="{Binding}" />
                                                                     </StackPanel>
                                                                 </Grid>
@@ -4457,6 +4836,357 @@
                     </Grid>
                 </Grid>
             </Border>
+
+            <Grid Panel.ZIndex="75"
+                  Grid.RowSpan="2"
+                  Background="#66000000"
+                  Visibility="{Binding IsColorTemplateGroupEditorOpen, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <Border Width="760"
+                        MaxHeight="680"
+                        Padding="18"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Background="White"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="12">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right"
+                                    Width="24"
+                                    Height="24"
+                                    MinWidth="0"
+                                    MinHeight="0"
+                                    Padding="0"
+                                    Content="x"
+                                    Style="{StaticResource ElementSecondaryButtonStyle}"
+                                    Command="{Binding CloseColorTemplateGroupEditorCommand}" />
+                            <TextBlock FontSize="18"
+                                       FontWeight="SemiBold"
+                                       Text="{Binding ColorTemplateGroupEditorTitle}" />
+                        </DockPanel>
+
+                        <Grid Grid.Row="1"
+                              Margin="0,16,0,0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Margin="0,0,0,6"
+                                               Foreground="{StaticResource MutedTextBrush}"
+                                               Text="颜色组名称" />
+                                    <TextBox Style="{StaticResource ElementInputTextBoxStyle}"
+                                             Text="{Binding ColorTemplateGroupEditorName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+                                <Button Grid.Column="1"
+                                        Margin="12,24,0,0"
+                                        Height="32"
+                                        MinWidth="76"
+                                        Padding="14,0"
+                                        Content="添加"
+                                        Style="{StaticResource ElementSecondaryButtonStyle}"
+                                        Command="{Binding AddColorTemplateRowCommand}" />
+                            </Grid>
+
+                            <Border Grid.Row="1"
+                                    Margin="0,14,0,0"
+                                    Padding="0"
+                                    Background="Transparent"
+                                    BorderThickness="0">
+                                <ScrollViewer MaxHeight="430"
+                                              VerticalScrollBarVisibility="Auto"
+                                              HorizontalScrollBarVisibility="Disabled">
+                                    <ItemsControl ItemsSource="{Binding ColorTemplateEditorColors}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate DataType="{x:Type viewModels:ColorTemplateColorViewModel}">
+                                                <Grid Margin="0,0,8,8">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="158" />
+                                                        <ColumnDefinition Width="50" />
+                                                        <ColumnDefinition Width="206" />
+                                                        <ColumnDefinition Width="38" />
+                                                        <ColumnDefinition Width="158" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Border Width="150"
+                                                            Height="34"
+                                                            HorizontalAlignment="Left"
+                                                            VerticalAlignment="Top"
+                                                            Cursor="Hand"
+                                                            Background="{Binding PreviewBrush}"
+                                                            BorderBrush="#AEB8C8"
+                                                            BorderThickness="1"
+                                                            CornerRadius="3">
+                                                        <Border.InputBindings>
+                                                            <MouseBinding Command="{Binding DataContext.OpenColorTemplateColorPreviewCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                          CommandParameter="{Binding}"
+                                                                          Gesture="LeftDoubleClick" />
+                                                        </Border.InputBindings>
+                                                    </Border>
+                                                    <TextBlock Grid.Column="1"
+                                                               Margin="0,8,0,0"
+                                                               VerticalAlignment="Top"
+                                                               Foreground="{StaticResource TitleTextBrush}"
+                                                               Text="颜色名：" />
+                                                    <TextBox Grid.Column="2"
+                                                             Margin="0,0,8,0"
+                                                             VerticalAlignment="Top"
+                                                             Style="{StaticResource CompactElementInputTextBoxStyle}"
+                                                             Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                    <TextBlock Grid.Column="3"
+                                                               Margin="0,8,0,0"
+                                                               VerticalAlignment="Top"
+                                                               Foreground="{StaticResource TitleTextBrush}"
+                                                               Text="HEX：" />
+                                                    <StackPanel Grid.Column="4">
+                                                        <TextBox Style="{StaticResource CompactElementInputTextBoxStyle}"
+                                                                 Text="{Binding HexCode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                        <TextBlock Margin="0,1,0,0"
+                                                                   FontSize="10.5"
+                                                                   Foreground="#F56C6C"
+                                                                   Text="HEX 格式无效"
+                                                                   Visibility="{Binding IsHexValid, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
+                                                    </StackPanel>
+                                                    <Button Grid.Column="5"
+                                                            Margin="8,0,0,0"
+                                                            Width="26"
+                                                            Height="30"
+                                                            MinWidth="26"
+                                                            Padding="0"
+                                                            VerticalAlignment="Top"
+                                                            Background="#F56C6C"
+                                                            BorderBrush="#F56C6C"
+                                                            Foreground="White"
+                                                            Content="×"
+                                                            Style="{StaticResource ElementSecondaryButtonStyle}"
+                                                            Command="{Binding DataContext.RemoveColorTemplateRowCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                            CommandParameter="{Binding}" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                            </Border>
+                        </Grid>
+
+                        <StackPanel Grid.Row="2"
+                                    Margin="0,16,0,0"
+                                    HorizontalAlignment="Right"
+                                    Orientation="Horizontal">
+                            <Button Content="取消"
+                                    Style="{StaticResource ElementSecondaryButtonStyle}"
+                                    Command="{Binding CloseColorTemplateGroupEditorCommand}" />
+                            <Button Margin="8,0,0,0"
+                                    Content="保存"
+                                    Style="{StaticResource ElementPrimaryButtonStyle}"
+                                    Command="{Binding SaveColorTemplateGroupCommand}" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <Grid Panel.ZIndex="76"
+                  Grid.RowSpan="2"
+                  Background="#66000000"
+                  Visibility="{Binding IsColorTemplateColorPreviewOpen, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <Border Width="980"
+                        Height="760"
+                        MaxHeight="780"
+                        Padding="14"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Background="White"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="12">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock FontSize="18"
+                                           FontWeight="SemiBold"
+                                           Text="{Binding ColorTemplateColorPreviewTitle}" />
+                                <StackPanel Margin="0,10,0,0"
+                                            Orientation="Horizontal">
+                                    <TextBlock Foreground="{StaticResource MutedTextBrush}"
+                                               Text="名称：" />
+                                    <TextBlock FontWeight="SemiBold"
+                                               Foreground="{StaticResource TitleTextBrush}"
+                                               Text="{Binding SelectedColorTemplateColorPreview.Name}" />
+                                    <TextBlock Margin="18,0,0,0"
+                                               Foreground="{StaticResource MutedTextBrush}"
+                                               Text="HEX：" />
+                                    <TextBlock FontWeight="SemiBold"
+                                               Foreground="{StaticResource TitleTextBrush}"
+                                               Text="{Binding SelectedColorTemplateColorPreview.HexCode}" />
+                                </StackPanel>
+                            </StackPanel>
+                            <Button Grid.Column="1"
+                                    Width="24"
+                                    Height="24"
+                                    MinWidth="0"
+                                    MinHeight="0"
+                                    Padding="0"
+                                    Content="x"
+                                    Style="{StaticResource ElementSecondaryButtonStyle}"
+                                    Command="{Binding CloseColorTemplateColorPreviewCommand}" />
+                        </Grid>
+
+                        <Border Grid.Row="1"
+                                Margin="0,12,0,0"
+                                VerticalAlignment="Stretch"
+                                Background="{Binding SelectedColorTemplateColorPreview.PreviewBrush}"
+                                BorderBrush="#D8DEE8"
+                                BorderThickness="1"
+                                CornerRadius="16" />
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <Grid Panel.ZIndex="77"
+                  Grid.RowSpan="2"
+                  Background="#66000000"
+                  Visibility="{Binding IsSpBatchColorSelectionOpen, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <Border Width="760"
+                        Height="620"
+                        Padding="18"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Background="White"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="12">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock FontSize="18"
+                                       FontWeight="SemiBold"
+                                       Text="{Binding SpBatchColorSelectionTitle}" />
+                            <Button Grid.Column="1"
+                                    Width="24"
+                                    Height="24"
+                                    MinWidth="0"
+                                    MinHeight="0"
+                                    Padding="0"
+                                    Content="x"
+                                    Style="{StaticResource ElementSecondaryButtonStyle}"
+                                    Command="{Binding CloseSpBatchColorSelectionCommand}" />
+                        </Grid>
+
+                        <Grid Grid.Row="1"
+                              Margin="0,14,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock VerticalAlignment="Center"
+                                       Foreground="{StaticResource MutedTextBrush}"
+                                       Text="{Binding SpBatchColorSelectionSummaryText}"
+                                       TextWrapping="Wrap" />
+                            <StackPanel Grid.Column="1"
+                                        Orientation="Horizontal">
+                                <Button Content="全部选择"
+                                        Style="{StaticResource ElementSecondaryButtonStyle}"
+                                        Command="{Binding SelectAllSpBatchColorSelectionCommand}" />
+                                <Button Margin="8,0,0,0"
+                                        Content="全部取消"
+                                        Style="{StaticResource ElementSecondaryButtonStyle}"
+                                        Command="{Binding ClearAllSpBatchColorSelectionCommand}" />
+                            </StackPanel>
+                        </Grid>
+
+                        <Border Grid.Row="2"
+                                Margin="0,12,0,0"
+                                Padding="12"
+                                Background="#F8FAFD"
+                                BorderBrush="#D9E1EC"
+                                BorderThickness="1"
+                                CornerRadius="8">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                          HorizontalScrollBarVisibility="Disabled">
+                                <ItemsControl ItemsSource="{Binding SpBatchColorSelectionColors}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type viewModels:ColorTemplateColorViewModel}">
+                                            <CheckBox Margin="0,0,0,10"
+                                                      IsChecked="{Binding IsSelected, Mode=TwoWay}">
+                                                <Grid Height="34">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="52" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Border Width="44"
+                                                            Height="28"
+                                                            VerticalAlignment="Center"
+                                                            Background="{Binding PreviewBrush}"
+                                                            BorderBrush="#AEB8C8"
+                                                            BorderThickness="1"
+                                                            CornerRadius="4" />
+                                                    <TextBlock Grid.Column="1"
+                                                               Margin="10,0,0,0"
+                                                               VerticalAlignment="Center"
+                                                               FontWeight="SemiBold"
+                                                               Text="{Binding Name}" />
+                                                    <TextBlock Grid.Column="2"
+                                                               Margin="8,0,0,0"
+                                                               VerticalAlignment="Center"
+                                                               FontSize="12"
+                                                               Foreground="{StaticResource MutedTextBrush}"
+                                                               Text="{Binding HexCode}" />
+                                                </Grid>
+                                            </CheckBox>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Border>
+
+                        <StackPanel Grid.Row="3"
+                                    Margin="0,16,0,0"
+                                    HorizontalAlignment="Right"
+                                    Orientation="Horizontal">
+                            <Button Content="取消"
+                                    Style="{StaticResource ElementSecondaryButtonStyle}"
+                                    Command="{Binding CloseSpBatchColorSelectionCommand}" />
+                            <Button Margin="8,0,0,0"
+                                    Content="确定"
+                                    Style="{StaticResource ElementPrimaryButtonStyle}"
+                                    Command="{Binding SaveSpBatchColorSelectionCommand}" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </Grid>
 
             <Grid Panel.ZIndex="70"
                   Grid.RowSpan="2"

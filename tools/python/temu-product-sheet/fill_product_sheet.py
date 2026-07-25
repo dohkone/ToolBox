@@ -477,32 +477,21 @@ def load_titles(title_json_path):
     with Path(title_json_path).open("r", encoding="utf-8") as handle:
         payload = json.load(handle)
 
-    titles = payload.get("titles")
-    english_titles = payload.get("english_title")
-    if not isinstance(titles, list):
-        raise ValueError(f"Invalid title JSON format: {title_json_path}")
-    if not isinstance(english_titles, list):
-        raise ValueError(f"Invalid english_title JSON format: {title_json_path}")
+    title_groups = payload.get("title_groups")
+    if not isinstance(title_groups, list):
+        raise ValueError(f"Invalid title_groups JSON format: {title_json_path}")
 
-    cleaned = []
-    for item in titles:
-        if isinstance(item, str):
-            text = item.strip()
-            if text:
-                cleaned.append(text)
+    paired = []
+    for item in title_groups:
+        if isinstance(item, dict):
+            cn_text = str(item.get("cn") or "").strip()
+            en_text = str(item.get("en") or "").strip()
+            if cn_text and en_text:
+                paired.append((cn_text, en_text))
 
-    cleaned_english = []
-    for item in english_titles:
-        if isinstance(item, str):
-            text = item.strip()
-            if text:
-                cleaned_english.append(text)
-
-    if not cleaned:
-        raise ValueError(f"No usable titles found in: {title_json_path}")
-    if not cleaned_english:
-        raise ValueError(f"No usable english titles found in: {title_json_path}")
-    return cleaned, cleaned_english
+    if not paired:
+        raise ValueError(f"No usable title groups found in: {title_json_path}")
+    return paired
 
 
 def match_record(records, width, length):
@@ -624,9 +613,8 @@ def collect_sp_directories(assert_dir):
     return sp_dirs
 
 
-def build_main_row(sp_dir, titles, english_titles):
-    title = random.choice(titles)
-    english_title = random.choice(english_titles)
+def build_main_row(sp_dir, title_pairs):
+    title, english_title = random.choice(title_pairs)
     return {
         "product_id": sp_dir.name,
         "title": title,
@@ -739,7 +727,7 @@ def main():
     title_json_path = Path(args.title_json)
     ensure_index(index_path, source_path)
     records = load_records(index_path)
-    titles, english_titles = load_titles(title_json_path)
+    title_pairs = load_titles(title_json_path)
 
     main_rows = []
     matched_rows = []
@@ -749,7 +737,7 @@ def main():
         sp_path = Path(args.sp_dir) if args.sp_dir else None
         product_id = sp_path.name if sp_path is not None else args.product_id
         if sp_path is not None:
-            main_rows.append(build_main_row(sp_path, titles, english_titles))
+            main_rows.append(build_main_row(sp_path, title_pairs))
 
         size_texts = list(args.sizes)
         current_matched_rows = []
@@ -781,13 +769,13 @@ def main():
         )
     elif args.sp_dir:
         sp_path = Path(args.sp_dir)
-        main_rows.append(build_main_row(sp_path, titles, english_titles))
+        main_rows.append(build_main_row(sp_path, title_pairs))
         summary = process_sp_dir(sp_path, records)
         matched_rows.extend(summary["matched_rows"])
         summaries.append(summary)
     else:
         for sp_path in collect_sp_directories(args.assert_dir):
-            main_rows.append(build_main_row(sp_path, titles, english_titles))
+            main_rows.append(build_main_row(sp_path, title_pairs))
             summaries.append(process_sp_dir(sp_path, records))
         for summary in summaries:
             matched_rows.extend(summary["matched_rows"])

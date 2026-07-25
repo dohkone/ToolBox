@@ -19,4 +19,6 @@ public sealed class TemplateGenerateRequest
 	public bool UniqueScene { get; init; }
 
 	public bool PromptsOnly { get; init; }
+
+	public IReadOnlyList<ColorTemplateColorRecord> ColorTemplateColors { get; init; } = Array.Empty<ColorTemplateColorRecord>();
 }

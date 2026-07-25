@@ -5,5 +5,6 @@ public enum TemplateCategory
 	Layout,
 	Scene,
 	Subject,
-	Title
+	Title,
+	Color
 }

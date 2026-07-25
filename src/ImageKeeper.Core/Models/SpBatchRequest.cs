@@ -20,4 +20,6 @@ public sealed class SpBatchRequest
 	public SpBatchMode Mode { get; init; } = SpBatchMode.Generate;
 
 	public IReadOnlyList<string> SelectedColors { get; init; } = Array.Empty<string>();
+
+	public IReadOnlyList<ColorTemplateColorRecord> ColorTemplateColors { get; init; } = Array.Empty<ColorTemplateColorRecord>();
 }

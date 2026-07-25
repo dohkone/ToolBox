@@ -139,12 +139,13 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 		await using SqliteConnection connection = CreateConnection();
 		await connection.OpenAsync(cancellationToken);
 		SqliteCommand sqliteCommand = connection.CreateCommand();
-		sqliteCommand.CommandText = "CREATE TABLE IF NOT EXISTS TemplateItems (\n    Id INTEGER PRIMARY KEY AUTOINCREMENT,\n    Category INTEGER NOT NULL,\n    Name TEXT NOT NULL DEFAULT '',\n    Content TEXT NOT NULL DEFAULT '',\n    Subject TEXT NOT NULL DEFAULT '',\n    PreviewImagePath TEXT NOT NULL DEFAULT '',\n    ImageType INTEGER NOT NULL DEFAULT 0,\n    SortOrder INTEGER NOT NULL DEFAULT 0,\n    IsEnabled INTEGER NOT NULL DEFAULT 1,\n    CreatedAt TEXT NOT NULL,\n    UpdatedAt TEXT NOT NULL\n);\n\nCREATE INDEX IF NOT EXISTS IX_TemplateItems_Category_Id\nON TemplateItems(Category, Id);\n\nCREATE TABLE IF NOT EXISTS SceneTemplateSubjectBindings (\n    Id INTEGER PRIMARY KEY AUTOINCREMENT,\n    SceneTemplateId INTEGER NOT NULL,\n    SubjectTemplateId INTEGER NOT NULL,\n    CreatedAt TEXT NOT NULL,\n    UNIQUE(SceneTemplateId, SubjectTemplateId)\n);\n\nCREATE INDEX IF NOT EXISTS IX_SceneTemplateSubjectBindings_SceneTemplateId\nON SceneTemplateSubjectBindings(SceneTemplateId);";
+		sqliteCommand.CommandText = "CREATE TABLE IF NOT EXISTS TemplateItems (\n    Id INTEGER PRIMARY KEY AUTOINCREMENT,\n    Category INTEGER NOT NULL,\n    Name TEXT NOT NULL DEFAULT '',\n    Content TEXT NOT NULL DEFAULT '',\n    Subject TEXT NOT NULL DEFAULT '',\n    PreviewImagePath TEXT NOT NULL DEFAULT '',\n    ImageType INTEGER NOT NULL DEFAULT 0,\n    SortOrder INTEGER NOT NULL DEFAULT 0,\n    IsEnabled INTEGER NOT NULL DEFAULT 1,\n    CreatedAt TEXT NOT NULL,\n    UpdatedAt TEXT NOT NULL\n);\n\nCREATE INDEX IF NOT EXISTS IX_TemplateItems_Category_Id\nON TemplateItems(Category, Id);\n\nCREATE TABLE IF NOT EXISTS SceneTemplateSubjectBindings (\n    Id INTEGER PRIMARY KEY AUTOINCREMENT,\n    SceneTemplateId INTEGER NOT NULL,\n    SubjectTemplateId INTEGER NOT NULL,\n    CreatedAt TEXT NOT NULL,\n    UNIQUE(SceneTemplateId, SubjectTemplateId)\n);\n\nCREATE INDEX IF NOT EXISTS IX_SceneTemplateSubjectBindings_SceneTemplateId\nON SceneTemplateSubjectBindings(SceneTemplateId);\n\nCREATE TABLE IF NOT EXISTS ColorTemplateGroups (\n    Id INTEGER PRIMARY KEY AUTOINCREMENT,\n    Name TEXT NOT NULL DEFAULT '',\n    SortOrder INTEGER NOT NULL DEFAULT 0,\n    IsEnabled INTEGER NOT NULL DEFAULT 1,\n    CreatedAt TEXT NOT NULL,\n    UpdatedAt TEXT NOT NULL\n);\n\nCREATE INDEX IF NOT EXISTS IX_ColorTemplateGroups_SortOrder_Id\nON ColorTemplateGroups(SortOrder, Id);\n\nCREATE TABLE IF NOT EXISTS ColorTemplateColors (\n    Id INTEGER PRIMARY KEY AUTOINCREMENT,\n    GroupId INTEGER NOT NULL,\n    Name TEXT NOT NULL DEFAULT '',\n    HexCode TEXT NOT NULL DEFAULT '',\n    SortOrder INTEGER NOT NULL DEFAULT 0,\n    CreatedAt TEXT NOT NULL,\n    UpdatedAt TEXT NOT NULL\n);\n\nCREATE INDEX IF NOT EXISTS IX_ColorTemplateColors_GroupId_SortOrder\nON ColorTemplateColors(GroupId, SortOrder, Id);";
 		await sqliteCommand.ExecuteNonQueryAsync(cancellationToken);
 		await TryAddColumnAsync(connection, "ALTER TABLE TemplateItems ADD COLUMN Subject TEXT NOT NULL DEFAULT '';", cancellationToken);
 		await TryAddColumnAsync(connection, "ALTER TABLE TemplateItems ADD COLUMN ImageType INTEGER NOT NULL DEFAULT 0;", cancellationToken);
 		await MigrateLegacySubjectsAsync(connection, cancellationToken);
 		await MigrateLegacySceneSubjectBindingsAsync(connection, cancellationToken);
+		await SeedDefaultColorTemplateGroupAsync(connection, cancellationToken);
 	}
 
 	public async Task<IReadOnlyList<TemplateItemRecord>> GetByCategoryAsync(TemplateCategory category, ImageTemplateType? imageType = null, CancellationToken cancellationToken = default(CancellationToken))
@@ -238,6 +239,97 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 		sqliteCommand2.CommandText = "DELETE FROM TemplateItems WHERE Id = $id;";
 		sqliteCommand2.Parameters.AddWithValue("$id", id);
 		await sqliteCommand2.ExecuteNonQueryAsync(cancellationToken);
+	}
+
+	public async Task<IReadOnlyList<ColorTemplateGroupRecord>> GetColorGroupsAsync(CancellationToken cancellationToken = default(CancellationToken))
+	{
+		await InitializeAsync(cancellationToken);
+		await using SqliteConnection connection = CreateConnection();
+		await connection.OpenAsync(cancellationToken);
+		return await ReadColorGroupsAsync(connection, cancellationToken);
+	}
+
+	public async Task<ColorTemplateGroupRecord> SaveColorGroupAsync(ColorTemplateGroupRecord group, CancellationToken cancellationToken = default(CancellationToken))
+	{
+		await InitializeAsync(cancellationToken);
+		await using SqliteConnection connection = CreateConnection();
+		await connection.OpenAsync(cancellationToken);
+		await using SqliteTransaction transaction = (SqliteTransaction)(await connection.BeginTransactionAsync(cancellationToken));
+		string now = DateTimeOffset.Now.ToString("O");
+		long groupId = group.Id;
+		if (groupId <= 0)
+		{
+			SqliteCommand insertGroupCommand = connection.CreateCommand();
+			insertGroupCommand.Transaction = transaction;
+			insertGroupCommand.CommandText = "INSERT INTO ColorTemplateGroups\n    (Name, SortOrder, IsEnabled, CreatedAt, UpdatedAt)\nVALUES\n    ($name, $sortOrder, $isEnabled, $now, $now)\nRETURNING Id;";
+			insertGroupCommand.Parameters.AddWithValue("$name", group.Name.Trim());
+			insertGroupCommand.Parameters.AddWithValue("$sortOrder", group.SortOrder);
+			insertGroupCommand.Parameters.AddWithValue("$isEnabled", group.IsEnabled ? 1 : 0);
+			insertGroupCommand.Parameters.AddWithValue("$now", now);
+			groupId = Convert.ToInt64(await insertGroupCommand.ExecuteScalarAsync(cancellationToken));
+		}
+		else
+		{
+			SqliteCommand updateGroupCommand = connection.CreateCommand();
+			updateGroupCommand.Transaction = transaction;
+			updateGroupCommand.CommandText = "UPDATE ColorTemplateGroups\nSET Name = $name,\n    SortOrder = $sortOrder,\n    IsEnabled = $isEnabled,\n    UpdatedAt = $now\nWHERE Id = $id;";
+			updateGroupCommand.Parameters.AddWithValue("$id", groupId);
+			updateGroupCommand.Parameters.AddWithValue("$name", group.Name.Trim());
+			updateGroupCommand.Parameters.AddWithValue("$sortOrder", group.SortOrder);
+			updateGroupCommand.Parameters.AddWithValue("$isEnabled", group.IsEnabled ? 1 : 0);
+			updateGroupCommand.Parameters.AddWithValue("$now", now);
+			await updateGroupCommand.ExecuteNonQueryAsync(cancellationToken);
+
+			SqliteCommand deleteColorsCommand = connection.CreateCommand();
+			deleteColorsCommand.Transaction = transaction;
+			deleteColorsCommand.CommandText = "DELETE FROM ColorTemplateColors WHERE GroupId = $groupId;";
+			deleteColorsCommand.Parameters.AddWithValue("$groupId", groupId);
+			await deleteColorsCommand.ExecuteNonQueryAsync(cancellationToken);
+		}
+		int sortOrder = 0;
+		foreach (ColorTemplateColorRecord color in group.Colors)
+		{
+			string name = color.Name.Trim();
+			string hexCode = color.HexCode.Trim().ToUpperInvariant();
+			if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(hexCode))
+			{
+				continue;
+			}
+			SqliteCommand insertColorCommand = connection.CreateCommand();
+			insertColorCommand.Transaction = transaction;
+			insertColorCommand.CommandText = "INSERT INTO ColorTemplateColors\n    (GroupId, Name, HexCode, SortOrder, CreatedAt, UpdatedAt)\nVALUES\n    ($groupId, $name, $hexCode, $sortOrder, $now, $now);";
+			insertColorCommand.Parameters.AddWithValue("$groupId", groupId);
+			insertColorCommand.Parameters.AddWithValue("$name", name);
+			insertColorCommand.Parameters.AddWithValue("$hexCode", hexCode);
+			insertColorCommand.Parameters.AddWithValue("$sortOrder", sortOrder++);
+			insertColorCommand.Parameters.AddWithValue("$now", now);
+			await insertColorCommand.ExecuteNonQueryAsync(cancellationToken);
+		}
+		await transaction.CommitAsync(cancellationToken);
+		return (await ReadColorGroupsAsync(connection, cancellationToken)).First(item => item.Id == groupId);
+	}
+
+	public async Task DeleteColorGroupAsync(long id, CancellationToken cancellationToken = default(CancellationToken))
+	{
+		if (id <= 0)
+		{
+			return;
+		}
+		await InitializeAsync(cancellationToken);
+		await using SqliteConnection connection = CreateConnection();
+		await connection.OpenAsync(cancellationToken);
+		await using SqliteTransaction transaction = (SqliteTransaction)(await connection.BeginTransactionAsync(cancellationToken));
+		SqliteCommand deleteColorsCommand = connection.CreateCommand();
+		deleteColorsCommand.Transaction = transaction;
+		deleteColorsCommand.CommandText = "DELETE FROM ColorTemplateColors WHERE GroupId = $id;";
+		deleteColorsCommand.Parameters.AddWithValue("$id", id);
+		await deleteColorsCommand.ExecuteNonQueryAsync(cancellationToken);
+		SqliteCommand deleteGroupCommand = connection.CreateCommand();
+		deleteGroupCommand.Transaction = transaction;
+		deleteGroupCommand.CommandText = "DELETE FROM ColorTemplateGroups WHERE Id = $id;";
+		deleteGroupCommand.Parameters.AddWithValue("$id", id);
+		await deleteGroupCommand.ExecuteNonQueryAsync(cancellationToken);
+		await transaction.CommitAsync(cancellationToken);
 	}
 
 	public async Task<IReadOnlyDictionary<long, IReadOnlyList<long>>> GetSceneSubjectBindingsAsync(CancellationToken cancellationToken = default(CancellationToken))
@@ -1026,6 +1118,125 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 			catch
 			{
 			}
+		}
+	}
+
+	private static async Task SeedDefaultColorTemplateGroupAsync(SqliteConnection connection, CancellationToken cancellationToken)
+	{
+		SqliteCommand countCommand = connection.CreateCommand();
+		countCommand.CommandText = "SELECT COUNT(1) FROM ColorTemplateGroups;";
+		if (Convert.ToInt32(await countCommand.ExecuteScalarAsync(cancellationToken)) > 0)
+		{
+			return;
+		}
+
+		ColorTemplateGroupRecord defaultGroup = new ColorTemplateGroupRecord
+		{
+			Name = "默认颜色组",
+			SortOrder = 0,
+			IsEnabled = true,
+			Colors = new[]
+			{
+				new ColorTemplateColorRecord { Name = "黑色", HexCode = "#0A0A0A" },
+				new ColorTemplateColorRecord { Name = "米白色", HexCode = "#F2EFE5" },
+				new ColorTemplateColorRecord { Name = "深棕色", HexCode = "#261107" },
+				new ColorTemplateColorRecord { Name = "深灰色", HexCode = "#7C7C7A" },
+				new ColorTemplateColorRecord { Name = "酒红色", HexCode = "#722829" },
+				new ColorTemplateColorRecord { Name = "宝蓝色", HexCode = "#2E3EA5" }
+			}
+		};
+		string now = DateTimeOffset.Now.ToString("O");
+		SqliteCommand insertGroupCommand = connection.CreateCommand();
+		insertGroupCommand.CommandText = "INSERT INTO ColorTemplateGroups\n    (Name, SortOrder, IsEnabled, CreatedAt, UpdatedAt)\nVALUES\n    ($name, $sortOrder, 1, $now, $now)\nRETURNING Id;";
+		insertGroupCommand.Parameters.AddWithValue("$name", defaultGroup.Name);
+		insertGroupCommand.Parameters.AddWithValue("$sortOrder", defaultGroup.SortOrder);
+		insertGroupCommand.Parameters.AddWithValue("$now", now);
+		long groupId = Convert.ToInt64(await insertGroupCommand.ExecuteScalarAsync(cancellationToken));
+		int sortOrder = 0;
+		foreach (ColorTemplateColorRecord color in defaultGroup.Colors)
+		{
+			SqliteCommand insertColorCommand = connection.CreateCommand();
+			insertColorCommand.CommandText = "INSERT INTO ColorTemplateColors\n    (GroupId, Name, HexCode, SortOrder, CreatedAt, UpdatedAt)\nVALUES\n    ($groupId, $name, $hexCode, $sortOrder, $now, $now);";
+			insertColorCommand.Parameters.AddWithValue("$groupId", groupId);
+			insertColorCommand.Parameters.AddWithValue("$name", color.Name);
+			insertColorCommand.Parameters.AddWithValue("$hexCode", color.HexCode);
+			insertColorCommand.Parameters.AddWithValue("$sortOrder", sortOrder++);
+			insertColorCommand.Parameters.AddWithValue("$now", now);
+			await insertColorCommand.ExecuteNonQueryAsync(cancellationToken);
+		}
+	}
+
+	private static async Task<IReadOnlyList<ColorTemplateGroupRecord>> ReadColorGroupsAsync(SqliteConnection connection, CancellationToken cancellationToken)
+	{
+		Dictionary<long, ColorTemplateGroupRecordBuilder> groups = new Dictionary<long, ColorTemplateGroupRecordBuilder>();
+		SqliteCommand command = connection.CreateCommand();
+		command.CommandText = "SELECT g.Id, g.Name, g.SortOrder, g.IsEnabled, g.CreatedAt, g.UpdatedAt,\n       c.Id, c.GroupId, c.Name, c.HexCode, c.SortOrder, c.CreatedAt, c.UpdatedAt\nFROM ColorTemplateGroups g\nLEFT JOIN ColorTemplateColors c ON c.GroupId = g.Id\nORDER BY g.SortOrder ASC, g.Id ASC, c.SortOrder ASC, c.Id ASC;";
+		await using SqliteDataReader reader = await command.ExecuteReaderAsync(cancellationToken);
+		while (await reader.ReadAsync(cancellationToken))
+		{
+			long groupId = reader.GetInt64(0);
+			if (!groups.TryGetValue(groupId, out ColorTemplateGroupRecordBuilder? builder))
+			{
+				builder = new ColorTemplateGroupRecordBuilder
+				{
+					Id = groupId,
+					Name = reader.GetString(1),
+					SortOrder = reader.GetInt32(2),
+					IsEnabled = reader.GetInt32(3) != 0,
+					CreatedAt = DateTimeOffset.Parse(reader.GetString(4)),
+					UpdatedAt = DateTimeOffset.Parse(reader.GetString(5))
+				};
+				groups[groupId] = builder;
+			}
+			if (!reader.IsDBNull(6))
+			{
+				builder.Colors.Add(new ColorTemplateColorRecord
+				{
+					Id = reader.GetInt64(6),
+					GroupId = reader.GetInt64(7),
+					Name = reader.GetString(8),
+					HexCode = reader.GetString(9),
+					SortOrder = reader.GetInt32(10),
+					CreatedAt = DateTimeOffset.Parse(reader.GetString(11)),
+					UpdatedAt = DateTimeOffset.Parse(reader.GetString(12))
+				});
+			}
+		}
+		return groups.Values
+			.OrderBy(item => item.SortOrder)
+			.ThenBy(item => item.Id)
+			.Select(item => item.ToRecord())
+			.ToArray();
+	}
+
+	private sealed class ColorTemplateGroupRecordBuilder
+	{
+		public long Id { get; init; }
+
+		public string Name { get; init; } = string.Empty;
+
+		public int SortOrder { get; init; }
+
+		public bool IsEnabled { get; init; }
+
+		public DateTimeOffset CreatedAt { get; init; }
+
+		public DateTimeOffset UpdatedAt { get; init; }
+
+		public List<ColorTemplateColorRecord> Colors { get; } = new List<ColorTemplateColorRecord>();
+
+		public ColorTemplateGroupRecord ToRecord()
+		{
+			return new ColorTemplateGroupRecord
+			{
+				Id = Id,
+				Name = Name,
+				SortOrder = SortOrder,
+				IsEnabled = IsEnabled,
+				CreatedAt = CreatedAt,
+				UpdatedAt = UpdatedAt,
+				Colors = Colors.ToArray()
+			};
 		}
 	}
 

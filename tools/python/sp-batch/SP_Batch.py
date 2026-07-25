@@ -154,6 +154,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", help="Override output image directory.")
     parser.add_argument("--image2-script", required=True, help="Path to the image2 generation script.")
     parser.add_argument("--texture-reference", help="Optional PU leather texture reference image for master SKU generation.")
+    parser.add_argument("--color-template", help="Optional JSON color template exported by the desktop app.")
     parser.add_argument("--concurrency", type=int, help="Override worker count.")
     parser.add_argument("--retries", type=int, help="Override retry count per job.")
     parser.add_argument("--overwrite", action="store_true", help="Regenerate outputs even if they already exist.")
@@ -162,6 +163,41 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--master-only", action="store_true", help="Generate only the master SKU image.")
     parser.add_argument("--recolor-only", action="store_true", help="Generate color variants from the provided master SKU image.")
     return parser.parse_args()
+
+
+def load_color_specs(path_text: str | None) -> tuple[ColorSpec, ...]:
+    if not path_text:
+        return COLORS
+    path = Path(path_text).expanduser()
+    if not path.exists():
+        return COLORS
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError):
+        return COLORS
+    if not isinstance(payload, list):
+        return COLORS
+    colors: list[ColorSpec] = []
+    for index, item in enumerate(payload, start=1):
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name") or item.get("Name") or "").strip()
+        hex_code = str(item.get("hex") or item.get("HexCode") or "").strip().upper()
+        if not name or not re.fullmatch(r"#[0-9A-F]{6}", hex_code):
+            continue
+        suffix = normalize_color_token(name) or f"color{index}"
+        colors.append(ColorSpec(suffix, name, name, hex_code))
+    return tuple(colors) or COLORS
+
+
+def build_color_alias_map(colors: tuple[ColorSpec, ...]) -> dict[str, str]:
+    aliases: dict[str, str] = {}
+    for color in colors:
+        aliases[color.label.casefold()] = color.suffix
+        aliases[color.file_name.casefold()] = color.suffix
+        aliases[color.hex_code.casefold()] = color.suffix
+        aliases[color.hex_code.lstrip("#").casefold()] = color.suffix
+    return aliases
 
 
 def parse_request(text: str) -> dict[str, Any]:
@@ -964,8 +1000,11 @@ def serialize_bundle(image_path: Path, bundle: OutputBundle) -> dict[str, str]:
 
 
 def main() -> int:
+    global COLORS, COLOR_ALIAS_MAP
     args = parse_args()
     try:
+        COLORS = load_color_specs(args.color_template)
+        COLOR_ALIAS_MAP = build_color_alias_map(COLORS)
         options = resolve_options(args)
         images = list_input_images(options.input_dir)
         linked_bundles = load_linked_bundle_map(options.input_dir)
