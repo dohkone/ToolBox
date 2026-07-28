@@ -52,6 +52,8 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 		public List<AllTemplatesPackageItem> Items { get; set; } = new List<AllTemplatesPackageItem>();
 
 		public List<AllTemplatesPackageBinding> SceneSubjectBindings { get; set; } = new List<AllTemplatesPackageBinding>();
+
+		public List<ColorTemplatePackageGroup> ColorGroups { get; set; } = new List<ColorTemplatePackageGroup>();
 	}
 
 	private sealed class AllTemplatesPackageItem
@@ -80,6 +82,37 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 		public long SceneTemplateId { get; set; }
 
 		public long SubjectTemplateId { get; set; }
+	}
+
+	private sealed class ColorTemplatePackageManifest
+	{
+		public string Type { get; set; } = "ecomtool-color-templates";
+
+		public int Version { get; set; } = 1;
+
+		public DateTimeOffset ExportedAt { get; set; }
+
+		public List<ColorTemplatePackageGroup> ColorGroups { get; set; } = new List<ColorTemplatePackageGroup>();
+	}
+
+	private sealed class ColorTemplatePackageGroup
+	{
+		public string Name { get; set; } = string.Empty;
+
+		public int SortOrder { get; set; }
+
+		public bool IsEnabled { get; set; } = true;
+
+		public List<ColorTemplatePackageColor> Colors { get; set; } = new List<ColorTemplatePackageColor>();
+	}
+
+	private sealed class ColorTemplatePackageColor
+	{
+		public string Name { get; set; } = string.Empty;
+
+		public string HexCode { get; set; } = string.Empty;
+
+		public int SortOrder { get; set; }
 	}
 
 	private sealed class GenerationLibraryPayload
@@ -111,6 +144,8 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 	private const string AllTemplatesPackageType = "ecomtool-all-templates";
 
 	private const string TemplateCategoryPackageType = "ecomtool-template-category";
+
+	private const string ColorTemplatesPackageType = "ecomtool-color-templates";
 
 	private const int LayoutPackageVersion = 2;
 
@@ -330,6 +365,70 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 		deleteGroupCommand.Parameters.AddWithValue("$id", id);
 		await deleteGroupCommand.ExecuteNonQueryAsync(cancellationToken);
 		await transaction.CommitAsync(cancellationToken);
+	}
+
+	public async Task<int> ExportColorTemplatesAsync(string packagePath, CancellationToken cancellationToken = default(CancellationToken))
+	{
+		if (string.IsNullOrWhiteSpace(packagePath))
+		{
+			throw new ArgumentException("导出文件路径不能为空。", "packagePath");
+		}
+		await InitializeAsync(cancellationToken);
+		IReadOnlyList<ColorTemplateGroupRecord> groups = await GetColorGroupsAsync(cancellationToken);
+		string? directoryName = Path.GetDirectoryName(packagePath);
+		if (!string.IsNullOrWhiteSpace(directoryName))
+		{
+			Directory.CreateDirectory(directoryName);
+		}
+		if (File.Exists(packagePath))
+		{
+			File.Delete(packagePath);
+		}
+		ColorTemplatePackageManifest manifest = new ColorTemplatePackageManifest
+		{
+			ExportedAt = DateTimeOffset.Now,
+			ColorGroups = groups.Select(ToColorTemplatePackageGroup).ToList()
+		};
+		await using FileStream fileStream = new FileStream(packagePath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None);
+		using ZipArchive archive = new ZipArchive(fileStream, ZipArchiveMode.Create);
+		ZipArchiveEntry manifestEntry = archive.CreateEntry("manifest.json", CompressionLevel.Optimal);
+		await using Stream manifestStream = manifestEntry.Open();
+		await JsonSerializer.SerializeAsync(manifestStream, manifest, new JsonSerializerOptions
+		{
+			WriteIndented = true
+		}, cancellationToken);
+		return manifest.ColorGroups.Count;
+	}
+
+	public async Task<int> ImportColorTemplatesAsync(string packagePath, CancellationToken cancellationToken = default(CancellationToken))
+	{
+		if (string.IsNullOrWhiteSpace(packagePath) || !File.Exists(packagePath))
+		{
+			throw new FileNotFoundException("导入文件不存在。", packagePath);
+		}
+		await InitializeAsync(cancellationToken);
+		using ZipArchive archive = ZipFile.OpenRead(packagePath);
+		ZipArchiveEntry manifestEntry = archive.GetEntry("manifest.json") ?? throw new InvalidOperationException("导入文件缺少 manifest.json。");
+		using Stream manifestStream = manifestEntry.Open();
+		using JsonDocument document = await JsonDocument.ParseAsync(manifestStream, cancellationToken: cancellationToken);
+		if (!document.RootElement.TryGetProperty("Type", out JsonElement typeElement))
+		{
+			throw new InvalidOperationException("导入文件不是有效的颜色模板包。");
+		}
+		string? packageType = typeElement.GetString();
+		if (!string.Equals(packageType, ColorTemplatesPackageType, StringComparison.Ordinal) &&
+			!string.Equals(packageType, AllTemplatesPackageType, StringComparison.Ordinal) &&
+			!string.Equals(packageType, TemplateCategoryPackageType, StringComparison.Ordinal))
+		{
+			throw new InvalidOperationException("导入文件不是有效的颜色模板包。");
+		}
+		List<ColorTemplatePackageGroup> groups = new List<ColorTemplatePackageGroup>();
+		if (document.RootElement.TryGetProperty("ColorGroups", out JsonElement colorGroupsElement) &&
+			colorGroupsElement.ValueKind == JsonValueKind.Array)
+		{
+			groups = colorGroupsElement.Deserialize<List<ColorTemplatePackageGroup>>() ?? new List<ColorTemplatePackageGroup>();
+		}
+		return await ImportColorTemplateGroupsAsync(groups, cancellationToken);
 	}
 
 	public async Task<IReadOnlyDictionary<long, IReadOnlyList<long>>> GetSceneSubjectBindingsAsync(CancellationToken cancellationToken = default(CancellationToken))
@@ -748,6 +847,7 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 		TemplateLibraryService templateLibraryService4 = this;
 		cancellationToken2 = cancellationToken;
 		list.AddRange(await templateLibraryService4.GetByCategoryAsync(TemplateCategory.Title, null, cancellationToken2));
+		IReadOnlyList<ColorTemplateGroupRecord> colorGroups = await GetColorGroupsAsync(cancellationToken);
 		IReadOnlyDictionary<long, IReadOnlyList<long>> source = await GetSceneSubjectBindingsAsync(cancellationToken);
 		Directory.CreateDirectory(Path.GetDirectoryName(packagePath));
 		if (File.Exists(packagePath))
@@ -756,13 +856,15 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 		}
 		AllTemplatesPackageManifest manifest = new AllTemplatesPackageManifest
 		{
+			Version = 2,
 			ExportedAt = DateTimeOffset.Now,
 			Items = new List<AllTemplatesPackageItem>(),
 			SceneSubjectBindings = source.SelectMany((KeyValuePair<long, IReadOnlyList<long>> pair) => pair.Value.Select((long subjectId) => new AllTemplatesPackageBinding
 			{
 				SceneTemplateId = pair.Key,
 				SubjectTemplateId = subjectId
-			})).ToList()
+			})).ToList(),
+			ColorGroups = colorGroups.Select(ToColorTemplatePackageGroup).ToList()
 		};
 		int result;
 		await using (FileStream fileStream = new FileStream(packagePath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None))
@@ -806,7 +908,7 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 				{
 					WriteIndented = true
 				}, cancellationToken);
-				count = manifest.Items.Count;
+				count = manifest.Items.Count + manifest.ColorGroups.Count;
 			}
 			result = count;
 		}
@@ -848,6 +950,7 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 		TemplateLibraryService templateLibraryService4 = this;
 		cancellationToken2 = cancellationToken;
 		list.AddRange(await templateLibraryService4.GetByCategoryAsync(TemplateCategory.Title, null, cancellationToken2));
+		IReadOnlyList<ColorTemplateGroupRecord> existingColorGroups = await GetColorGroupsAsync(cancellationToken);
 		Dictionary<TemplateCategory, HashSet<string>> existingNames = (from item in existingItems
 			group item by item.Category).ToDictionary((IGrouping<TemplateCategory, TemplateItemRecord> group) => group.Key, (IGrouping<TemplateCategory, TemplateItemRecord> group) => new HashSet<string>(group.Select((TemplateItemRecord item) => item.Name), StringComparer.OrdinalIgnoreCase));
 		HashSet<string> existingLayoutNames = new HashSet<string>(existingItems.Where((TemplateItemRecord item) => item.Category == TemplateCategory.Layout).Select(GetLayoutImportKey), StringComparer.OrdinalIgnoreCase);
@@ -927,6 +1030,7 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 			long[] subjectTemplateIds = (currentBindings.TryGetValue(item.Key, out value2) ? value2.Concat(item.Select(item => item.SubjectId)).Distinct().ToArray() : item.Select(item => item.SubjectId).Distinct().ToArray());
 			await SetSceneSubjectBindingsAsync(item.Key, subjectTemplateIds, cancellationToken);
 		}
+		importedCount += await ImportColorTemplateGroupsAsync(manifest.ColorGroups, cancellationToken, existingColorGroups);
 		return importedCount;
 	}
 
@@ -1207,6 +1311,88 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 			.ThenBy(item => item.Id)
 			.Select(item => item.ToRecord())
 			.ToArray();
+	}
+
+	private async Task<int> ImportColorTemplateGroupsAsync(IReadOnlyList<ColorTemplatePackageGroup>? packageGroups, CancellationToken cancellationToken, IReadOnlyList<ColorTemplateGroupRecord>? existingGroups = null)
+	{
+		if (packageGroups == null || packageGroups.Count == 0)
+		{
+			return 0;
+		}
+		existingGroups ??= await GetColorGroupsAsync(cancellationToken);
+		Dictionary<string, ColorTemplateGroupRecord> existingByName = existingGroups
+			.Where(item => !string.IsNullOrWhiteSpace(item.Name))
+			.GroupBy(item => item.Name.Trim(), StringComparer.OrdinalIgnoreCase)
+			.ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+		HashSet<string> importedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+		int importedCount = 0;
+		foreach (ColorTemplatePackageGroup packageGroup in packageGroups.OrderBy(item => item.SortOrder))
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+			string groupName = packageGroup.Name.Trim();
+			if (string.IsNullOrWhiteSpace(groupName) || !importedNames.Add(groupName))
+			{
+				continue;
+			}
+			List<ColorTemplateColorRecord> colors = packageGroup.Colors
+				.OrderBy(item => item.SortOrder)
+				.Where(item => !string.IsNullOrWhiteSpace(item.Name) && IsValidHexCode(item.HexCode))
+				.Select((item, index) => new ColorTemplateColorRecord
+				{
+					Name = item.Name.Trim(),
+					HexCode = NormalizeHexCode(item.HexCode),
+					SortOrder = index
+				})
+				.ToList();
+			if (colors.Count == 0)
+			{
+				continue;
+			}
+			if (existingByName.TryGetValue(groupName, out ColorTemplateGroupRecord? existingGroup))
+			{
+				await DeleteColorGroupAsync(existingGroup.Id, cancellationToken);
+			}
+			ColorTemplateGroupRecord saved = await SaveColorGroupAsync(new ColorTemplateGroupRecord
+			{
+				Name = groupName,
+				SortOrder = packageGroup.SortOrder,
+				IsEnabled = packageGroup.IsEnabled,
+				Colors = colors
+			}, cancellationToken);
+			existingByName[groupName] = saved;
+			importedCount++;
+		}
+		return importedCount;
+	}
+
+	private static ColorTemplatePackageGroup ToColorTemplatePackageGroup(ColorTemplateGroupRecord group)
+	{
+		return new ColorTemplatePackageGroup
+		{
+			Name = group.Name,
+			SortOrder = group.SortOrder,
+			IsEnabled = group.IsEnabled,
+			Colors = group.Colors
+				.OrderBy(item => item.SortOrder)
+				.Select(item => new ColorTemplatePackageColor
+				{
+					Name = item.Name,
+					HexCode = item.HexCode,
+					SortOrder = item.SortOrder
+				})
+				.ToList()
+		};
+	}
+
+	private static bool IsValidHexCode(string hexCode)
+	{
+		return !string.IsNullOrWhiteSpace(hexCode) && Regex.IsMatch(hexCode.Trim(), "^#?[0-9a-fA-F]{6}$");
+	}
+
+	private static string NormalizeHexCode(string hexCode)
+	{
+		string text = hexCode.Trim().ToUpperInvariant();
+		return text.StartsWith("#", StringComparison.Ordinal) ? text : "#" + text;
 	}
 
 	private sealed class ColorTemplateGroupRecordBuilder

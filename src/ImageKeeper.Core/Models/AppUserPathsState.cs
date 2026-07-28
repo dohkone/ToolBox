@@ -17,4 +17,10 @@ public sealed class AppUserPathsState
 	public string SkuOptimizeOutputDirectory { get; set; } = string.Empty;
 
 	public string ImageGenerationProvider { get; set; } = string.Empty;
+
+	public bool TitleChineseOnly { get; set; }
+
+	public long SelectedSpBatchColorTemplateGroupId { get; set; }
+
+	public Dictionary<long, string[]> SpBatchSelectedColorNamesByGroupId { get; set; } = new Dictionary<long, string[]>();
 }

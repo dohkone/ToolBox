@@ -768,15 +768,15 @@ public sealed class RootCardViewModel : ViewModelBase
 		return Directory.Exists(Path.Combine(spRootFolder, "main"));
 	}
 
-	public async Task<string> RunAutoPublishInternalAsync(IReadOnlyList<string>? manualSizes = null)
+	public async Task<string> RunAutoPublishInternalAsync(IReadOnlyList<string>? manualSizes = null, bool titleChineseOnly = false)
 	{
-		ProductSheetTask productSheetTask = await PrepareAutoPublishDataAsync(manualSizes);
+		ProductSheetTask productSheetTask = await PrepareAutoPublishDataAsync(manualSizes, titleChineseOnly);
 		string text = (string.IsNullOrWhiteSpace(productSheetTask.ProductsJsonPath) ? "上架 JSON 已生成。" : productSheetTask.ProductsJsonPath);
 		this.StatusChanged?.Invoke("自动上架准备完成：" + Path.GetFileName(productSheetTask.SpRootFolder) + "。" + text);
 		return text;
 	}
 
-	public async Task<ProductSheetTask> PrepareAutoPublishDataAsync(IReadOnlyList<string>? manualSizes = null)
+	public async Task<ProductSheetTask> PrepareAutoPublishDataAsync(IReadOnlyList<string>? manualSizes = null, bool titleChineseOnly = false)
 	{
 		string spRootFolder = GetSpRootFolder();
 		if (string.IsNullOrWhiteSpace(spRootFolder) || _productSheetService == null)
@@ -793,7 +793,7 @@ public sealed class RootCardViewModel : ViewModelBase
 		try
 		{
 			this.StatusChanged?.Invoke("开始准备上架数据：" + Path.GetFileName(spRootFolder));
-			ProductSheetTask productSheetTask = await _productSheetService.GenerateAsync(spRootFolder, manualSizes);
+			ProductSheetTask productSheetTask = await _productSheetService.GenerateAsync(spRootFolder, manualSizes, titleChineseOnly);
 			if (productSheetTask.Status == "Completed")
 			{
 				this.StatusChanged?.Invoke("上架数据准备完成：" + Path.GetFileName(spRootFolder));

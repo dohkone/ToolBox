@@ -126,6 +126,10 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private readonly RelayCommand _setAutoPublishStatusFilterCommand;
 
+	private readonly RelayCommand _openAutoPublishSettingsCommand;
+
+	private readonly RelayCommand _closeAutoPublishSettingsCommand;
+
 	private readonly AsyncRelayCommand _generateProductSheetCommand;
 
 	private readonly AsyncRelayCommand _addTabCommand;
@@ -420,6 +424,10 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private string _backupFolder = string.Empty;
 
+	private bool _titleChineseOnly;
+
+	private bool _isAutoPublishSettingsDialogOpen;
+
 	private bool _isAutoPublishRunning;
 
 	private bool _isTemplateGenerating;
@@ -645,6 +653,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 				OnPropertyChanged("SpBatchColorSelectionSummaryText");
 				_openSpBatchColorSelectionCommand.RaiseCanExecuteChanged();
 				_generateSpBatchColorSkusCommand.RaiseCanExecuteChanged();
+				PersistUserPathSettings();
 			}
 		}
 	}
@@ -678,6 +687,10 @@ public sealed class MainWindowViewModel : ViewModelBase
 	public ICommand ClearAllBatchCardsCommand => _clearAllBatchCardsCommand;
 
 	public ICommand SetAutoPublishStatusFilterCommand => _setAutoPublishStatusFilterCommand;
+
+	public ICommand OpenAutoPublishSettingsCommand => _openAutoPublishSettingsCommand;
+
+	public ICommand CloseAutoPublishSettingsCommand => _closeAutoPublishSettingsCommand;
 
 	public ICommand GenerateProductSheetCommand => _generateProductSheetCommand;
 
@@ -1180,7 +1193,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	public string CurrentNewTemplateButtonText => IsColorTemplateTabSelected ? "新增颜色组" : (IsTitleTemplateTabSelected ? "添加元素" : "新增模板");
 
-	public bool IsTemplateImportExportVisible => !IsColorTemplateTabSelected;
+	public bool IsTemplateImportExportVisible => true;
 
 	public bool IsTemplateEditorPreviewVisible
 	{
@@ -2305,6 +2318,33 @@ public sealed class MainWindowViewModel : ViewModelBase
 		}
 	}
 
+	public bool TitleChineseOnly
+	{
+		get
+		{
+			return _titleChineseOnly;
+		}
+		set
+		{
+			if (SetProperty(ref _titleChineseOnly, value, "TitleChineseOnly"))
+			{
+				PersistUserPathSettings();
+			}
+		}
+	}
+
+	public bool IsAutoPublishSettingsDialogOpen
+	{
+		get
+		{
+			return _isAutoPublishSettingsDialogOpen;
+		}
+		set
+		{
+			SetProperty(ref _isAutoPublishSettingsDialogOpen, value, "IsAutoPublishSettingsDialogOpen");
+		}
+	}
+
 	public bool IsTemplateGenerating
 	{
 		get
@@ -2858,6 +2898,14 @@ public sealed class MainWindowViewModel : ViewModelBase
 		{
 			SetAutoPublishStatusFilter(parameter);
 		});
+		_openAutoPublishSettingsCommand = new RelayCommand(delegate
+		{
+			IsAutoPublishSettingsDialogOpen = true;
+		});
+		_closeAutoPublishSettingsCommand = new RelayCommand(delegate
+		{
+			IsAutoPublishSettingsDialogOpen = false;
+		});
 		_generateProductSheetCommand = new AsyncRelayCommand((object? _) => GenerateProductSheetAsync(), delegate
 		{
 			if (!IsBusy)
@@ -2906,7 +2954,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		_openSpBatchColorSelectionCommand = new RelayCommand(delegate
 		{
 			OpenSpBatchColorSelection();
-		}, (object? _) => CanOpenSpBatchColorSelection());
+		}, (object? _) => true);
 		_closeSpBatchColorSelectionCommand = new RelayCommand(delegate
 		{
 			CloseSpBatchColorSelection();
@@ -3614,7 +3662,14 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private ColorTemplateGroupViewModel? GetSelectedSpBatchColorTemplateGroup()
 	{
-		return ColorTemplateGroups.FirstOrDefault(item => item.Id == _selectedSpBatchColorTemplateGroupId);
+		ColorTemplateGroupViewModel? group = ColorTemplateGroups.FirstOrDefault(item => item.Id == _selectedSpBatchColorTemplateGroupId);
+		if (group != null)
+		{
+			return group;
+		}
+		return SelectedSpBatchColorTemplateGroupForGeneration != null && ColorTemplateGroups.Any(item => item.Id == SelectedSpBatchColorTemplateGroupForGeneration.Id)
+			? SelectedSpBatchColorTemplateGroupForGeneration
+			: ColorTemplateGroups.FirstOrDefault();
 	}
 
 	private IReadOnlyList<string> GetSelectedSpBatchColorNamesForCurrentGroup()
@@ -4818,9 +4873,12 @@ public sealed class MainWindowViewModel : ViewModelBase
 		{
 			if (dialog.ShowDialog() == DialogResult.OK)
 			{
-				int count = category == TemplateCategory.Layout
-					? await _templateLibraryService.ImportLayoutTemplatesAsync(dialog.FileName)
-					: await _templateLibraryService.ImportTemplateCategoryAsync(dialog.FileName, category, category == TemplateCategory.Title ? _selectedTitleTemplateType : null);
+				int count = category switch
+				{
+					TemplateCategory.Layout => await _templateLibraryService.ImportLayoutTemplatesAsync(dialog.FileName),
+					TemplateCategory.Color => await _templateLibraryService.ImportColorTemplatesAsync(dialog.FileName),
+					_ => await _templateLibraryService.ImportTemplateCategoryAsync(dialog.FileName, category, category == TemplateCategory.Title ? _selectedTitleTemplateType : null)
+				};
 				await ReloadManagedTemplatesAfterMutationAsync();
 				StatusMessage = $"已导入{GetTemplateCategoryDisplayName(category)}：{count} 个";
 			}
@@ -4840,7 +4898,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 			Filter = "EcomTool 模板包|*.ecomtpl",
 			DefaultExt = "ecomtpl",
 			AddExtension = true,
-			FileName = $"{GetTemplateCategoryPackagePrefix(category)}_{DateTimeOffset.Now:yyyyMMdd_HHmmss}.ecomtpl"
+			FileName = GetTemplateCategoryPackageFileName(category)
 		};
 		try
 		{
@@ -4851,6 +4909,11 @@ public sealed class MainWindowViewModel : ViewModelBase
 					long[] selectedIds = ManagedTemplateItems.Where((TemplateItemViewModel item) => item.IsSelectedForExport).Select((TemplateItemViewModel item) => item.Id).ToArray();
 					int value = await _templateLibraryService.ExportLayoutTemplatesAsync(dialog.FileName, _selectedLayoutImageType, selectedIds.Length > 0 ? selectedIds : null);
 					StatusMessage = selectedIds.Length > 0 ? $"已导出选中布局模板：{value} 个" : $"已导出布局模板：{value} 个";
+				}
+				else if (category == TemplateCategory.Color)
+				{
+					int value = await _templateLibraryService.ExportColorTemplatesAsync(dialog.FileName);
+					StatusMessage = $"已导出{GetTemplateCategoryDisplayName(category)}：{value} 个";
 				}
 				else
 				{
@@ -4872,6 +4935,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 			TemplateCategory.Scene => "场景模板",
 			TemplateCategory.Subject => "主体模板",
 			TemplateCategory.Title => "视觉元素",
+			TemplateCategory.Color => "颜色模板",
 			_ => "布局模板"
 		};
 	}
@@ -4883,8 +4947,14 @@ public sealed class MainWindowViewModel : ViewModelBase
 			TemplateCategory.Scene => "scene_templates",
 			TemplateCategory.Subject => "subject_templates",
 			TemplateCategory.Title => "visual_elements",
+			TemplateCategory.Color => "color_templates",
 			_ => "layout_templates"
 		};
+	}
+
+	private static string GetTemplateCategoryPackageFileName(TemplateCategory category)
+	{
+		return $"{GetTemplateCategoryPackagePrefix(category)}_{DateTimeOffset.Now:yyyyMMdd_HHmmss}.ecomtpl";
 	}
 
 	private async Task ImportAllTemplatesAsync()
@@ -5233,14 +5303,21 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private void OpenSpBatchColorSelection()
 	{
+		if (!CanEditSpBatchSettings())
+		{
+			MessageBox.Show("\u5f53\u524d\u6b63\u5728\u6267\u884c\u4efb\u52a1\uff0c\u6682\u65f6\u4e0d\u80fd\u6307\u5b9a\u989c\u8272\u3002", "\u63d0\u793a", MessageBoxButton.OK, MessageBoxImage.Information);
+			return;
+		}
 		ColorTemplateGroupViewModel? group = GetSelectedSpBatchColorTemplateGroup();
 		if (group == null)
 		{
-			throw new InvalidOperationException("请先选择颜色组。");
+			MessageBox.Show("\u8bf7\u5148\u9009\u62e9\u989c\u8272\u7ec4\u3002", "\u63d0\u793a", MessageBoxButton.OK, MessageBoxImage.Information);
+			return;
 		}
 		if (group.Colors.Count == 0)
 		{
-			throw new InvalidOperationException("当前颜色组没有可选颜色。");
+			MessageBox.Show("\u5f53\u524d\u989c\u8272\u7ec4\u6ca1\u6709\u53ef\u9009\u989c\u8272\u3002", "\u63d0\u793a", MessageBoxButton.OK, MessageBoxImage.Information);
+			return;
 		}
 		RefreshSpBatchColorSelectionForCurrentGroup();
 		IsSpBatchColorSelectionOpen = true;
@@ -5284,6 +5361,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 			throw new InvalidOperationException("请至少选择一种颜色。");
 		}
 		StoreSpBatchColorSelectionForCurrentGroup();
+		PersistUserPathSettings();
 		CloseSpBatchColorSelection();
 		_generateSpBatchColorSkusCommand.RaiseCanExecuteChanged();
 	}
@@ -6033,7 +6111,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		StatusMessage = "开始处理：" + rootCardViewModel.RootFolderPath;
 		try
 		{
-			ProductSheetTask productSheetTask = await _productSheetService.GenerateAsync(rootCardViewModel.RootFolderPath);
+			ProductSheetTask productSheetTask = await _productSheetService.GenerateAsync(rootCardViewModel.RootFolderPath, titleChineseOnly: TitleChineseOnly);
 			StatusMessage = "上架 JSON 任务状态：" + productSheetTask.Status;
 			LoadingDetail = (string.IsNullOrWhiteSpace(productSheetTask.ProductsJsonPath) ? StatusMessage : (StatusMessage + "，" + productSheetTask.ProductsJsonPath));
 		}
@@ -6137,7 +6215,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private async Task<List<JsonElement>> PrepareAutoPublishProductItemsAsync(RootCardViewModel card)
 	{
-		ProductSheetTask productSheetTask = await card.PrepareAutoPublishDataAsync(await EnsureCardSizeForPublishAsync(card));
+		ProductSheetTask productSheetTask = await card.PrepareAutoPublishDataAsync(await EnsureCardSizeForPublishAsync(card), TitleChineseOnly);
 		if (!File.Exists(productSheetTask.ProductsJsonPath))
 		{
 			throw new FileNotFoundException("商品 JSON 未生成。", productSheetTask.ProductsJsonPath);
@@ -6846,6 +6924,32 @@ public sealed class MainWindowViewModel : ViewModelBase
 		SpBatchOutputDirectory = NormalizeWritableWorkspacePath(state.SpBatchOutputDirectory ?? string.Empty);
 		SkuOptimizeOutputDirectory = NormalizeWritableWorkspacePath(state.SkuOptimizeOutputDirectory ?? string.Empty);
 		SelectedImageGenerationProvider = state.ImageGenerationProvider;
+		TitleChineseOnly = state.TitleChineseOnly;
+		long restoredSpBatchColorGroupId = state.SelectedSpBatchColorTemplateGroupId;
+		_spBatchSelectedColorNamesByGroupId.Clear();
+		foreach (KeyValuePair<long, string[]> item in state.SpBatchSelectedColorNamesByGroupId ?? new Dictionary<long, string[]>())
+		{
+			string[] selectedNames = item.Value?
+				.Where(name => !string.IsNullOrWhiteSpace(name))
+				.Select(name => name.Trim())
+				.Distinct(StringComparer.OrdinalIgnoreCase)
+				.ToArray() ?? Array.Empty<string>();
+			if (selectedNames.Length > 0)
+			{
+				_spBatchSelectedColorNamesByGroupId[item.Key] = new HashSet<string>(selectedNames, StringComparer.OrdinalIgnoreCase);
+			}
+		}
+		ColorTemplateGroupViewModel? spBatchGroup = ColorTemplateGroups.FirstOrDefault(item => item.Id == restoredSpBatchColorGroupId)
+			?? _selectedSpBatchColorTemplateGroupForGeneration
+			?? ColorTemplateGroups.FirstOrDefault();
+		_selectedSpBatchColorTemplateGroupId = spBatchGroup?.Id ?? 0;
+		_selectedSpBatchColorTemplateGroupForGeneration = spBatchGroup;
+		RefreshSpBatchColorSelectionForCurrentGroup();
+		OnPropertyChanged("SelectedSpBatchColorTemplateGroupForGeneration");
+		OnPropertyChanged("SpBatchColorSelectionTitle");
+		OnPropertyChanged("SpBatchColorSelectionSummaryText");
+		_openSpBatchColorSelectionCommand.RaiseCanExecuteChanged();
+		_generateSpBatchColorSkusCommand.RaiseCanExecuteChanged();
 	}
 
 	private static string NormalizeWritableWorkspacePath(string path)
@@ -6877,6 +6981,11 @@ public sealed class MainWindowViewModel : ViewModelBase
 		appUserPathsState.SpBatchOutputDirectory = SpBatchOutputDirectory;
 		appUserPathsState.SkuOptimizeOutputDirectory = SkuOptimizeOutputDirectory;
 		appUserPathsState.ImageGenerationProvider = SelectedImageGenerationProvider;
+		appUserPathsState.TitleChineseOnly = TitleChineseOnly;
+		appUserPathsState.SelectedSpBatchColorTemplateGroupId = _selectedSpBatchColorTemplateGroupId;
+		appUserPathsState.SpBatchSelectedColorNamesByGroupId = _spBatchSelectedColorNamesByGroupId.ToDictionary(
+			item => item.Key,
+			item => item.Value.OrderBy(name => name, StringComparer.OrdinalIgnoreCase).ToArray());
 		appSettingsService.SaveUserPaths(appUserPathsState);
 	}
 

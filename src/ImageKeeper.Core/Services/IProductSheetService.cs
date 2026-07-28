@@ -7,7 +7,7 @@ namespace ImageKeeper.Core.Services;
 
 public interface IProductSheetService
 {
-	Task<ProductSheetTask> GenerateAsync(string spRootFolder, IReadOnlyList<string>? sizes = null, CancellationToken cancellationToken = default(CancellationToken));
+	Task<ProductSheetTask> GenerateAsync(string spRootFolder, IReadOnlyList<string>? sizes = null, bool titleChineseOnly = false, CancellationToken cancellationToken = default(CancellationToken));
 
 	Task RebuildSizeIndexAsync(CancellationToken cancellationToken = default(CancellationToken));
 }

@@ -757,10 +757,10 @@
                                 <Button Command="{Binding ChooseFolderCommand}"
                                         Margin="0,0,8,0"
                                         Content="选择文件夹" />
-                                <Button Command="{Binding SelectBackupFolderCommand}"
+                                <Button Command="{Binding OpenAutoPublishSettingsCommand}"
                                         Margin="0,0,8,0"
                                         Style="{StaticResource SecondaryButtonStyle}"
-                                        Content="备份位置" />
+                                        Content="设置" />
                                 <Button Command="{Binding SelectAllBatchCardsCommand}"
                                         Margin="0,0,8,0"
                                         Style="{StaticResource SecondaryButtonStyle}"
@@ -5064,7 +5064,7 @@
                 </Border>
             </Grid>
 
-            <Grid Panel.ZIndex="77"
+            <Grid Panel.ZIndex="90"
                   Grid.RowSpan="2"
                   Background="#66000000"
                   Visibility="{Binding IsSpBatchColorSelectionOpen, Converter={StaticResource BooleanToVisibilityConverter}}">
@@ -5349,6 +5349,96 @@
                                     Content="保存"
                                     Style="{StaticResource ElementPrimaryButtonStyle}"
                                     Command="{Binding SaveImageGenerationKeyCommand}" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <Grid Panel.ZIndex="84"
+                  Grid.RowSpan="2"
+                  Background="#66000000"
+                  Visibility="{Binding IsAutoPublishSettingsDialogOpen, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <Border Width="560"
+                        Padding="22"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Background="White"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="12">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right"
+                                    Width="24"
+                                    Height="24"
+                                    MinWidth="0"
+                                    MinHeight="0"
+                                    Padding="0"
+                                    Content="x"
+                                    Style="{StaticResource ElementSecondaryButtonStyle}"
+                                    Command="{Binding CloseAutoPublishSettingsCommand}" />
+                            <StackPanel>
+                                <TextBlock FontSize="18"
+                                           FontWeight="SemiBold"
+                                           Text="上架设置" />
+                                <TextBlock Margin="0,4,0,0"
+                                           Foreground="{StaticResource MutedTextBrush}"
+                                           Text="这里配置批量上架相关的本地选项。"
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
+                        </DockPanel>
+
+                        <StackPanel Grid.Row="1"
+                                    Margin="0,18,0,0">
+                            <Grid Margin="0,0,0,14">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="86" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock VerticalAlignment="Center"
+                                           FontWeight="SemiBold"
+                                           Text="备份位置" />
+                                <TextBlock Grid.Column="1"
+                                           Margin="0,0,10,0"
+                                           VerticalAlignment="Center"
+                                           Foreground="{StaticResource MutedTextBrush}"
+                                           Text="{Binding BackupFolderText}"
+                                           TextTrimming="CharacterEllipsis" />
+                                <Button Grid.Column="2"
+                                        Content="选择"
+                                        Style="{StaticResource ElementSecondaryButtonStyle}"
+                                        Command="{Binding SelectBackupFolderCommand}" />
+                            </Grid>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="86" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock VerticalAlignment="Center"
+                                           FontWeight="SemiBold"
+                                           Text="标题设置" />
+                                <CheckBox Grid.Column="1"
+                                          VerticalAlignment="Center"
+                                          IsChecked="{Binding TitleChineseOnly, Mode=TwoWay}"
+                                          Content="仅中文" />
+                            </Grid>
+                        </StackPanel>
+
+                        <StackPanel Grid.Row="2"
+                                    Margin="0,20,0,0"
+                                    HorizontalAlignment="Right"
+                                    Orientation="Horizontal">
+                            <Button Content="确定"
+                                    Style="{StaticResource ElementPrimaryButtonStyle}"
+                                    Command="{Binding CloseAutoPublishSettingsCommand}" />
                         </StackPanel>
                     </Grid>
                 </Border>

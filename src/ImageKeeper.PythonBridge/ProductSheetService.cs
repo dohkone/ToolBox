@@ -24,7 +24,7 @@ public sealed class ProductSheetService : IProductSheetService
 		_buildSizeIndexScriptPath = buildSizeIndexScriptPath;
 	}
 
-	public async Task<ProductSheetTask> GenerateAsync(string spRootFolder, IReadOnlyList<string>? sizes = null, CancellationToken cancellationToken = default(CancellationToken))
+	public async Task<ProductSheetTask> GenerateAsync(string spRootFolder, IReadOnlyList<string>? sizes = null, bool titleChineseOnly = false, CancellationToken cancellationToken = default(CancellationToken))
 	{
 		ProductSheetTask task = new ProductSheetTask
 		{
@@ -55,6 +55,10 @@ public sealed class ProductSheetService : IProductSheetService
 			{
 				list.Add("--sizes");
 				list.AddRange(sizes.Where((string size) => !string.IsNullOrWhiteSpace(size)));
+			}
+			if (titleChineseOnly)
+			{
+				list.Add("--title-chinese-only");
 			}
 			task.Status = ((await _scriptRunner.RunAsync(_fillProductSheetScriptPath, list, cancellationToken) == 0) ? "Completed" : "Failed");
 			if (task.Status == "Completed")

@@ -949,62 +949,285 @@ async function captureShopDebugState(page: Page, name: string) {
   console.log(`Visible overlays: ${JSON.stringify(visibleOverlayClasses)}`);
 }
 
+type ShopSelectorSnapshot = {
+  found: boolean;
+  checkAllChecked: boolean;
+  shopCount: number;
+  checkedCount: number;
+  uncheckedNames: string[];
+};
+
+async function getShopSelectorSnapshot(page: Page): Promise<ShopSelectorSnapshot> {
+  return await page.evaluate(() => {
+    const isVisible = (node: Element | null) => {
+      if (!(node instanceof HTMLElement)) {
+        return false;
+      }
+
+      const rect = node.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0;
+    };
+
+    const isChecked = (label: Element | null) => {
+      if (!(label instanceof HTMLElement)) {
+        return false;
+      }
+
+      const input = label.querySelector("input") as HTMLInputElement | null;
+      return (
+        label.classList.contains("is-checked") ||
+        label.querySelector(".jx-checkbox__input.is-checked") !== null ||
+        input?.checked === true
+      );
+    };
+
+    const getSelectorContext = () => {
+      const checkAll = Array.from(
+        document.querySelectorAll("label.shop-selector-check-all, label.pro-checkbox-group-all-select"),
+      ).find(isVisible) as HTMLElement | undefined;
+
+      if (!checkAll) {
+        return null;
+      }
+
+      const candidateContainers = [
+        checkAll.closest(".pro-checkbox-group"),
+        checkAll.closest(".jx-checkbox-group"),
+        checkAll.closest(".jx-scrollbar"),
+        checkAll.closest(".shop-selector"),
+        checkAll.closest(".jx-popper"),
+        checkAll.closest(".jx-overlay"),
+        checkAll.parentElement,
+        checkAll.parentElement?.parentElement,
+      ].filter((node): node is Element => node instanceof Element);
+
+      const container =
+        candidateContainers.find((node) => {
+          const visibleLabels = Array.from(node.querySelectorAll("label.jx-checkbox, label.pro-checkbox")).filter(isVisible);
+          return visibleLabels.length >= 2;
+        }) ?? checkAll.parentElement ?? checkAll;
+
+      const shopLabels = Array.from(container.querySelectorAll("label.jx-checkbox, label.pro-checkbox"))
+        .filter(isVisible)
+        .filter((label) => {
+          if (label === checkAll) {
+            return false;
+          }
+
+          const element = label as HTMLElement;
+          return (
+            !element.classList.contains("shop-selector-check-all") &&
+            !element.classList.contains("pro-checkbox-group-all-select")
+          );
+        });
+
+      return { checkAll, shopLabels };
+    };
+
+    const context = getSelectorContext();
+    if (!context) {
+      return {
+        found: false,
+        checkAllChecked: false,
+        shopCount: 0,
+        checkedCount: 0,
+        uncheckedNames: [],
+      };
+    }
+
+    const uncheckedNames = context.shopLabels
+      .filter((label) => !isChecked(label))
+      .map((label) => label.textContent?.replace(/\s+/g, " ").trim() ?? "")
+      .filter((name) => name.length > 0);
+
+    return {
+      found: true,
+      checkAllChecked: isChecked(context.checkAll),
+      shopCount: context.shopLabels.length,
+      checkedCount: context.shopLabels.length - uncheckedNames.length,
+      uncheckedNames,
+    };
+  });
+}
+
+async function fixUncheckedShopsInSelector(page: Page) {
+  return await page.evaluate(() => {
+    const isVisible = (node: Element | null) => {
+      if (!(node instanceof HTMLElement)) {
+        return false;
+      }
+
+      const rect = node.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0;
+    };
+
+    const isChecked = (label: Element | null) => {
+      if (!(label instanceof HTMLElement)) {
+        return false;
+      }
+
+      const input = label.querySelector("input") as HTMLInputElement | null;
+      return (
+        label.classList.contains("is-checked") ||
+        label.querySelector(".jx-checkbox__input.is-checked") !== null ||
+        input?.checked === true
+      );
+    };
+
+    const clickLabel = (label: HTMLElement) => {
+      label.dispatchEvent(new MouseEvent("mouseenter", { bubbles: true, cancelable: true }));
+      label.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+      label.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true }));
+      label.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+      label.click();
+    };
+
+    const getSelectorContext = () => {
+      const checkAll = Array.from(
+        document.querySelectorAll("label.shop-selector-check-all, label.pro-checkbox-group-all-select"),
+      ).find(isVisible) as HTMLElement | undefined;
+
+      if (!checkAll) {
+        return null;
+      }
+
+      const candidateContainers = [
+        checkAll.closest(".pro-checkbox-group"),
+        checkAll.closest(".jx-checkbox-group"),
+        checkAll.closest(".jx-scrollbar"),
+        checkAll.closest(".shop-selector"),
+        checkAll.closest(".jx-popper"),
+        checkAll.closest(".jx-overlay"),
+        checkAll.parentElement,
+        checkAll.parentElement?.parentElement,
+      ].filter((node): node is Element => node instanceof Element);
+
+      const container =
+        candidateContainers.find((node) => {
+          const visibleLabels = Array.from(node.querySelectorAll("label.jx-checkbox, label.pro-checkbox")).filter(isVisible);
+          return visibleLabels.length >= 2;
+        }) ?? checkAll.parentElement ?? checkAll;
+
+      const shopLabels = Array.from(container.querySelectorAll("label.jx-checkbox, label.pro-checkbox"))
+        .filter(isVisible)
+        .filter((label) => {
+          if (label === checkAll) {
+            return false;
+          }
+
+          const element = label as HTMLElement;
+          return (
+            !element.classList.contains("shop-selector-check-all") &&
+            !element.classList.contains("pro-checkbox-group-all-select")
+          );
+        }) as HTMLElement[];
+
+      return { checkAll, shopLabels };
+    };
+
+    const context = getSelectorContext();
+    if (!context) {
+      return { found: false, correctedNames: [] as string[] };
+    }
+
+    const correctedNames: string[] = [];
+    for (const label of context.shopLabels) {
+      if (isChecked(label)) {
+        continue;
+      }
+
+      clickLabel(label);
+      correctedNames.push(label.textContent?.replace(/\s+/g, " ").trim() ?? "");
+    }
+
+    return { found: true, correctedNames: correctedNames.filter((name) => name.length > 0) };
+  });
+}
+
 async function clickShopSelectorCheckAll(page: Page) {
   await page.waitForTimeout(500);
 
+  const initialSnapshot = await getShopSelectorSnapshot(page);
+  if (!initialSnapshot.found) {
+    await captureShopDebugState(page, "miaoshou-shop-checkall-missing.png");
+    console.log("Did not find a visible shop selector group. Saved a debug screenshot and continued.");
+    return;
+  }
+
+  console.log(
+    `Shop selector before check-all: ${initialSnapshot.checkedCount}/${initialSnapshot.shopCount} selected.`,
+  );
+
   const result = await page.evaluate(
-    ({ missingText, successText }) => {
-      const candidates = Array.from(document.querySelectorAll("label.shop-selector-check-all"));
-      const checkAll = candidates.find((node) => {
-        const element = node as HTMLElement;
-        const rect = element.getBoundingClientRect();
+    ({ successText }) => {
+      const isVisible = (node: Element | null) => {
+        if (!(node instanceof HTMLElement)) {
+          return false;
+        }
+
+        const rect = node.getBoundingClientRect();
         return rect.width > 0 && rect.height > 0;
-      }) as HTMLElement | undefined;
+      };
+
+      const isChecked = (label: Element | null) => {
+        if (!(label instanceof HTMLElement)) {
+          return false;
+        }
+
+        const input = label.querySelector("input") as HTMLInputElement | null;
+        return (
+          label.classList.contains("is-checked") ||
+          label.querySelector(".jx-checkbox__input.is-checked") !== null ||
+          input?.checked === true
+        );
+      };
+
+      const checkAll = Array.from(
+        document.querySelectorAll("label.shop-selector-check-all, label.pro-checkbox-group-all-select"),
+      ).find(isVisible) as HTMLElement | undefined;
 
       if (!checkAll) {
-        return missingText;
+        return "";
       }
 
-      const beforeClass = checkAll.className;
-      const beforeAriaChecked = checkAll.getAttribute("aria-checked");
-      const beforeChecked =
-        checkAll.classList.contains("is-checked") ||
-        checkAll.querySelector(".is-checked") !== null ||
-        (checkAll.querySelector("input") as HTMLInputElement | null)?.checked === true;
+      if (isChecked(checkAll)) {
+        return successText;
+      }
 
       checkAll.dispatchEvent(new MouseEvent("mouseenter", { bubbles: true, cancelable: true }));
       checkAll.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
       checkAll.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true }));
       checkAll.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
       checkAll.click();
-
-      const afterClass = checkAll.className;
-      const afterAriaChecked = checkAll.getAttribute("aria-checked");
-      const afterChecked =
-        checkAll.classList.contains("is-checked") ||
-        checkAll.querySelector(".is-checked") !== null ||
-        (checkAll.querySelector("input") as HTMLInputElement | null)?.checked === true;
-
-      const changed =
-        beforeClass !== afterClass ||
-        beforeAriaChecked !== afterAriaChecked ||
-        beforeChecked !== afterChecked;
-
-      return changed ? successText : missingText;
+      return successText;
     },
     {
-      missingText: checkAllMissingText,
       successText: checkAllSuccessText,
     },
   );
 
   if (result === checkAllSuccessText) {
     console.log(result);
+  }
+
+  await page.waitForTimeout(500);
+
+  const corrected = await fixUncheckedShopsInSelector(page);
+  if (corrected.correctedNames.length > 0) {
+    console.log(`Corrected unchecked shops individually: ${corrected.correctedNames.join(", ")}`);
+    await page.waitForTimeout(500);
+  }
+
+  const finalSnapshot = await getShopSelectorSnapshot(page);
+  if (finalSnapshot.found && finalSnapshot.uncheckedNames.length === 0) {
+    console.log(`All shops selected successfully: ${finalSnapshot.checkedCount}/${finalSnapshot.shopCount}.`);
     return;
   }
 
-  await captureShopDebugState(page, "miaoshou-shop-checkall-missing.png");
-  console.log("Did not find label.shop-selector-check-all. Saved a debug screenshot and continued.");
+  await captureShopDebugState(page, "miaoshou-shop-selection-incomplete.png");
+  console.log(
+    `Shop selection remained incomplete. Still unchecked: ${finalSnapshot.uncheckedNames.join(", ") || "unknown"}.`,
+  );
 }
 
 async function selectProductCategory(page: Page) {
@@ -3783,6 +4006,8 @@ async function publishCreatedProduct(page: Page) {
   const releaseDialog = await getReleaseProductDialog(page);
   console.log(`Opened ${releaseProductDialogTitleText} dialog`);
 
+  await clickShopSelectorCheckAll(page);
+
   const publishButton = releaseDialog.locator("button").filter({ hasText: publishToSelectedShopText }).first();
   await publishButton.waitFor({ state: "visible", timeout: 20_000 });
   await clickLocatorLowConflict(publishButton, page);
@@ -3877,7 +4102,7 @@ async function prepareCreateProductFlow(page: Page, productItem: ProductJsonItem
   if (englishTitle) {
     await inputEnglishTitle(page, englishTitle);
   } else {
-    console.log(`Skipped ${englishTitleText} because the current product item has no englist_title.`);
+    console.log(`Skipped ${englishTitleText} because the current product item has no English title.`);
   }
 
   await selectOrigin(page);

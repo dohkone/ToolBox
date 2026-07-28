@@ -85,6 +85,11 @@ def parse_args():
         help="Path to the title JSON used to randomize 产品标题 for each SPxx row.",
     )
     parser.add_argument(
+        "--title-chinese-only",
+        action="store_true",
+        help="Only randomize the Chinese 产品标题 and leave 英语标题 empty.",
+    )
+    parser.add_argument(
         "--output-dir",
         default=str(DEFAULT_OUTPUT_DIR),
         help="Directory for generated product JSON when --products-json is not provided.",
@@ -477,21 +482,33 @@ def load_titles(title_json_path):
     with Path(title_json_path).open("r", encoding="utf-8") as handle:
         payload = json.load(handle)
 
+    title_values = payload.get("titles")
+    if isinstance(title_values, list):
+        cn_titles = [str(value).strip() for value in title_values if str(value).strip()]
+        english_values = payload.get("english_title", payload.get("english_titles", payload.get("en_titles", [])))
+        en_titles = [str(value).strip() for value in english_values if str(value).strip()] if isinstance(english_values, list) else []
+        if not cn_titles:
+            raise ValueError(f"No usable Chinese titles found in: {title_json_path}")
+        return cn_titles, en_titles
+
     title_groups = payload.get("title_groups")
     if not isinstance(title_groups, list):
-        raise ValueError(f"Invalid title_groups JSON format: {title_json_path}")
+        raise ValueError(f"Invalid title JSON format: {title_json_path}")
 
-    paired = []
+    cn_titles = []
+    en_titles = []
     for item in title_groups:
         if isinstance(item, dict):
             cn_text = str(item.get("cn") or "").strip()
             en_text = str(item.get("en") or "").strip()
-            if cn_text and en_text:
-                paired.append((cn_text, en_text))
+            if cn_text:
+                cn_titles.append(cn_text)
+            if en_text:
+                en_titles.append(en_text)
 
-    if not paired:
-        raise ValueError(f"No usable title groups found in: {title_json_path}")
-    return paired
+    if not cn_titles:
+        raise ValueError(f"No usable Chinese titles found in: {title_json_path}")
+    return cn_titles, en_titles
 
 
 def match_record(records, width, length):
@@ -613,8 +630,9 @@ def collect_sp_directories(assert_dir):
     return sp_dirs
 
 
-def build_main_row(sp_dir, title_pairs):
-    title, english_title = random.choice(title_pairs)
+def build_main_row(sp_dir, cn_titles, en_titles, title_chinese_only=False):
+    title = random.choice(cn_titles)
+    english_title = "" if title_chinese_only or not en_titles else random.choice(en_titles)
     return {
         "product_id": sp_dir.name,
         "title": title,
@@ -727,7 +745,7 @@ def main():
     title_json_path = Path(args.title_json)
     ensure_index(index_path, source_path)
     records = load_records(index_path)
-    title_pairs = load_titles(title_json_path)
+    cn_titles, en_titles = load_titles(title_json_path)
 
     main_rows = []
     matched_rows = []
@@ -737,7 +755,7 @@ def main():
         sp_path = Path(args.sp_dir) if args.sp_dir else None
         product_id = sp_path.name if sp_path is not None else args.product_id
         if sp_path is not None:
-            main_rows.append(build_main_row(sp_path, title_pairs))
+            main_rows.append(build_main_row(sp_path, cn_titles, en_titles, args.title_chinese_only))
 
         size_texts = list(args.sizes)
         current_matched_rows = []
@@ -769,13 +787,13 @@ def main():
         )
     elif args.sp_dir:
         sp_path = Path(args.sp_dir)
-        main_rows.append(build_main_row(sp_path, title_pairs))
+        main_rows.append(build_main_row(sp_path, cn_titles, en_titles, args.title_chinese_only))
         summary = process_sp_dir(sp_path, records)
         matched_rows.extend(summary["matched_rows"])
         summaries.append(summary)
     else:
         for sp_path in collect_sp_directories(args.assert_dir):
-            main_rows.append(build_main_row(sp_path, title_pairs))
+            main_rows.append(build_main_row(sp_path, cn_titles, en_titles, args.title_chinese_only))
             summaries.append(process_sp_dir(sp_path, records))
         for summary in summaries:
             matched_rows.extend(summary["matched_rows"])

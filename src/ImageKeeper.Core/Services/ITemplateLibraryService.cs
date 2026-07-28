@@ -21,6 +21,10 @@ public interface ITemplateLibraryService
 
 	Task DeleteColorGroupAsync(long id, CancellationToken cancellationToken = default(CancellationToken));
 
+	Task<int> ExportColorTemplatesAsync(string packagePath, CancellationToken cancellationToken = default(CancellationToken));
+
+	Task<int> ImportColorTemplatesAsync(string packagePath, CancellationToken cancellationToken = default(CancellationToken));
+
 	Task<IReadOnlyDictionary<long, IReadOnlyList<long>>> GetSceneSubjectBindingsAsync(CancellationToken cancellationToken = default(CancellationToken));
 
 	Task SetSceneSubjectBindingsAsync(long sceneTemplateId, IReadOnlyList<long> subjectTemplateIds, CancellationToken cancellationToken = default(CancellationToken));

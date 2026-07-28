@@ -1,404 +1,52 @@
 {
-  "title_groups": [
-    {
-      "cn": "皮革修复胶带，细腻荔枝纹 PU 材质，纸轴卷装，自粘网格背胶粘贴牢固，完美遮盖表面瑕疵，适用于家用沙发、汽车内饰及宠物损坏的家具",
-      "en": "Leather Repair Tape with subtle lychee grain PU made into paper spool roll, self-adhesive grid backing sticks firmly, covers surface flaws well, works great on home couches, vehicle inner trims and furniture damaged by pets"
-    },
-    {
-      "cn": "自粘 PU 修复卷，纸筒包装，荔枝纹理柔和，撕下后无残胶，轻松焕新旧沙发、汽车扶手及有划痕的家用皮具",
-      "en": "Self adhesive PU repair roll on paper tube featuring faint lychee texture, the adhesive leaves no messy residue after peeling, renews old sofas, car armrests and scratched household leather goods easily"
-    },
-    {
-      "cn": "浅荔枝纹皮革补丁卷，纸轴缠绕，强力粘胶支持柔韧弯曲，修复磨损沙发皮、汽车门板及日常皮具上的宠物爪痕",
-      "en": "Light lychee grain leather patch roll wound on paper spool, strong sticky glue supports flexible bending, fixes worn sofa leather, automotive door panels and pet claw marks on daily leather decorations"
-    },
-    {
-      "cn": "PU 皮革修复条，柔和荔枝纹，纸卷包装，自粘设计可随意裁剪，遮盖室内沙发及全套汽车内饰皮革的裂纹与磨损",
-      "en": "PU leather repair strip with gentle lychee pattern packed as paper roll, self stick design allows casual trimming, conceals cracks and abrasions for indoor sofas and full sets of car interior leather"
-    },
-    {
-      "cn": "纸轴皮革翻新胶带，浅荔枝纹质感，网格粘胶牢固不翘边，焕新沙发表面、汽车中控台皮革及被家养宠物抓伤的家居用品",
-      "en": "Paper spool leather renovation tape with faint lychee grain texture, grid adhesive holds tight without lifting, refreshes couch surfaces, car console leather and household items scratched by domestic pets"
-    },
-    {
-      "cn": "荔枝纹 PU 自粘卷，纸芯缠绕，柔韧材质贴合弧形皮革表面，修补磨损沙发、汽车内拉手及损坏的皮革家居饰品",
-      "en": "Lychee textured PU self-adhesive roll wrapped around paper core, flexible material fits curved leather surfaces, mends scuffed sofas, car inner handles and damaged leather home ornaments"
-    },
-    {
-      "cn": "浅荔枝纹皮革修复卷，纸筒安装，粘性背胶耐日常摩擦，修复开裂沙发皮、汽车内饰座套及宠物抓挠留下的痕迹",
-      "en": "Faint lychee grain leather repair roll mounted on paper tube, sticky backing resists daily friction, repairs split couch leather, car interior upholstery and marks caused by pet scratching activity"
-    },
-    {
-      "cn": "自粘皮革胶带，荔枝纹 PU 材质，纸卷成型，易裁剪适配多种形状，遮盖客厅沙发及汽车内饰多处皮革的瑕疵",
-      "en": "Self sticking leather tape made of lychee grain PU and formed as paper roll, easy to cut to match varied shapes, hides blemishes on living room sofas and multiple sections of car inner leather"
-    },
-    {
-      "cn": "纸芯 PU 修复卷，带细腻荔枝纹，胶层在频繁弯曲下保持稳定，恢复老化沙发皮、汽车门板扶手及宠物损坏的家用皮革家具",
-      "en": "Paper core PU repair roll carrying subtle lychee grain, glue layer stays stable under frequent bending, restores aging couch leather, car door armrests and pet-damaged household leather furnishings"
-    },
-    {
-      "cn": "荔枝纹皮革修补卷，纸轴承载，自粘设计方便 DIY 操作，遮盖家用沙发及汽车内饰皮革的表面瑕疵",
-      "en": "Lychee patterned leather mending roll with paper spool carrier, self-adhesive design enables convenient DIY operations, covers surface blemishes for residential sofas and vehicle interior leather trims"
-    },
-    {
-      "cn": "细腻荔枝纹皮革胶带，纸轴卷装，网格粘胶避免残留，补修划痕沙发表面、汽车内饰及被宠物爪子损坏的皮革件",
-      "en": "Subtle lychee texture leather tape rolled onto paper spindle, grid glue avoids unwanted stick residue, touches up scratched sofa surfaces, car inner trim and leather pieces ruined by pet paws"
-    },
-    {
-      "cn": "纸筒缠绕 PU 皮革卷，柔和荔枝纹，强粘性适配不平整皮革面，修复有瑕疵的客厅沙发及各类汽车内饰皮革部件",
-      "en": "Paper tube wound PU leather roll with mild lychee grain, strong adhesion adapts to uneven leather planes, fixes flawed living room couches and assorted automotive interior leather components"
-    },
-    {
-      "cn": "自粘皮革翻新卷，浅荔枝纹，纸轴包装，柔韧材质贴合度佳，消除家用沙发、汽车座套及宠物磨花皮革装饰上的难看划痕",
-      "en": "Self adhesive leather renovation roll with faint lychee grain on paper spool, pliable material conforms well, eliminates ugly scratches on home sofas, car upholstery and pet-scuffed leather decor"
-    },
-    {
-      "cn": "浅荔枝纹 PU 修补胶带，纸芯缠绕，粘层耐日常磨损，焕新磨损沙发套、汽车中控台皮革及家用宠物啃咬的皮具",
-      "en": "Light lychee grain PU mending tape coiled around paper core, sticky layer resists regular wear, refresher worn couch covers, car center console leather and household pet-bitten leather goods"
-    },
-    {
-      "cn": "纸轴皮革修复卷，柔和荔枝质感，即撕即贴设计简化家庭 DIY，遮盖沙发、汽车门板皮革及家用皮革装饰的裂纹与刮痕",
-      "en": "Paper spool leather fix roll with gentle lychee texture, peel-and-stick design simplifies home DIY, masks cracks and scrapes across sofas, car door leather and domestic leather decorations"
-    },
-    {
-      "cn": "荔枝纹 PU 自粘卷，纸轴缠绕，可裁剪定制尺寸，改善划痕沙发、汽车内扶手及受宠物影响的家用皮革家具外观",
-      "en": "Lychee grain PU self stick roll wrapped on paper spindle, customizable size via cutting, improves appearance of scratched sofas, car inner armrests and family pet-affected leather furniture"
-    },
-    {
-      "cn": "浅荔枝纹修复胶带，纸筒卷装，网格粘胶防止边缘卷翘，修复干裂沙发皮、汽车内饰板及家养宠物损坏的皮革物品",
-      "en": "Faint lychee textured repair tape rolled up on paper tube, grid adhesive prevents edge curling, repairs chapped couch leather, car interior panels and leather items damaged by household pets"
-    },
-    {
-      "cn": "PU 皮革修复轴卷，细腻荔枝纹 + 自粘背胶，柔韧适配弧形部位，焕新休闲沙发、汽车内饰皮革及有划痕的室内皮革饰品",
-      "en": "PU leather repair spool roll with subtle lychee grain and self adhesive backing, flexible enough for curved spots, renews lounge sofas, car inner leather and scratched indoor leather ornaments"
-    },
-    {
-      "cn": "纸芯荔枝纹皮革修补卷，背面带粘层，耐反复折叠不脱落，补修瑕疵汽车内饰及客厅皮革沙发表面",
-      "en": "Paper core lychee grain leather mending roll with sticky rear layer, withstands repeated folding without detachment, touches up flawed car interiors and living room leather sofa surfaces"
-    },
-    {
-      "cn": "自粘皮革胶带，柔和荔枝纹，纸卷包装，可手剪结构适配多种翻新需求，遮盖沙发、汽车饰条及宠物损坏皮革装饰的磨损",
-      "en": "Self-adhesive leather tape with mild lychee grain packaged as paper roll, hand-cuttable structure suits diverse renovation needs, conceals abrasions on sofas, car trims and pet-harmed leather decor"
-    },
-    {
-      "cn": "纸轴 PU 皮革焕新卷，主打浅荔枝纹，扎实粘胶固定胶带不位移，修补磨损家用沙发、汽车内拉手及宠物爪痕皮革配饰",
-      "en": "Paper spindle PU leather renewal roll boasting faint lychee grain, solid adhesive keeps the tape fastened, remedies scuffed family sofas, car inner handles and pet claw-marked leather accessories"
-    },
-    {
-      "cn": "浅荔枝纹皮革修复卷（纸筒装），可移除粘胶无残留，非常适合焕新磨损沙发皮及各部位汽车内饰皮革",
-      "en": "Light lychee texture leather repair roll on paper tube features removable adhesive with no residue, perfect for refreshing worn couch leather and various sections of automobile inner leather"
-    },
-    {
-      "cn": "荔枝纹自粘 PU 卷，纸轴缠绕，易弯曲材质贴合轮廓皮革，遮盖家用沙发及宠物损坏的汽车内饰皮革瑕疵",
-      "en": "Lychee grain self sticking PU roll coiled on paper spool, bend-friendly material fits contoured leather, hides blemishes on residential couches and pet-damaged car interior leather"
-    },
-    {
-      "cn": "细腻荔枝纹皮革修补胶带，纸芯缠绕，网格粘胶确保粘合稳定，修复开裂家用沙发、汽车门板皮革及日常宠物抓伤的皮革家具",
-      "en": "Subtle lychee grain leather mending tape wound around paper core, grid glue ensures stable bonding, fixes cracked home sofas, car door leather and daily pet-scratched leather furnishings"
-    },
-    {
-      "cn": "纸筒皮革修复轴，柔和荔枝纹质感，便捷即撕即贴操作焕新老化沙发、汽车中控台皮革及受宠物损坏的家用皮革",
-      "en": "Paper tube leather repair spool with gentle lychee grain texture, convenient peel-and-apply operation renews aged sofas, car console leather and household leather hit by pet damage"
-    },
-    {
-      "cn": "自粘浅荔枝纹 PU 卷，纸轴包装成型，易裁剪适配不规则皮革区域，遮盖休闲沙发及各类汽车内饰皮革的磨损",
-      "en": "Self adhesive faint lychee PU roll formed as paper spindle package, easy trimming matches irregular leather areas, covers scuffs on lounge couches and all types of car inner leather"
-    },
-    {
-      "cn": "柔和荔枝纹皮革翻新卷，纸轴承载，强力粘胶抵御日常摩擦，修补刮花的沙发表面、汽车扶手皮革及家用宠物啃咬的皮革装饰",
-      "en": "Mild lychee grain leather renovation roll held on paper spool, tough glue fights daily abrasion, mends scraped sofa surfaces, car armrest leather and family pet-chewed leather decor"
-    },
-    {
-      "cn": "纸芯荔枝纹 PU 修复胶带，带粘性背胶，柔韧结构适用于弧形家具皮革，焕新家用沙发及有划痕的汽车内饰皮革",
-      "en": "Paper core lychee textured PU repair tape with sticky backing, pliable build works well on curved furniture leather, refreshes home sofas and scratched automotive interior leather"
-    },
-    {
-      "cn": "荔枝纹皮革修复胶带，纸筒卷装 + 自粘胶，DIY 友好设计遮盖客厅沙发及宠物磨花汽车内饰皮革板的难看瑕疵",
-      "en": "Lychee grain leather fix tape rolled onto paper tube with self stick glue, DIY friendly design masks ugly flaws on living room sofas and pet-scuffed car inner leather panels"
-    },
-    {
-      "cn": "浅荔枝纹 PU 轴卷，纸轴缠绕，胶层耐弯曲不分离，修复磨损家用沙发及各类汽车皮革内饰部件",
-      "en": "Faint lychee texture PU spool roll wrapped around paper spindle, adhesive layer resists bending separation, repairs worn household couches and assorted car leather interior parts"
-    },
-    {
-      "cn": "纸轴自粘皮革修补卷，细腻荔枝纹，灵活裁剪适配独特皮革造型，遮盖沙发、汽车门板及宠物使用皮具因磨损产生的裂纹",
-      "en": "Paper spool self-adhesive leather mending roll with subtle lychee grain, flexible cutting fits unique leather shapes, hides cracks caused by wear on sofas, car doors and pet-used leather goods"
-    },
-    {
-      "cn": "浅荔枝纹皮革焕新胶带，纸芯缠绕，网格背胶防止轻易脱落，补修受损休闲沙发、汽车内饰及日常抓伤的家用皮革",
-      "en": "Light lychee grain leather renewal tape coiled on paper core, grid backing prevents easy peeling, touches up damaged lounge sofas, car inner trim and household leather scratched daily"
-    },
-    {
-      "cn": "柔和荔枝纹 PU 修复卷，纸筒安装，无残胶粘胶适用于室内及汽车皮革补修，修复多处皮革表面宠物爪子留下的痕迹",
-      "en": "Gentle lychee patterned PU repair roll mounted on paper tube, residue-free adhesive suits indoor and car leather touch ups, fixes marks left by pet paws on multiple leather surfaces"
-    },
-    {
-      "cn": "自粘皮革轴卷，主打浅荔枝纹质感，可弯曲材质粘贴不平整的沙发与汽车皮革，遮盖家装项目的表面瑕疵",
-      "en": "Self sticking leather spool roll featuring faint lychee grain texture, bendable material sticks to uneven couch and car leather, covers surface imperfections for home renovation projects"
-    },
-    {
-      "cn": "纸轴皮革修补胶带，荔枝纹 PU 结构，强力网格粘胶频繁活动仍保持完整，焕新宠物损坏的沙发及汽车内饰皮革",
-      "en": "Paper spindle leather mending tape with lychee grain PU construction, strong grid glue stays intact with frequent movement, renews pet-damaged sofas and vehicle interior leather"
-    },
-    {
-      "cn": "细腻荔枝纹 PU 翻新卷，纸轴缠绕，手工修剪实现定制化皮革覆盖，修补家用沙发及汽车皮革扶手部件的刮痕",
-      "en": "Subtle lychee grain PU renovation roll wound on paper spool, hand trim enables tailored leather coverage, repairs scrapes on residential couches and car leather armrest components"
-    },
-    {
-      "cn": "纸筒自粘皮革修复卷，柔和荔枝纹，柔韧表面贴合圆润皮革边缘，消除家用沙发及受宠物影响汽车座套的划痕",
-      "en": "Paper tube self-adhesive leather fix roll with mild lychee grain, pliable surface fits rounded leather edges, eliminates scratches across home sofas and pet-affected car upholstery"
-    },
-    {
-      "cn": "荔枝纹皮革修复轴，纸芯 + 粘胶，日常摩擦不会使胶带移位，焕新老化汽车内饰皮革及有划痕的客厅沙发皮",
-      "en": "Lychee textured leather repair spool with paper core and sticky glue, daily friction will not make the tape shift, refreshes aged car inner leather and scratched living room sofa leather"
-    },
-    {
-      "cn": "浅荔枝纹自粘皮革卷，纸轴包装，简单 DIY 修剪适配所有皮革轮廓，遮盖家用沙发及宠物磨花汽车门板皮革的磨损",
-      "en": "Faint lychee grain self-adhesive leather roll packaged on paper spindle, simple DIY trimming adapts to all leather contours, masks abrasions on family sofas and pet-scuffed car door leather"
-    },
-    {
-      "cn": "浅荔枝纹 PU 皮革修补胶带，纸轴缠绕，稳定粘胶经久耐用，焕新有瑕疵的休闲沙发及家养宠物损坏的家用皮革",
-      "en": "Light lychee PU leather mending tape coiled around paper spool, stable adhesive endures regular use, renews flawed lounge sofas and household leather damaged by domestic pets"
-    },
-    {
-      "cn": "纸芯皮革焕新卷，柔和荔枝纹 + 自粘背胶，灵活施用适用于弧形汽车及家用皮革，遮盖宠物活动造成的磨损痕迹",
-      "en": "Paper core leather renewal roll with gentle lychee grain and self stick backing, flexible application works on curved car and home leather, conceals wear marks from pet activity"
-    },
-    {
-      "cn": "荔枝纹 PU 修复胶带，纸筒卷装，即撕即贴缩短翻新时间，修复开裂沙发皮及磨花的汽车内饰皮革板",
-      "en": "Lychee grain PU repair tape rolled up on paper tube, peel-and-stick application cuts renovation time, fixes cracked sofa leather and scuffed automotive interior leather panels"
-    },
-    {
-      "cn": "细腻荔枝纹自粘皮革轴卷，网格粘胶牢固固定边缘，补修受损家用沙发及家用车辆内部皮革部件",
-      "en": "Subtle lychee textured self-adhesive leather spool roll, grid glue keeps edges secured firmly, touches up marred household couches and leather parts inside family vehicles"
-    },
-    {
-      "cn": "纸轴柔和荔枝纹皮革修补卷，PU 材质打造，移除后无粘胶残留，焕新宠物抓伤的沙发及磨损汽车内饰皮革座套",
-      "en": "Paper spindle mild lychee leather mending roll built with PU material, no sticky residue remains after removal, refreshes pet clawed sofas and worn car inner leather upholstery"
-    },
-    {
-      "cn": "浅荔枝纹皮革修复卷，纸芯缠绕，可自由裁剪设计满足多样皮革修复需求，遮盖室内沙发及汽车中控台皮革的瑕疵",
-      "en": "Faint lychee grain leather fix roll wrapped on paper core, freely cuttable design meets diverse leather repair demands, hides blemishes across indoor sofas and car console leather"
-    },
-    {
-      "cn": "自粘浅荔枝纹 PU 胶带，纸筒缠绕，耐弯曲粘合适配轮廓家具皮革，修复宠物在家用及汽车皮具上造成的刮痕",
-      "en": "Self adhesive light lychee PU tape coiled on paper tube, bend resistant bonding fits contoured furniture leather, repairs scrapes caused by pets on home and car leather goods"
-    },
-    {
-      "cn": "纸轴皮革翻新胶带，主打柔和荔枝纹质感，可靠粘胶抵御日常拉扯，焕新有划痕的客厅沙发及车门皮革",
-      "en": "Paper spool leather renovation tape featuring gentle lychee grain texture, reliable adhesion resists everyday tugging, renews scratched living room couches and vehicle door leather"
-    },
-    {
-      "cn": "荔枝纹皮革修复卷，纸筒载体 + 粘性背胶，柔韧材质贴合不平整皮革面，遮盖沙发及汽车内饰皮革上的宠物损伤",
-      "en": "Lychee grain leather repair roll with paper tube carrier and sticky backing, pliable material hugs uneven leather planes, masks pet damage on sofas and automotive interior leather"
-    },
-    {
-      "cn": "细腻荔枝纹 PU 自粘轴卷，纸轴缠绕，易定制适配异形皮革部位，修补家用沙发及汽车内扶手皮革的磨损",
-      "en": "Subtle lychee PU self sticking spool roll wound on paper spindle, easy customization fits oddly shaped leather sections, fixes abrasions on family sofas and car inner armrest leather"
-    },
-    {
-      "cn": "纸芯浅荔枝纹修补胶带，网格粘胶，长期使用不会出现胶失效，焕新磨损家用皮沙发及宠物损坏的汽车饰条皮革",
-      "en": "Paper core faint lychee textured mending tape with grid adhesive, long term use will not trigger glue failure, refreshes worn home leather sofas and pet-damaged car trim leather"
-    },
-    {
-      "cn": "柔和荔枝纹皮革轴卷，纸筒装 + 自粘胶，便捷 DIY 流程焕新沙发及家用车辆多处内饰的老化皮革",
-      "en": "Gentle lychee grain leather spool roll on paper tube with self adhesive glue, convenient DIY process renews aged leather on sofas and multiple inner sections of family cars"
-    },
-    {
-      "cn": "浅荔枝纹 PU 皮革修复胶带，纸轴缠绕，无残胶撕除保护原皮，遮盖沙发及汽车皮革板上宠物造成的难看划痕",
-      "en": "Light lychee texture PU leather fix tape coiled around paper spool, residue free peeling protects original leather, covers ugly scratches from pets on couches and car leather panels"
-    },
-    {
-      "cn": "自粘荔枝纹翻新卷，纸轴安装，易弯曲结构适用于弧形沙发及汽车皮革，遮盖表面裂纹及日常磨损",
-      "en": "Self adhesive lychee grain renovation roll mounted on paper spindle, bend friendly build works for curved sofa and car leather, conceals surface cracks and daily abrasions"
-    },
-    {
-      "cn": "纸筒细腻荔枝纹皮革修复卷，强力粘胶，修剪后可完美匹配各类皮革家具，修补宠物磨花的室内及汽车皮革",
-      "en": "Paper tube subtle lychee leather repair roll with strong sticky glue, trimming allows perfect matching with varied leather furniture, mends pet-scuffed indoor and auto leather"
-    },
-    {
-      "cn": "浅荔枝纹 PU 修补轴，纸芯缠绕，稳定粘合耐常规折叠，焕新有瑕疵的休闲沙发及家用汽车内饰皮革",
-      "en": "Faint lychee grain PU mending spool wrapped on paper core, stable bonding stands up to regular folding, refreshes flawed lounge sofas and household car inner leather"
-    },
-    {
-      "cn": "荔枝纹皮革自粘胶带，纸轴卷装，简单撕贴降低 DIY 难度，遮盖家用沙发及汽车皮革饰条上的宠物咬痕与刮痕",
-      "en": "Lychee textured leather self stick tape rolled onto paper spool, simple peel application lowers DIY difficulty, hides pet bite marks and scrapes on home sofas and car leather trim"
-    },
-    {
-      "cn": "纸轴柔和荔枝纹 PU 焕新卷，网格背胶，日常使用极少出现边缘翘起，修复有划痕的家用沙发及车辆扶手皮革",
-      "en": "Paper spindle mild lychee PU renewal roll with grid backing glue, edge lifting rarely happens with daily use, repairs scratched residential couches and vehicle armrest leather"
-    },
-    {
-      "cn": "细腻荔枝纹皮革修复胶带，纸筒承载，柔韧特性贴合圆润皮革家具边缘，消除受宠物影响的家用及汽车皮革磨损瑕疵",
-      "en": "Subtle lychee grain leather fix tape held on paper tube, pliable nature conforms to rounded leather furniture edges, eliminates wear flaws on pet-affected home and car leather"
-    },
-    {
-      "cn": "自粘浅荔枝纹皮革卷，纸芯缠绕，灵活裁剪支持各类皮革翻新作业，补修受损汽车内饰及客厅沙发",
-      "en": "Self sticking faint lychee leather roll coiled around paper core, flexible cutting supports all kinds of leather renovation jobs, touches up damaged car interiors and living room sofas"
-    },
-    {
-      "cn": "浅荔枝纹纸轴皮革修补胶带，带粘性胶，日常接触摩擦不会松动胶带，焕新宠物损伤的皮沙发及汽车内饰皮革",
-      "en": "Light lychee grain paper spool leather mending tape with sticky adhesive, daily contact friction cannot loosen the tape, renews pet harmed leather sofas and automobile inner leather"
-    },
-    {
-      "cn": "纸芯荔枝纹 PU 翻新轴卷，无残胶粘胶保持原皮完整，遮盖家用沙发及汽车门板皮革部位的裂纹与磨损",
-      "en": "Paper core lychee patterned PU renovation spool roll, residue-free glue keeps original leather intact, masks cracks and scuffs across household sofas and car door leather sections"
-    },
-    {
-      "cn": "柔和荔枝纹自粘皮革胶带，纸轴缠绕，简易 DIY 调整适配不平整皮革表面，修复休闲沙发及汽车座套上的宠物爪痕",
-      "en": "Gentle lychee textured self-adhesive leather tape wound on paper spindle, easy DIY adjustment fits uneven leather surfaces, repairs pet claw scratches on lounge couches and car upholstery"
-    },
-    {
-      "cn": "浅荔枝纹皮革修复卷，纸筒安装 + 网格胶，持久粘性适用于高频使用皮革区域，焕新磨损家用沙发及家用汽车中控台皮革",
-      "en": "Faint lychee grain leather repair roll mounted on paper tube with grid glue, durable adhesion suits high-use leather areas, refreshes worn home sofas and family car console leather"
-    },
-    {
-      "cn": "荔枝纹 PU 自粘轴卷，纸轴缠绕，可弯曲材质良好遮盖弧形皮革损伤，隐藏室内及汽车皮革上宠物造成的瑕疵",
-      "en": "Lychee grain PU self-adhesive spool roll wrapped around paper spool, bendable material covers curved leather damage well, hides pet caused blemishes on indoor and auto leather"
-    },
-    {
-      "cn": "纸轴细腻荔枝纹皮革修复胶带，可撕粘性背胶，可定制裁剪适配独特皮革家具造型，补修家用沙发及汽车内拉手的刮痕",
-      "en": "Paper spindle subtle lychee leather fix tape with peelable sticky backing, custom cuttable for unique leather furniture shapes, touches up scrapes on residential couches and car inner handles"
-    },
-    {
-      "cn": "柔和荔枝纹皮革焕新胶带，纸芯缠绕，稳定胶层粘合耐反复弯曲，焕新宠物抓伤的家用皮沙发及车辆内饰板",
-      "en": "Mild lychee grain leather renewal tape coiled on paper core, steady glue bonding resists repeated bending, renews pet-scratched household leather sofas and vehicle interior panels"
-    },
-    {
-      "cn": "自粘浅荔枝纹皮革修补卷，纸筒包装，便捷家用 DIY 工具焕新老化沙发皮及有划痕的汽车皮革饰件",
-      "en": "Self adhesive light lychee leather mending roll packed on paper tube, convenient household DIY tool refreshes aged couch leather and scratched automotive leather trim pieces"
-    },
-    {
-      "cn": "纸轴浅荔枝纹 PU 修复卷，背面带粘胶，柔韧覆盖适配所有常见皮革家具，遮盖沙发及汽车皮革上宠物造成的磨损",
-      "en": "Paper spool faint lychee textured PU repair roll with sticky rear glue, flexible coverage fits all common leather furniture, conceals abrasions from pets on sofas and car leather"
-    },
-    {
-      "cn": "荔枝纹皮革修复轴卷，纸筒打造，即撕即贴设计减轻皮革修复工作量，修复开裂家用沙发及受损汽车扶手皮革表面",
-      "en": "Lychee grain leather fix spool roll built on paper tube, peel and stick design cuts down leather repair workload, fixes cracked home sofas and marred car armrest leather surfaces"
-    },
-    {
-      "cn": "细腻荔枝纹 PU 自粘胶带，纸轴卷装，无残胶移除避免皮革染色，遮盖客厅沙发及汽车门板皮革座套上的宠物损伤",
-      "en": "Subtle lychee PU self sticking tape rolled onto paper spindle, residue free removal prevents leather staining, masks pet damage on living room couches and car door leather upholstery"
-    },
-    {
-      "cn": "纸芯柔和荔枝纹皮革翻新卷，网格粘胶减少边缘卷翘，焕新磨损室内皮沙发及有划痕的家用汽车内饰皮革",
-      "en": "Paper core gentle lychee grain leather renovation roll, grid adhesive minimizes edge curling, refreshes worn indoor leather sofas and scratched family car inner leather"
-    },
-    {
-      "cn": "浅荔枝纹皮革自粘卷，纸轴安装，柔韧表面贴合有角度的皮革边缘，消除家养宠物在皮具上留下的难看痕迹",
-      "en": "Faint lychee texture leather self-adhesive roll mounted on paper spool, pliable surface conforms to angled leather edges, eliminates ugly marks left by household pets on leather goods"
-    },
-    {
-      "cn": "浅荔枝纹 PU 修补胶带，纸筒缠绕，可靠粘性经受日常家用及汽车使用，遮盖沙发及受宠物影响汽车皮革的裂纹",
-      "en": "Light lychee grain PU mending tape wrapped around paper tube, reliable stickiness holds up to regular home and car use, covers cracks on sofas and pet-affected automotive leather"
-    },
-    {
-      "cn": "纸轴荔枝纹皮革修复卷，自粘胶，可自由裁剪遮盖不规则皮革瑕疵，焕新有划痕的休闲沙发及家用汽车皮革板",
-      "en": "Paper spindle lychee textured leather repair roll with self stick glue, freely trimmed to cover irregular leather flaws, renews scratched lounge sofas and household car leather panels"
-    },
-    {
-      "cn": "自粘柔和荔枝纹皮革修复卷，纸芯缠绕，耐弯曲粘胶在弧形皮革上保持粘合，补修宠物磨花的家用及汽车皮革物品",
-      "en": "Self adhesive mild lychee leather fix roll coiled on paper core, bend resistant adhesive stays bonded on curved leather, touches up pet-scuffed residential and auto leather items"
-    },
-    {
-      "cn": "细腻荔枝纹皮革焕新轴，纸筒装，干净撕除不留粘痕，修复干裂沙发皮及乘用车内部磨损皮革部位",
-      "en": "Subtle lychee grain leather renewal spool on paper tube, clean peeling leaves no sticky traces, repairs chapped sofa leather and worn leather sections inside passenger vehicles"
-    },
-    {
-      "cn": "荔枝纹 PU 修复轴卷，纸轴缠绕，DIY 裁剪调整沙发及汽车饰条的皮革覆盖，完整遮盖家养宠物造成的爪痕",
-      "en": "Lychee grain PU repair spool roll wound on paper spool, DIY trimming adapts leather coverage for couches and car trims, hides claw marks caused by domestic pets fully"
-    },
-    {
-      "cn": "纸芯浅荔枝纹自粘皮革胶带，强力网格胶，日常活动不会导致胶带脱落，焕新有瑕疵的家用沙发及汽车内饰皮革座套",
-      "en": "Paper core faint lychee self-adhesive leather tape with strong grid glue, daily movement will not cause tape detachment, refreshes flawed home sofas and car inner leather upholstery"
-    },
-    {
-      "cn": "柔和荔枝纹皮革修补卷，纸轴安装，柔韧结构良好贴合轮廓汽车内饰皮革，遮盖宠物使用家用皮沙发的磨损",
-      "en": "Gentle lychee textured leather mending roll mounted on paper spindle, pliable build fits contoured car interior leather well, masks abrasions on pet-used household leather sofas"
-    },
-    {
-      "cn": "浅荔枝纹皮革修复胶带，纸筒缠绕，易撕除保持原皮清洁，修补刮花的家用沙发及日常驾乘车辆内部有划痕的皮革",
-      "en": "Faint lychee grain leather fix tape coiled around paper tube, easy peeling keeps original leather clean, repairs scraped family couches and scratched leather inside daily driving vehicles"
-    },
-    {
-      "cn": "纸轴浅荔枝纹 PU 翻新卷，带粘性自粘背胶，柔韧材质适用于所有弧形皮革修复，遮盖家用及汽车皮革上的宠物划痕",
-      "en": "Paper spool light lychee PU renovation roll with sticky self adhesive backing, flexible material works for all curved leather repairs, conceals pet scratches across home and car leather"
-    },
-    {
-      "cn": "自粘荔枝纹皮革修复卷，纸芯缠绕，网格胶提供稳定持久粘合，焕新磨损休闲沙发及宠物损坏的汽车门板皮革板",
-      "en": "Self sticking lychee grain leather repair roll wrapped on paper core, grid glue delivers stable long time adhesion, renews worn lounge sofas and pet damaged car door leather panels"
-    },
-    {
-      "cn": "细腻荔枝纹皮革胶带，纸筒卷装，用于 DIY 皮革补修，无残胶粘胶保护家具皮革，隐藏沙发及汽车皮革上宠物造成的瑕疵",
-      "en": "Subtle lychee texture leather tape rolled onto paper tube for DIY leather touch ups, residue free adhesive protects furniture leather, hides flaws from pets on couches and auto leather"
-    },
-    {
-      "cn": "纸轴柔和荔枝纹 PU 修补轴，易弯曲结构，修剪后适配不平整沙发与汽车皮革，消除常规磨损造成的表面裂纹",
-      "en": "Paper spindle mild lychee PU mending spool with bend friendly structure, trimming matches uneven sofa and car leather, eliminates surface cracks caused by regular wear"
-    },
-    {
-      "cn": "浅荔枝纹皮革自粘卷，纸轴承载，即撕即贴加速家具翻新，修复宠物啃咬的皮沙发及有划痕的汽车扶手皮革",
-      "en": "Faint lychee grain leather self-adhesive roll held on paper spool, peel-and-apply speeds up furniture renewal, repairs pet-bitten leather sofas and scratched automotive armrest leather"
-    },
-    {
-      "cn": "荔枝纹皮革修复胶带，纸芯缠绕 + 粘胶，柔韧表面牢固粘贴圆润皮革，焕新有瑕疵的家用皮革及汽车内饰座套",
-      "en": "Lychee patterned leather fix tape coiled on paper core with sticky glue, pliable surface sticks firmly to rounded leather, refreshes flawed home leather and car interior upholstery"
-    },
-    {
-      "cn": "纸筒细腻荔枝纹皮革翻新卷，网格背胶，边缘极少翘起支持长期使用，补修磨花的家用沙发及家用汽车皮革饰条",
-      "en": "Paper tube subtle lychee grain leather renovation roll with grid backing, minimal edge lifting supports long term usage, touches up scuffed residential couches and family car leather trim"
-    },
-    {
-      "cn": "自粘柔和荔枝纹皮革修复轴，纸轴缠绕，可定制覆盖适配独特皮革家具，遮盖室内及车辆皮具上的宠物磨损",
-      "en": "Self adhesive gentle lychee leather repair spool wrapped around paper spindle, customizable coverage fits unique leather furniture, masks pet abrasions on indoor and vehicle leather goods"
-    },
-    {
-      "cn": "浅荔枝纹 PU 皮革修补卷，纸轴安装，频繁折叠后胶层仍保持完整，焕新有划痕的客厅沙发及宠物损伤的汽车中控台皮革",
-      "en": "Light lychee grain PU leather mending roll mounted on paper spool, glue stays intact even after frequent folding, renews scratched living room sofas and pet harmed car console leather"
-    },
-    {
-      "cn": "纸芯浅荔枝纹修复胶带，可撕粘胶，DIY 爱好者轻松焕新受损皮沙发及家用车辆各类内饰皮革部件",
-      "en": "Paper core faint lychee textured fix tape with peelable adhesive, DIY lovers easily refresh damaged leather sofas and assorted inner leather parts of family vehicles"
-    },
-    {
-      "cn": "荔枝纹皮革焕新胶带，纸筒缠绕 + 自粘设计，柔韧材质良好遮盖弧形皮革划痕，隐藏家用及汽车皮革表面的日常宠物损伤",
-      "en": "Lychee grain leather renewal tape wound on paper tube with self stick design, pliable material covers curved leather scratches well, hides daily pet damage on home and auto leather surfaces"
-    },
-    {
-      "cn": "纸轴细腻荔枝纹 PU 修复卷，弯曲时抗胶层分离，方便修补沙发裂纹及日常用车内宠物磨花的皮革",
-      "en": "Subtle lychee PU repair roll on paper spindle resists glue separation during bending, convenient for fixing couch cracks and pet-scuffed leather inside daily used cars"
-    },
-    {
-      "cn": "纸轴柔和荔枝纹自粘皮革修补胶带，移除后零粘胶残留，非常适合补修磨损皮沙发及汽车门板皮革部位",
-      "en": "Paper spool mild lychee self-adhesive leather mending tape leaves zero sticky residue post removal, perfect for touching up worn leather sofas and automotive door leather sections"
-    },
-    {
-      "cn": "浅荔枝纹皮革修复卷，纸芯缠绕，灵活裁剪解决多样皮革瑕疵问题，焕新被宠物损坏的家用沙发及有划痕的汽车内饰皮革",
-      "en": "Faint lychee grain leather fix roll coiled around paper core, flexible cutting solves varied leather blemish issues, renews family sofas marred by pets and scratched car inner leather"
-    },
-    {
-      "cn": "自粘荔枝纹 PU 轴卷，纸筒安装，可靠粘性同时适用于家用家具及汽车皮革饰条",
-      "en": "Self sticking lychee textured PU spool roll mounted on paper tube, reliable adhesion works well on both home furniture and automobile leather trims"
-    },
-    {
-      "cn": "纸轴浅荔枝纹皮革翻新胶带，网格粘胶，日常摩擦无法松动粘合区域，遮盖沙发及汽车座套皮革上的宠物爪痕",
-      "en": "Paper spindle light lychee leather renovation tape with grid sticky glue, daily friction cannot loosen bonded areas, conceals pet claw marks on couches and car upholstery leather"
-    },
-    {
-      "cn": "柔和荔枝纹皮革修复卷，纸轴缠绕，简单手工裁剪满足沙发及汽车内饰皮革所有常规皮革翻新需求",
-      "en": "Gentle lychee grain leather repair roll wrapped on paper spool, simple manual trimming meets all regular leather refurbishment needs for sofas and car interior leather"
-    },
-    {
-      "cn": "细腻荔枝纹自粘 PU 胶带，纸筒缠绕，无残胶撕除避免皮革二次损伤，修复室内皮革家具上宠物造成的刮痕",
-      "en": "Subtle lychee textured self-adhesive PU tape coiled on paper tube, residue-free peeling avoids secondary damage to leather, repairs scrapes from pets on indoor leather furnishings"
-    },
-    {
-      "cn": "纸芯浅荔枝纹皮革修复轴，柔韧胶层，贴合不平整沙发皮及弧形汽车皮革，遮盖家养宠物造成的磨损瑕疵",
-      "en": "Paper core faint lychee leather fix spool with flexible adhesive layer, fits uneven sofa leather and curved car leather, masks wear imperfections caused by household pets"
-    },
-    {
-      "cn": "荔枝纹皮革修补卷，纸筒载体 + 即撕即贴粘胶，简易家庭 DIY 改善有划痕沙发及受宠物影响汽车内饰皮革外观",
-      "en": "Lychee grain leather mending roll with paper tube carrier and peel-and-stick adhesive, easy household DIY improves look of scratched sofas and pet-affected automobile inner leather"
-    }
+  "titles": [
+    "柔韧荔枝纹沙发修补贴，适配各类弧形家具表层，修补客厅沙发、办公椅、电动车坐垫、皮质床头，翻新斜挎箱包、皮质表带，遮盖曲面位置宠物抓痕，处理居家弧形皮质高频磨损，弯折面料紧密贴合曲面。",
+    "亲肤款沙发皮革卷材，适配养宠家庭居家翻新，修补客厅沙发、办公椅、电动车坐垫、皮质床头，翻新宠物常用箱包、皮质小配件，遮盖宠物日常抓损，解决居家宠物活动区皮质高频磨损，材质温和适配全家与宠物。",
+    "耐磕碰自粘沙发补丁卷材，扛住居家日常碰撞摩擦，修补客厅沙发、办公椅、电动车坐垫、皮质床头，翻新手提箱包、皮质小饰品，遮盖宠物抓蹭磕碰痕迹，处理居家皮质高频撞磨损伤，硬质表层耐受日常磕碰。",
+    "速修荔枝纹沙发皮革卷，适合居家突发皮质破损，修补客厅沙发、办公椅、电动车坐垫、皮质床头，翻新应急破损箱包、皮质小件，遮盖突发宠物抓痕，解决居家皮质高频意外损耗，几分钟简单操作完成修补。",
+    "曲面专用沙发 PU 修补卷材，专为弧形家具设计，修补客厅沙发、办公椅、电动车坐垫、皮质床头，翻新弧形箱包、皮质手绳，遮盖弧形位置宠物抓痕，处理居家弯面皮质高频磨损，软韧材质包裹各类弧度。",
+    "淡味软装沙发翻新卷材，适配母婴居家空间，修补客厅沙发、办公椅、电动车坐垫、皮质床头，翻新收纳箱包、儿童皮质小件，遮盖宠物抓痕，处理居家敏感空间皮质高频磨损，气味清淡适配密闭居家环境。",
+    "加固自粘沙发皮革胶带，多层结构适配重度使用，修补客厅沙发、办公椅、电动车坐垫、皮质床头，翻新负重箱包、皮质硬件护套，遮盖大力抓挠形成的宠物划痕，解决居家高频重压皮质破损，加厚结构更耐用。",
+    "复古荔枝纹沙发修补卷材，纹理适配老式家装，修补客厅沙发、办公椅、电动车坐垫、皮质床头，翻新复古皮包、中式皮质小件，遮盖老家具宠物抓痕，处理居家复古软装高频褪色磨损，纹路适配老式家具质感。",
+    "平价 DIY 沙发软装补丁卷，适合租房大批量翻新，修补客厅沙发、办公椅、电动车坐垫、皮质床头，翻新平价箱包、日常皮质小件，遮盖租房家具宠物抓痕，解决居家租房皮质高频损耗。",
+    "宽幅 PU 沙发翻新卷材，横向覆盖面更广，修补客厅沙发、办公椅、电动车坐垫、皮质床头，翻新大型旅行包、皮质小挂坠，遮盖大片宠物抓痕，处理居家宽面皮质高频老化，宽幅用料减少拼接步骤。",
+    "荔枝纹沙发修复胶带，不容易堆积日常污渍，修补客厅沙发、办公椅、电动车坐垫、皮质床头，翻新餐厨箱包、皮质餐用小件，遮盖混有污渍的宠物抓痕，处理居家餐厨皮质高频脏污磨损，表层便于日常擦拭打理。",
+    "可任意裁切自粘沙发皮革卷，适配不规则家具，修补客厅沙发、办公椅、电动车坐垫、皮质床头，翻新异形皮包、皮质首饰盒，遮盖异形位置宠物抓痕，解决居家不规则皮质高频磨损，自由裁剪适配各种轮廓。",
+    "长效沙发软装修补片，粘贴状态长期稳定，修补客厅沙发、办公椅、电动车坐垫、皮质床头，翻新常年使用箱包、皮质卡套，遮盖日积月累宠物抓痕，处理居家皮质缓慢高频老化，长久贴合不易松脱。",
+    "哑光荔枝纹沙发卷材，适配极简居家装修，修补客厅沙发、办公椅、电动车坐垫、皮质床头，翻新低光箱包、哑光皮质摆件，遮盖亮痕宠物抓痕，处理居家皮质高频划痕。",
+    "亮面自粘沙发 PU 修补胶带，适配精致亮面皮质家具，修补客厅沙发、办公椅、电动车坐垫、皮质床头，翻新亮面晚宴包、皮质首饰收纳，遮盖哑光宠物抓痕，处理居家亮面皮质高频磨花，还原家具精致光泽质感。",
+    "室内专用沙发皮革修复卷，只适配居家室内家具，修补客厅沙发、办公椅、电动车坐垫、皮质床头，翻新室内收纳箱包、居家皮质小装饰，遮盖室内宠物抓痕，处理居家密闭空间皮质高频磨损，纹理适配全部室内软装。",
+    "抗裂荔枝纹沙发粘胶卷材，延缓表层纹路开裂，修补客厅沙发、办公椅、电动车坐垫、皮质床头，翻新褶皱钱包、皮质耳机套，遮盖细纹宠物抓痕，解决居家弯折皮质高频开裂，柔韧结构减少修补后新裂痕。",
+    "通用沙发软装皮革卷材，适配市面上多数居家皮质，修补客厅沙发、办公椅、电动车坐垫、皮质床头，翻新各类款式箱包、多样皮质小件，覆盖全部常见宠物抓损，处理居家全品类皮质高频磨损。",
+    "新手友好自粘沙发补丁卷，降低居家修补门槛，修补客厅沙发、办公椅、电动车坐垫、皮质床头，翻新简易修复箱包、入门级皮质小件，遮盖宠物抓痕，处理居家皮质高频破损，裁切粘贴两步走，新手不用学习技巧。",
+    "特厚荔枝纹沙发修补胶带，填充家具凹陷瑕疵，修补客厅沙发、办公椅、电动车坐垫、皮质床头，翻新深度磨损箱包、皮质钥匙收纳，遮盖深沟状宠物抓痕，处理居家凹陷皮质高频损耗，厚实面料填平凹凸表层。",
+    "日常款沙发 PU 翻新卷材，适配普通居家日日使用，修补客厅沙发、办公椅、电动车坐垫、皮质床头，翻新通勤箱包、随身皮质小件，遮盖日常宠物抓痕，处理居家朝夕使用皮质高频磨损，适配普通人全天候居家使用。",
+    "背胶一体沙发软装修补卷，自带完整胶层不用额外辅料，修补客厅沙发、办公椅、电动车坐垫、皮质床头，翻新旅行箱包、预制粘胶皮质配件，遮盖宠物抓痕，解决居家因胶水脱落造成的高频破损，自带背胶省去辅料采购。",
+    "全屋改造荔枝纹沙发卷材，适配整屋家装焕新，修补客厅沙发、办公椅、电动车坐垫、皮质床头，翻新改造风箱包、软装皮质点缀，遮盖全屋翻新里宠物抓痕，处理居家翻新阶段皮质高频磨损，统一纹路让全屋软装更协调。",
+    "遮盖型自粘沙发皮革胶带，遮挡家具表层各类瑕疵，修补客厅沙发、办公椅、电动车坐垫、皮质床头，翻新瑕疵皮包、皮质小物件，完整盖住宠物抓痕，处理居家皮质表层高频斑点磨损，遮盖力充足隐藏底层破损。",
+    "耐积尘沙发荔枝纹修补卷，不容易附着居家粉尘，修补客厅沙发、办公椅、电动车坐垫、皮质床头，翻新粉尘易沾箱包、皮质彩妆盒，遮盖混有灰尘的宠物抓痕，处理居家皮质高频积尘磨旧，日常除尘即可维持整洁。",
+    "单卷 DIY 沙发软装修补胶带，适合中小面积修补无多余用料，修补客厅沙发、办公椅、电动车坐垫、皮质床头，翻新单件箱包、独立皮质小件，遮盖小范围宠物抓痕，处理居家零散皮质高频磨损，单卷用料不会造成闲置浪费。",
+    "柔韧耐用沙发 PU 粘胶卷材，兼顾柔韧度与使用寿命，修补客厅沙发、办公椅、电动车坐垫、皮质床头，翻新弯折常用箱包、皮质手表带，遮盖弯折位置宠物抓痕，处理居家弯折皮质高频磨坏，柔韧结实兼顾手感与耐用度。",
+    "家装翻新荔枝纹沙发卷材，适配新房旧房软装升级，修补客厅沙发、办公椅、电动车坐垫、皮质床头，翻新改造风箱包、软装皮质配饰，遮盖翻新区域宠物抓痕，处理居家重装阶段皮质高频磨损，适配新旧各类居家装修。",
+    "自粘沙发皮革修补卷材，应对居家皮质损坏，修补客厅沙发、办公椅、电动车坐垫、皮质床头，翻新突发破损箱包、急用皮质小件，遮盖临时新增宠物抓痕，处理居家各类皮质高频破损，居家常备应对损坏。",
+    "全场景通用自粘荔枝纹 PU 皮革修补卷材，一站式适配居家全部皮质物件，修补客厅沙发、办公椅、电动车坐垫、皮质床头，翻新全品类箱包、各类皮质小件，遮盖所有类型宠物抓痕，解决居家全部皮质高频磨损，一款材料搞定全屋各类皮具修补",
+    "荔枝纹自粘 PU 皮革卷，自带背胶方便家用修补，修复客厅沙发、办公椅、电动车坐垫、皮质床头，修整各类箱包、皮质小配件，遮盖宠物抓挠痕迹，搞定家里日常频繁出现的皮质磨坏、掉皮问题，上手简单不用专业工具。",
+    "自粘荔枝纹皮革修补卷，居家日常皮具翻新好物，可修整客厅沙发、办公椅、电动车坐垫、皮质床头，修补背包、卡包等小件皮具，遮挡猫狗抓痕，处理居家各类皮质高频破损，随心裁剪适配任意修补位置。",
+    "家用荔枝纹皮革自粘卷，日常修补各类皮质家具，适配客厅沙发、办公椅、电动车坐垫、皮质床头，翻新手提箱包、皮质挂件，填补宠物抓出的纹路损伤，解决居家反复出现的皮质磨损，普通人居家就能操作。",
+    "自粘 PU 荔枝纹皮革卷材，居家常备皮具修补材料，修复客厅沙发、办公椅、电动车坐垫、皮质床头，打理钱包、表带等小件皮具，盖住宠物抓花区域，应对居家高频皮质表层磨损，裁剪粘贴两步完成修复。",
+    "荔枝纹皮革背胶修补卷，适配全屋各类皮质物件，修补客厅沙发、办公椅、电动车坐垫、皮质床头，改造各类箱包、迷你皮质饰品，遮盖居家宠物抓痕，处理家里家具频繁破皮损耗，不用额外辅料即可修补。",
+    "居家自粘荔枝纹皮革卷，主打各类皮质破损修护，修整客厅沙发、办公椅、电动车坐垫、皮质床头，修复拉杆箱包、皮质钥匙套，抚平宠物抓痕带来的凹凸痕迹，适配居家每天都会出现的皮质老化磨损。",
+    "DIY 新手荔枝纹自粘 PU 皮革卷，手工小白专属修补材料，修补客厅沙发、办公椅、电动车坐垫、皮质床头，翻新各类箱包、简易皮质小件，轻松遮盖宠物抓痕，解决居家皮质高频破损，只需要裁剪粘贴，不用掌握复杂手工技巧"
+  ],
+  "english_title" : [
+    "Self-Adhesive PU Leather Repair Patch Strong Adhesive No Residue Wear-Resistant Anti-Scratch Electric Scooter Motorcycle Seat Renovation Repair Sticker Waterproof Durable Easy DIY",
+    "Self-Adhesive PU Leather Repair Patch Sofa Chair Furniture Renovation Sticker Strong Adhesive No Residue Wear-Resistant Anti-Scratch DIY Home Repair Easy Application",
+    "Self-Adhesive PU Leather Sticker Car Interior Renovation Patch Strong Adhesive No Residue Wear-Resistant Anti-Scratch Heat-Resistant Waterproof Seat Door Panel Repair No Peeling DIY Material",
+    "Self-Adhesive PU Leather Sticker DIY Handmade Bag Leather Craft Decoration Strong Adhesive No Residue Wear-Resistant Anti-Scratch Leather Goods Renovation Multi-Size Cuttable",
+    "Self-Adhesive PU Leather Repair Patch Strong Adhesive No Residue Wear-Resistant Anti-Scratch Waterproof Sofa Seat Electric Scooter Car Interior Renovation DIY Repair Material",
+    "Self-Adhesive PU Leather Repair Sticker Office Chair Sofa Back Restoration Patch Strong Adhesive No Residue Scratch-Resistant Wear-Resistant Non-Peeling Furniture DIY Easy to Cut and Apply",
+    "Self-Adhesive PU Leather Decorative Patch Door Panel Wall Soft Wrap Renovation Strong Adhesive No Residue Wear-Resistant Anti-Scratch Moisture-Proof Waterproof DIY Multi-Color Multi-Size Cuttable",
+    "Self-Adhesive PU Leather Repair Patch Luggage Handbag Repair Material Strong Adhesive No Residue Scratch-Resistant Wear-Resistant Non-Peeling DIY Leather Goods Renovation Easy No Trace",
+    "Multi-Purpose Self-Adhesive PU Leather Patch Sofa Car Seat Bag Door Panel Repair Renovation Strong Adhesive No Residue Waterproof Wear-Resistant Anti-Scratch DIY Cuttable Multi-Size"
   ]
 }
