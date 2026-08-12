@@ -32,6 +32,8 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 	{
 		public string Name { get; set; } = string.Empty;
 
+		public string Material { get; set; } = DefaultMaterial;
+
 		public string Content { get; set; } = string.Empty;
 
 		public bool IsEnabled { get; set; }
@@ -68,6 +70,8 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 
 		public string Subject { get; set; } = string.Empty;
 
+		public string Material { get; set; } = DefaultMaterial;
+
 		public string PreviewFile { get; set; } = string.Empty;
 
 		public ImageTemplateType ImageType { get; set; }
@@ -98,6 +102,8 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 	private sealed class ColorTemplatePackageGroup
 	{
 		public string Name { get; set; } = string.Empty;
+
+		public string Material { get; set; } = DefaultMaterial;
 
 		public int SortOrder { get; set; }
 
@@ -157,6 +163,8 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 
 	private const string IconWordTemplateType = "icon-word";
 
+	private const string DefaultMaterial = "荔枝纹";
+
 	private readonly string _databasePath;
 
 	private readonly string _assetRoot;
@@ -174,10 +182,12 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 		await using SqliteConnection connection = CreateConnection();
 		await connection.OpenAsync(cancellationToken);
 		SqliteCommand sqliteCommand = connection.CreateCommand();
-		sqliteCommand.CommandText = "CREATE TABLE IF NOT EXISTS TemplateItems (\n    Id INTEGER PRIMARY KEY AUTOINCREMENT,\n    Category INTEGER NOT NULL,\n    Name TEXT NOT NULL DEFAULT '',\n    Content TEXT NOT NULL DEFAULT '',\n    Subject TEXT NOT NULL DEFAULT '',\n    PreviewImagePath TEXT NOT NULL DEFAULT '',\n    ImageType INTEGER NOT NULL DEFAULT 0,\n    SortOrder INTEGER NOT NULL DEFAULT 0,\n    IsEnabled INTEGER NOT NULL DEFAULT 1,\n    CreatedAt TEXT NOT NULL,\n    UpdatedAt TEXT NOT NULL\n);\n\nCREATE INDEX IF NOT EXISTS IX_TemplateItems_Category_Id\nON TemplateItems(Category, Id);\n\nCREATE TABLE IF NOT EXISTS SceneTemplateSubjectBindings (\n    Id INTEGER PRIMARY KEY AUTOINCREMENT,\n    SceneTemplateId INTEGER NOT NULL,\n    SubjectTemplateId INTEGER NOT NULL,\n    CreatedAt TEXT NOT NULL,\n    UNIQUE(SceneTemplateId, SubjectTemplateId)\n);\n\nCREATE INDEX IF NOT EXISTS IX_SceneTemplateSubjectBindings_SceneTemplateId\nON SceneTemplateSubjectBindings(SceneTemplateId);\n\nCREATE TABLE IF NOT EXISTS ColorTemplateGroups (\n    Id INTEGER PRIMARY KEY AUTOINCREMENT,\n    Name TEXT NOT NULL DEFAULT '',\n    SortOrder INTEGER NOT NULL DEFAULT 0,\n    IsEnabled INTEGER NOT NULL DEFAULT 1,\n    CreatedAt TEXT NOT NULL,\n    UpdatedAt TEXT NOT NULL\n);\n\nCREATE INDEX IF NOT EXISTS IX_ColorTemplateGroups_SortOrder_Id\nON ColorTemplateGroups(SortOrder, Id);\n\nCREATE TABLE IF NOT EXISTS ColorTemplateColors (\n    Id INTEGER PRIMARY KEY AUTOINCREMENT,\n    GroupId INTEGER NOT NULL,\n    Name TEXT NOT NULL DEFAULT '',\n    HexCode TEXT NOT NULL DEFAULT '',\n    SortOrder INTEGER NOT NULL DEFAULT 0,\n    CreatedAt TEXT NOT NULL,\n    UpdatedAt TEXT NOT NULL\n);\n\nCREATE INDEX IF NOT EXISTS IX_ColorTemplateColors_GroupId_SortOrder\nON ColorTemplateColors(GroupId, SortOrder, Id);";
+		sqliteCommand.CommandText = "CREATE TABLE IF NOT EXISTS TemplateItems (\n    Id INTEGER PRIMARY KEY AUTOINCREMENT,\n    Category INTEGER NOT NULL,\n    Name TEXT NOT NULL DEFAULT '',\n    Content TEXT NOT NULL DEFAULT '',\n    Subject TEXT NOT NULL DEFAULT '',\n    Material TEXT NOT NULL DEFAULT '荔枝纹',\n    PreviewImagePath TEXT NOT NULL DEFAULT '',\n    ImageType INTEGER NOT NULL DEFAULT 0,\n    SortOrder INTEGER NOT NULL DEFAULT 0,\n    IsEnabled INTEGER NOT NULL DEFAULT 1,\n    CreatedAt TEXT NOT NULL,\n    UpdatedAt TEXT NOT NULL\n);\n\nCREATE INDEX IF NOT EXISTS IX_TemplateItems_Category_Id\nON TemplateItems(Category, Id);\n\nCREATE TABLE IF NOT EXISTS SceneTemplateSubjectBindings (\n    Id INTEGER PRIMARY KEY AUTOINCREMENT,\n    SceneTemplateId INTEGER NOT NULL,\n    SubjectTemplateId INTEGER NOT NULL,\n    CreatedAt TEXT NOT NULL,\n    UNIQUE(SceneTemplateId, SubjectTemplateId)\n);\n\nCREATE INDEX IF NOT EXISTS IX_SceneTemplateSubjectBindings_SceneTemplateId\nON SceneTemplateSubjectBindings(SceneTemplateId);\n\nCREATE TABLE IF NOT EXISTS ColorTemplateGroups (\n    Id INTEGER PRIMARY KEY AUTOINCREMENT,\n    Name TEXT NOT NULL DEFAULT '',\n    Material TEXT NOT NULL DEFAULT '荔枝纹',\n    SortOrder INTEGER NOT NULL DEFAULT 0,\n    IsEnabled INTEGER NOT NULL DEFAULT 1,\n    CreatedAt TEXT NOT NULL,\n    UpdatedAt TEXT NOT NULL\n);\n\nCREATE INDEX IF NOT EXISTS IX_ColorTemplateGroups_SortOrder_Id\nON ColorTemplateGroups(SortOrder, Id);\n\nCREATE TABLE IF NOT EXISTS ColorTemplateColors (\n    Id INTEGER PRIMARY KEY AUTOINCREMENT,\n    GroupId INTEGER NOT NULL,\n    Name TEXT NOT NULL DEFAULT '',\n    HexCode TEXT NOT NULL DEFAULT '',\n    SortOrder INTEGER NOT NULL DEFAULT 0,\n    CreatedAt TEXT NOT NULL,\n    UpdatedAt TEXT NOT NULL\n);\n\nCREATE INDEX IF NOT EXISTS IX_ColorTemplateColors_GroupId_SortOrder\nON ColorTemplateColors(GroupId, SortOrder, Id);";
 		await sqliteCommand.ExecuteNonQueryAsync(cancellationToken);
 		await TryAddColumnAsync(connection, "ALTER TABLE TemplateItems ADD COLUMN Subject TEXT NOT NULL DEFAULT '';", cancellationToken);
+		await TryAddColumnAsync(connection, "ALTER TABLE TemplateItems ADD COLUMN Material TEXT NOT NULL DEFAULT '荔枝纹';", cancellationToken);
 		await TryAddColumnAsync(connection, "ALTER TABLE TemplateItems ADD COLUMN ImageType INTEGER NOT NULL DEFAULT 0;", cancellationToken);
+		await TryAddColumnAsync(connection, "ALTER TABLE ColorTemplateGroups ADD COLUMN Material TEXT NOT NULL DEFAULT '荔枝纹';", cancellationToken);
 		await MigrateLegacySubjectsAsync(connection, cancellationToken);
 		await MigrateLegacySceneSubjectBindingsAsync(connection, cancellationToken);
 		await SeedDefaultColorTemplateGroupAsync(connection, cancellationToken);
@@ -191,7 +201,7 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 		{
 			await connection.OpenAsync(cancellationToken);
 			SqliteCommand sqliteCommand = connection.CreateCommand();
-			sqliteCommand.CommandText = (imageType.HasValue ? "SELECT Id, Category, Name, Content, Subject, PreviewImagePath, ImageType, SortOrder, IsEnabled, CreatedAt, UpdatedAt\nFROM TemplateItems\nWHERE Category = $category AND ImageType = $imageType\nORDER BY UpdatedAt DESC, Id DESC;" : "SELECT Id, Category, Name, Content, Subject, PreviewImagePath, ImageType, SortOrder, IsEnabled, CreatedAt, UpdatedAt\nFROM TemplateItems\nWHERE Category = $category\nORDER BY UpdatedAt DESC, Id DESC;");
+			sqliteCommand.CommandText = (imageType.HasValue ? "SELECT Id, Category, Name, Content, Subject, Material, PreviewImagePath, ImageType, SortOrder, IsEnabled, CreatedAt, UpdatedAt\nFROM TemplateItems\nWHERE Category = $category AND ImageType = $imageType\nORDER BY UpdatedAt DESC, Id DESC;" : "SELECT Id, Category, Name, Content, Subject, Material, PreviewImagePath, ImageType, SortOrder, IsEnabled, CreatedAt, UpdatedAt\nFROM TemplateItems\nWHERE Category = $category\nORDER BY UpdatedAt DESC, Id DESC;");
 			sqliteCommand.Parameters.AddWithValue("$category", (int)category);
 			if (imageType.HasValue)
 			{
@@ -224,7 +234,7 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 			if (item.Id <= 0)
 			{
 				SqliteCommand sqliteCommand = connection.CreateCommand();
-				sqliteCommand.CommandText = "INSERT INTO TemplateItems\n    (Category, Name, Content, Subject, PreviewImagePath, ImageType, SortOrder, IsEnabled, CreatedAt, UpdatedAt)\nVALUES\n    ($category, $name, $content, $subject, $previewImagePath, $imageType, $sortOrder, $isEnabled, $now, $now)\nRETURNING Id, Category, Name, Content, Subject, PreviewImagePath, ImageType, SortOrder, IsEnabled, CreatedAt, UpdatedAt;";
+				sqliteCommand.CommandText = "INSERT INTO TemplateItems\n    (Category, Name, Content, Subject, Material, PreviewImagePath, ImageType, SortOrder, IsEnabled, CreatedAt, UpdatedAt)\nVALUES\n    ($category, $name, $content, $subject, $material, $previewImagePath, $imageType, $sortOrder, $isEnabled, $now, $now)\nRETURNING Id, Category, Name, Content, Subject, Material, PreviewImagePath, ImageType, SortOrder, IsEnabled, CreatedAt, UpdatedAt;";
 				BindParameters(sqliteCommand, item, now);
 				await using SqliteDataReader reader = await sqliteCommand.ExecuteReaderAsync(cancellationToken);
 				if (await reader.ReadAsync(cancellationToken))
@@ -236,7 +246,7 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 			else
 			{
 				SqliteCommand sqliteCommand2 = connection.CreateCommand();
-				sqliteCommand2.CommandText = "UPDATE TemplateItems\nSET Category = $category,\n    Name = $name,\n    Content = $content,\n    Subject = $subject,\n    PreviewImagePath = $previewImagePath,\n    ImageType = $imageType,\n    SortOrder = $sortOrder,\n    IsEnabled = $isEnabled,\n    UpdatedAt = $now\nWHERE Id = $id\nRETURNING Id, Category, Name, Content, Subject, PreviewImagePath, ImageType, SortOrder, IsEnabled, CreatedAt, UpdatedAt;";
+				sqliteCommand2.CommandText = "UPDATE TemplateItems\nSET Category = $category,\n    Name = $name,\n    Content = $content,\n    Subject = $subject,\n    Material = $material,\n    PreviewImagePath = $previewImagePath,\n    ImageType = $imageType,\n    SortOrder = $sortOrder,\n    IsEnabled = $isEnabled,\n    UpdatedAt = $now\nWHERE Id = $id\nRETURNING Id, Category, Name, Content, Subject, Material, PreviewImagePath, ImageType, SortOrder, IsEnabled, CreatedAt, UpdatedAt;";
 				sqliteCommand2.Parameters.AddWithValue("$id", item.Id);
 				BindParameters(sqliteCommand2, item, now);
 				await using SqliteDataReader reader = await sqliteCommand2.ExecuteReaderAsync(cancellationToken);
@@ -296,8 +306,9 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 		{
 			SqliteCommand insertGroupCommand = connection.CreateCommand();
 			insertGroupCommand.Transaction = transaction;
-			insertGroupCommand.CommandText = "INSERT INTO ColorTemplateGroups\n    (Name, SortOrder, IsEnabled, CreatedAt, UpdatedAt)\nVALUES\n    ($name, $sortOrder, $isEnabled, $now, $now)\nRETURNING Id;";
+			insertGroupCommand.CommandText = "INSERT INTO ColorTemplateGroups\n    (Name, Material, SortOrder, IsEnabled, CreatedAt, UpdatedAt)\nVALUES\n    ($name, $material, $sortOrder, $isEnabled, $now, $now)\nRETURNING Id;";
 			insertGroupCommand.Parameters.AddWithValue("$name", group.Name.Trim());
+			insertGroupCommand.Parameters.AddWithValue("$material", NormalizeMaterial(group.Material));
 			insertGroupCommand.Parameters.AddWithValue("$sortOrder", group.SortOrder);
 			insertGroupCommand.Parameters.AddWithValue("$isEnabled", group.IsEnabled ? 1 : 0);
 			insertGroupCommand.Parameters.AddWithValue("$now", now);
@@ -307,9 +318,10 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 		{
 			SqliteCommand updateGroupCommand = connection.CreateCommand();
 			updateGroupCommand.Transaction = transaction;
-			updateGroupCommand.CommandText = "UPDATE ColorTemplateGroups\nSET Name = $name,\n    SortOrder = $sortOrder,\n    IsEnabled = $isEnabled,\n    UpdatedAt = $now\nWHERE Id = $id;";
+			updateGroupCommand.CommandText = "UPDATE ColorTemplateGroups\nSET Name = $name,\n    Material = $material,\n    SortOrder = $sortOrder,\n    IsEnabled = $isEnabled,\n    UpdatedAt = $now\nWHERE Id = $id;";
 			updateGroupCommand.Parameters.AddWithValue("$id", groupId);
 			updateGroupCommand.Parameters.AddWithValue("$name", group.Name.Trim());
+			updateGroupCommand.Parameters.AddWithValue("$material", NormalizeMaterial(group.Material));
 			updateGroupCommand.Parameters.AddWithValue("$sortOrder", group.SortOrder);
 			updateGroupCommand.Parameters.AddWithValue("$isEnabled", group.IsEnabled ? 1 : 0);
 			updateGroupCommand.Parameters.AddWithValue("$now", now);
@@ -367,14 +379,14 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 		await transaction.CommitAsync(cancellationToken);
 	}
 
-	public async Task<int> ExportColorTemplatesAsync(string packagePath, CancellationToken cancellationToken = default(CancellationToken))
+	public async Task<int> ExportColorTemplatesAsync(string packagePath, IReadOnlyList<string>? materials = null, CancellationToken cancellationToken = default(CancellationToken))
 	{
 		if (string.IsNullOrWhiteSpace(packagePath))
 		{
 			throw new ArgumentException("导出文件路径不能为空。", "packagePath");
 		}
 		await InitializeAsync(cancellationToken);
-		IReadOnlyList<ColorTemplateGroupRecord> groups = await GetColorGroupsAsync(cancellationToken);
+		IReadOnlyList<ColorTemplateGroupRecord> groups = FilterColorGroupsByMaterials(await GetColorGroupsAsync(cancellationToken), materials);
 		string? directoryName = Path.GetDirectoryName(packagePath);
 		if (!string.IsNullOrWhiteSpace(directoryName))
 		{
@@ -516,13 +528,14 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 		return Task.FromResult(text);
 	}
 
-	public async Task<int> ExportLayoutTemplatesAsync(string packagePath, ImageTemplateType imageType, IReadOnlyList<long>? selectedTemplateIds = null, CancellationToken cancellationToken = default(CancellationToken))
+	public async Task<int> ExportLayoutTemplatesAsync(string packagePath, ImageTemplateType imageType, IReadOnlyList<long>? selectedTemplateIds = null, IReadOnlyList<string>? materials = null, CancellationToken cancellationToken = default(CancellationToken))
 	{
 		if (string.IsNullOrWhiteSpace(packagePath))
 		{
 			throw new ArgumentException("导出文件路径不能为空。", "packagePath");
 		}
 		IReadOnlyList<TemplateItemRecord> readOnlyList = await GetByCategoryAsync(TemplateCategory.Layout, imageType, cancellationToken);
+		readOnlyList = FilterByMaterials(readOnlyList, materials);
 		HashSet<long>? selectedIdSet = selectedTemplateIds?.Where((long id) => id > 0).Distinct().ToHashSet();
 		if (selectedIdSet is { Count: > 0 })
 		{
@@ -561,6 +574,7 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 				manifest.Items.Add(new LayoutTemplatePackageItem
 				{
 					Name = item.Name,
+					Material = item.Material,
 					Content = item.Content,
 					IsEnabled = item.IsEnabled,
 					PreviewFile = text,
@@ -610,7 +624,7 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 			cancellationToken.ThrowIfCancellationRequested();
 			if (!string.IsNullOrWhiteSpace(item.Name) && !string.IsNullOrWhiteSpace(item.Content))
 			{
-				string importKey = GetLayoutImportKey(item.ImageType, item.Name);
+				string importKey = GetLayoutImportKey(item.ImageType, item.Material, item.Name);
 				if (existingLayoutsByKey.TryGetValue(importKey, out List<TemplateItemRecord>? existingItems))
 				{
 					foreach (TemplateItemRecord existingItem in existingItems)
@@ -626,6 +640,7 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 				{
 					Category = TemplateCategory.Layout,
 					Name = item.Name.Trim(),
+					Material = NormalizeMaterial(item.Material),
 					Content = item.Content,
 					Subject = string.Empty,
 					PreviewImagePath = previewImagePath,
@@ -640,7 +655,7 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 		return importedCount;
 	}
 
-	public async Task<int> ExportTemplateCategoryAsync(string packagePath, TemplateCategory category, string? templateType = null, CancellationToken cancellationToken = default(CancellationToken))
+	public async Task<int> ExportTemplateCategoryAsync(string packagePath, TemplateCategory category, string? templateType = null, IReadOnlyList<string>? materials = null, CancellationToken cancellationToken = default(CancellationToken))
 	{
 		if (category == TemplateCategory.Layout)
 		{
@@ -652,6 +667,7 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 		}
 		await InitializeAsync(cancellationToken);
 		IReadOnlyList<TemplateItemRecord> categoryItems = await GetByCategoryAsync(category, null, cancellationToken);
+		categoryItems = FilterByMaterials(categoryItems, materials);
 		if (category == TemplateCategory.Title && !string.IsNullOrWhiteSpace(templateType))
 		{
 			categoryItems = categoryItems.Where(item => string.Equals(item.Subject, templateType, StringComparison.OrdinalIgnoreCase) || string.IsNullOrWhiteSpace(item.Subject)).ToArray();
@@ -706,6 +722,7 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 					Id = item.Id,
 					Category = item.Category,
 					Name = item.Name,
+					Material = item.Material,
 					Content = item.Content,
 					Subject = item.Subject,
 					PreviewFile = string.Empty,
@@ -762,7 +779,7 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 				existingItems = existingItems.Where(item => string.Equals(item.Subject, templateType, StringComparison.OrdinalIgnoreCase)).ToArray();
 			}
 			existingByName[allowedCategory] = existingItems
-				.GroupBy(item => item.Name.Trim(), StringComparer.OrdinalIgnoreCase)
+				.GroupBy(GetTemplateImportKey, StringComparer.OrdinalIgnoreCase)
 				.ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
 		}
 		Dictionary<long, long> idMap = new Dictionary<long, long>();
@@ -780,7 +797,8 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 			}
 			Dictionary<string, TemplateItemRecord> existingItems = existingByName[packageItem.Category];
 			string name = packageItem.Name.Trim();
-			if (existingItems.TryGetValue(name, out TemplateItemRecord? existingItem))
+			string importKey = GetTemplateImportKey(packageItem.Material, name);
+			if (existingItems.TryGetValue(importKey, out TemplateItemRecord? existingItem))
 			{
 				idMap[packageItem.Id] = existingItem.Id;
 				continue;
@@ -789,6 +807,7 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 			{
 				Category = packageItem.Category,
 				Name = name,
+				Material = NormalizeMaterial(packageItem.Material),
 				Content = packageItem.Content,
 				Subject = packageItem.Category == TemplateCategory.Title && !string.IsNullOrWhiteSpace(templateType) ? templateType : packageItem.Subject,
 				PreviewImagePath = string.Empty,
@@ -796,7 +815,7 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 				SortOrder = packageItem.SortOrder,
 				IsEnabled = packageItem.IsEnabled
 			}, cancellationToken);
-			existingItems[name] = importedItem;
+			existingItems[importKey] = importedItem;
 			idMap[packageItem.Id] = importedItem.Id;
 			if (packageItem.Category == category)
 			{
@@ -892,6 +911,7 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 					Id = item.Id,
 					Category = item.Category,
 					Name = item.Name,
+					Material = item.Material,
 					Content = item.Content,
 					Subject = item.Subject,
 					PreviewFile = text,
@@ -952,7 +972,7 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 		list.AddRange(await templateLibraryService4.GetByCategoryAsync(TemplateCategory.Title, null, cancellationToken2));
 		IReadOnlyList<ColorTemplateGroupRecord> existingColorGroups = await GetColorGroupsAsync(cancellationToken);
 		Dictionary<TemplateCategory, HashSet<string>> existingNames = (from item in existingItems
-			group item by item.Category).ToDictionary((IGrouping<TemplateCategory, TemplateItemRecord> group) => group.Key, (IGrouping<TemplateCategory, TemplateItemRecord> group) => new HashSet<string>(group.Select((TemplateItemRecord item) => item.Name), StringComparer.OrdinalIgnoreCase));
+			group item by item.Category).ToDictionary((IGrouping<TemplateCategory, TemplateItemRecord> group) => group.Key, (IGrouping<TemplateCategory, TemplateItemRecord> group) => new HashSet<string>(group.Select(GetTemplateImportKey), StringComparer.OrdinalIgnoreCase));
 		HashSet<string> existingLayoutNames = new HashSet<string>(existingItems.Where((TemplateItemRecord item) => item.Category == TemplateCategory.Layout).Select(GetLayoutImportKey), StringComparer.OrdinalIgnoreCase);
 		Dictionary<long, long> idMap = new Dictionary<long, long>();
 		int importedCount = 0;
@@ -965,7 +985,7 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 			{
 				if (packageItem.Category == TemplateCategory.Layout)
 				{
-					string importKey = GetLayoutImportKey(packageItem.ImageType, packageItem.Name);
+					string importKey = GetLayoutImportKey(packageItem.ImageType, packageItem.Material, packageItem.Name);
 					if (existingLayoutNames.Contains(importKey))
 					{
 						continue;
@@ -977,6 +997,7 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 					{
 						Category = packageItem.Category,
 						Name = packageItem.Name.Trim(),
+						Material = NormalizeMaterial(packageItem.Material),
 						Content = packageItem.Content,
 						Subject = packageItem.Subject,
 						PreviewImagePath = layoutPreviewImagePath,
@@ -994,13 +1015,14 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 					value = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 					existingNames[packageItem.Category] = value;
 				}
-				string text = CreateImportedTemplateName(packageItem.Name, value);
-				value.Add(text);
+				string text = CreateImportedTemplateName(packageItem.Name, packageItem.Material, value);
+				value.Add(GetTemplateImportKey(packageItem.Material, text));
 				string previewImagePath = ((packageItem.Category == TemplateCategory.Layout) ? ImportPreviewFromPackage(archive, packageItem.PreviewFile) : string.Empty);
 				TemplateItemRecord templateItemRecord = await SaveAsync(new TemplateItemRecord
 				{
 					Category = packageItem.Category,
 					Name = text,
+					Material = NormalizeMaterial(packageItem.Material),
 					Content = packageItem.Content,
 					Subject = packageItem.Subject,
 					PreviewImagePath = previewImagePath,
@@ -1034,22 +1056,26 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 		return importedCount;
 	}
 
-	public async Task<string> ExportGenerationLibraryAsync(ImageTemplateType imageType, string outputPath, IReadOnlyList<long>? selectedLayoutTemplateIds = null, CancellationToken cancellationToken = default(CancellationToken))
+	public async Task<string> ExportGenerationLibraryAsync(ImageTemplateType imageType, string outputPath, IReadOnlyList<long>? selectedLayoutTemplateIds = null, IReadOnlyList<string>? materials = null, CancellationToken cancellationToken = default(CancellationToken))
 	{
 		if (string.IsNullOrWhiteSpace(outputPath))
 		{
 			throw new ArgumentException("输出路径不能为空。", "outputPath");
 		}
 		IReadOnlyList<TemplateItemRecord> layouts = await GetByCategoryAsync(TemplateCategory.Layout, imageType, cancellationToken);
+		layouts = FilterByMaterials(layouts, materials);
 		TemplateLibraryService templateLibraryService = this;
 		CancellationToken cancellationToken2 = cancellationToken;
 		IReadOnlyList<TemplateItemRecord> scenes = await templateLibraryService.GetByCategoryAsync(TemplateCategory.Scene, null, cancellationToken2);
+		scenes = FilterByMaterials(scenes, materials);
 		TemplateLibraryService templateLibraryService2 = this;
 		cancellationToken2 = cancellationToken;
 		IReadOnlyList<TemplateItemRecord> subjects = await templateLibraryService2.GetByCategoryAsync(TemplateCategory.Subject, null, cancellationToken2);
+		subjects = FilterByMaterials(subjects, materials);
 		TemplateLibraryService templateLibraryService3 = this;
 		cancellationToken2 = cancellationToken;
 		IReadOnlyList<TemplateItemRecord> titles = await templateLibraryService3.GetByCategoryAsync(TemplateCategory.Title, null, cancellationToken2);
+		titles = FilterByMaterials(titles, materials);
 		IReadOnlyDictionary<long, IReadOnlyList<long>> sceneSubjectBindings = await GetSceneSubjectBindingsAsync(cancellationToken);
 		Dictionary<long, TemplateItemRecord> enabledSubjectsById = subjects.Where((TemplateItemRecord item) => item.IsEnabled).ToDictionary((TemplateItemRecord item) => item.Id);
 		HashSet<long> selectedLayoutIdSet = selectedLayoutTemplateIds?.Where((long id) => id > 0).Distinct().ToHashSet();
@@ -1163,6 +1189,7 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 		command.Parameters.AddWithValue("$name", item.Name.Trim());
 		command.Parameters.AddWithValue("$content", item.Content.Trim());
 		command.Parameters.AddWithValue("$subject", item.Subject.Trim());
+		command.Parameters.AddWithValue("$material", NormalizeMaterial(item.Material));
 		command.Parameters.AddWithValue("$previewImagePath", item.PreviewImagePath.Trim());
 		command.Parameters.AddWithValue("$imageType", (int)item.ImageType);
 		command.Parameters.AddWithValue("$sortOrder", item.SortOrder);
@@ -1179,13 +1206,55 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 			Name = reader.GetString(2),
 			Content = reader.GetString(3),
 			Subject = reader.GetString(4),
-			PreviewImagePath = reader.GetString(5),
-			ImageType = (ImageTemplateType)reader.GetInt32(6),
-			SortOrder = reader.GetInt32(7),
-			IsEnabled = (reader.GetInt32(8) != 0),
-			CreatedAt = DateTimeOffset.Parse(reader.GetString(9)),
-			UpdatedAt = DateTimeOffset.Parse(reader.GetString(10))
+			Material = NormalizeMaterial(reader.GetString(5)),
+			PreviewImagePath = reader.GetString(6),
+			ImageType = (ImageTemplateType)reader.GetInt32(7),
+			SortOrder = reader.GetInt32(8),
+			IsEnabled = (reader.GetInt32(9) != 0),
+			CreatedAt = DateTimeOffset.Parse(reader.GetString(10)),
+			UpdatedAt = DateTimeOffset.Parse(reader.GetString(11))
 		};
+	}
+
+	private static string NormalizeMaterial(string? material)
+	{
+		string text = (material ?? string.Empty).Trim();
+		return string.IsNullOrWhiteSpace(text) ? DefaultMaterial : text;
+	}
+
+	private static IReadOnlyList<TemplateItemRecord> FilterByMaterials(IReadOnlyList<TemplateItemRecord> records, IReadOnlyList<string>? materials)
+	{
+		if (materials == null)
+		{
+			return records;
+		}
+		HashSet<string> materialSet = BuildMaterialSet(materials);
+		if (materialSet.Count == 0)
+		{
+			return Array.Empty<TemplateItemRecord>();
+		}
+		return records.Where(item => materialSet.Contains(NormalizeMaterial(item.Material))).ToArray();
+	}
+
+	private static HashSet<string> BuildMaterialSet(IReadOnlyList<string>? materials)
+	{
+		return new HashSet<string>((materials ?? Array.Empty<string>())
+			.Select(NormalizeMaterial)
+			.Where(text => !string.IsNullOrWhiteSpace(text)), StringComparer.OrdinalIgnoreCase);
+	}
+
+	private static IReadOnlyList<ColorTemplateGroupRecord> FilterColorGroupsByMaterials(IReadOnlyList<ColorTemplateGroupRecord> records, IReadOnlyList<string>? materials)
+	{
+		if (materials == null)
+		{
+			return records;
+		}
+		HashSet<string> materialSet = BuildMaterialSet(materials);
+		if (materialSet.Count == 0)
+		{
+			return Array.Empty<ColorTemplateGroupRecord>();
+		}
+		return records.Where(item => materialSet.Contains(NormalizeMaterial(item.Material))).ToArray();
 	}
 
 	private string ImportPreviewFromPackage(ZipArchive archive, string previewFile)
@@ -1237,6 +1306,7 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 		ColorTemplateGroupRecord defaultGroup = new ColorTemplateGroupRecord
 		{
 			Name = "默认颜色组",
+			Material = DefaultMaterial,
 			SortOrder = 0,
 			IsEnabled = true,
 			Colors = new[]
@@ -1251,8 +1321,9 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 		};
 		string now = DateTimeOffset.Now.ToString("O");
 		SqliteCommand insertGroupCommand = connection.CreateCommand();
-		insertGroupCommand.CommandText = "INSERT INTO ColorTemplateGroups\n    (Name, SortOrder, IsEnabled, CreatedAt, UpdatedAt)\nVALUES\n    ($name, $sortOrder, 1, $now, $now)\nRETURNING Id;";
+		insertGroupCommand.CommandText = "INSERT INTO ColorTemplateGroups\n    (Name, Material, SortOrder, IsEnabled, CreatedAt, UpdatedAt)\nVALUES\n    ($name, $material, $sortOrder, 1, $now, $now)\nRETURNING Id;";
 		insertGroupCommand.Parameters.AddWithValue("$name", defaultGroup.Name);
+		insertGroupCommand.Parameters.AddWithValue("$material", defaultGroup.Material);
 		insertGroupCommand.Parameters.AddWithValue("$sortOrder", defaultGroup.SortOrder);
 		insertGroupCommand.Parameters.AddWithValue("$now", now);
 		long groupId = Convert.ToInt64(await insertGroupCommand.ExecuteScalarAsync(cancellationToken));
@@ -1274,7 +1345,7 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 	{
 		Dictionary<long, ColorTemplateGroupRecordBuilder> groups = new Dictionary<long, ColorTemplateGroupRecordBuilder>();
 		SqliteCommand command = connection.CreateCommand();
-		command.CommandText = "SELECT g.Id, g.Name, g.SortOrder, g.IsEnabled, g.CreatedAt, g.UpdatedAt,\n       c.Id, c.GroupId, c.Name, c.HexCode, c.SortOrder, c.CreatedAt, c.UpdatedAt\nFROM ColorTemplateGroups g\nLEFT JOIN ColorTemplateColors c ON c.GroupId = g.Id\nORDER BY g.SortOrder ASC, g.Id ASC, c.SortOrder ASC, c.Id ASC;";
+		command.CommandText = "SELECT g.Id, g.Name, g.Material, g.SortOrder, g.IsEnabled, g.CreatedAt, g.UpdatedAt,\n       c.Id, c.GroupId, c.Name, c.HexCode, c.SortOrder, c.CreatedAt, c.UpdatedAt\nFROM ColorTemplateGroups g\nLEFT JOIN ColorTemplateColors c ON c.GroupId = g.Id\nORDER BY g.SortOrder ASC, g.Id ASC, c.SortOrder ASC, c.Id ASC;";
 		await using SqliteDataReader reader = await command.ExecuteReaderAsync(cancellationToken);
 		while (await reader.ReadAsync(cancellationToken))
 		{
@@ -1285,24 +1356,25 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 				{
 					Id = groupId,
 					Name = reader.GetString(1),
-					SortOrder = reader.GetInt32(2),
-					IsEnabled = reader.GetInt32(3) != 0,
-					CreatedAt = DateTimeOffset.Parse(reader.GetString(4)),
-					UpdatedAt = DateTimeOffset.Parse(reader.GetString(5))
+					Material = NormalizeMaterial(reader.GetString(2)),
+					SortOrder = reader.GetInt32(3),
+					IsEnabled = reader.GetInt32(4) != 0,
+					CreatedAt = DateTimeOffset.Parse(reader.GetString(5)),
+					UpdatedAt = DateTimeOffset.Parse(reader.GetString(6))
 				};
 				groups[groupId] = builder;
 			}
-			if (!reader.IsDBNull(6))
+			if (!reader.IsDBNull(7))
 			{
 				builder.Colors.Add(new ColorTemplateColorRecord
 				{
-					Id = reader.GetInt64(6),
-					GroupId = reader.GetInt64(7),
-					Name = reader.GetString(8),
-					HexCode = reader.GetString(9),
-					SortOrder = reader.GetInt32(10),
-					CreatedAt = DateTimeOffset.Parse(reader.GetString(11)),
-					UpdatedAt = DateTimeOffset.Parse(reader.GetString(12))
+					Id = reader.GetInt64(7),
+					GroupId = reader.GetInt64(8),
+					Name = reader.GetString(9),
+					HexCode = reader.GetString(10),
+					SortOrder = reader.GetInt32(11),
+					CreatedAt = DateTimeOffset.Parse(reader.GetString(12)),
+					UpdatedAt = DateTimeOffset.Parse(reader.GetString(13))
 				});
 			}
 		}
@@ -1322,7 +1394,7 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 		existingGroups ??= await GetColorGroupsAsync(cancellationToken);
 		Dictionary<string, ColorTemplateGroupRecord> existingByName = existingGroups
 			.Where(item => !string.IsNullOrWhiteSpace(item.Name))
-			.GroupBy(item => item.Name.Trim(), StringComparer.OrdinalIgnoreCase)
+			.GroupBy(GetColorGroupImportKey, StringComparer.OrdinalIgnoreCase)
 			.ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
 		HashSet<string> importedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 		int importedCount = 0;
@@ -1330,7 +1402,9 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 		{
 			cancellationToken.ThrowIfCancellationRequested();
 			string groupName = packageGroup.Name.Trim();
-			if (string.IsNullOrWhiteSpace(groupName) || !importedNames.Add(groupName))
+			string material = NormalizeMaterial(packageGroup.Material);
+			string importKey = GetColorGroupImportKey(material, groupName);
+			if (string.IsNullOrWhiteSpace(groupName) || !importedNames.Add(importKey))
 			{
 				continue;
 			}
@@ -1348,18 +1422,19 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 			{
 				continue;
 			}
-			if (existingByName.TryGetValue(groupName, out ColorTemplateGroupRecord? existingGroup))
+			if (existingByName.TryGetValue(importKey, out ColorTemplateGroupRecord? existingGroup))
 			{
 				await DeleteColorGroupAsync(existingGroup.Id, cancellationToken);
 			}
 			ColorTemplateGroupRecord saved = await SaveColorGroupAsync(new ColorTemplateGroupRecord
 			{
 				Name = groupName,
+				Material = material,
 				SortOrder = packageGroup.SortOrder,
 				IsEnabled = packageGroup.IsEnabled,
 				Colors = colors
 			}, cancellationToken);
-			existingByName[groupName] = saved;
+			existingByName[importKey] = saved;
 			importedCount++;
 		}
 		return importedCount;
@@ -1370,6 +1445,7 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 		return new ColorTemplatePackageGroup
 		{
 			Name = group.Name,
+			Material = group.Material,
 			SortOrder = group.SortOrder,
 			IsEnabled = group.IsEnabled,
 			Colors = group.Colors
@@ -1401,6 +1477,8 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 
 		public string Name { get; init; } = string.Empty;
 
+		public string Material { get; init; } = DefaultMaterial;
+
 		public int SortOrder { get; init; }
 
 		public bool IsEnabled { get; init; }
@@ -1417,6 +1495,7 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 			{
 				Id = Id,
 				Name = Name,
+				Material = Material,
 				SortOrder = SortOrder,
 				IsEnabled = IsEnabled,
 				CreatedAt = CreatedAt,
@@ -1428,18 +1507,38 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 
 	private static string GetLayoutImportKey(TemplateItemRecord item)
 	{
-		return GetLayoutImportKey(item.ImageType, item.Name);
+		return GetLayoutImportKey(item.ImageType, item.Material, item.Name);
 	}
 
-	private static string GetLayoutImportKey(ImageTemplateType imageType, string name)
+	private static string GetLayoutImportKey(ImageTemplateType imageType, string material, string name)
 	{
-		return $"{(int)imageType}|{name.Trim()}";
+		return $"{(int)imageType}|{NormalizeMaterial(material)}|{name.Trim()}";
 	}
 
-	private static string CreateImportedTemplateName(string name, HashSet<string> existingNames)
+	private static string GetTemplateImportKey(TemplateItemRecord item)
+	{
+		return GetTemplateImportKey(item.Material, item.Name);
+	}
+
+	private static string GetTemplateImportKey(string material, string name)
+	{
+		return $"{NormalizeMaterial(material)}|{name.Trim()}";
+	}
+
+	private static string GetColorGroupImportKey(ColorTemplateGroupRecord group)
+	{
+		return GetColorGroupImportKey(group.Material, group.Name);
+	}
+
+	private static string GetColorGroupImportKey(string material, string name)
+	{
+		return $"{NormalizeMaterial(material)}|{name.Trim()}";
+	}
+
+	private static string CreateImportedTemplateName(string name, string material, HashSet<string> existingNames)
 	{
 		string text = name.Trim();
-		if (!existingNames.Contains(text))
+		if (!existingNames.Contains(GetTemplateImportKey(material, text)))
 		{
 			return text;
 		}
@@ -1450,7 +1549,7 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 			text2 = $"{text} - 导入{num}";
 			num++;
 		}
-		while (existingNames.Contains(text2));
+		while (existingNames.Contains(GetTemplateImportKey(material, text2)));
 		return text2;
 	}
 
@@ -1484,11 +1583,12 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 		foreach (string item2 in subjects.OrderBy<string, string>((string item) => item, StringComparer.OrdinalIgnoreCase))
 		{
 			SqliteCommand sqliteCommand3 = connection.CreateCommand();
-			sqliteCommand3.CommandText = "INSERT INTO TemplateItems\n    (Category, Name, Content, Subject, PreviewImagePath, ImageType, SortOrder, IsEnabled, CreatedAt, UpdatedAt)\nVALUES\n    ($category, $name, $content, '', '', 0, 0, 1, $now, $now);";
+			sqliteCommand3.CommandText = "INSERT INTO TemplateItems\n    (Category, Name, Content, Subject, Material, PreviewImagePath, ImageType, SortOrder, IsEnabled, CreatedAt, UpdatedAt)\nVALUES\n    ($category, $name, $content, '', $material, '', 0, 0, 1, $now, $now);";
 			string value = DateTimeOffset.Now.ToString("O");
 			sqliteCommand3.Parameters.AddWithValue("$category", 2);
 			sqliteCommand3.Parameters.AddWithValue("$name", item2);
 			sqliteCommand3.Parameters.AddWithValue("$content", item2);
+			sqliteCommand3.Parameters.AddWithValue("$material", DefaultMaterial);
 			sqliteCommand3.Parameters.AddWithValue("$now", value);
 			await sqliteCommand3.ExecuteNonQueryAsync(cancellationToken);
 		}

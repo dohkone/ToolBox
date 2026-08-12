@@ -28,6 +28,7 @@ SUPPORTED_SIZE_IMAGE_EXTENSIONS = {
     ".tiff",
     ".jfif",
 }
+SOURCE_METADATA_NAME = ".sku-source.json"
 
 
 def get_default_cache_dir():
@@ -635,12 +636,24 @@ def build_main_row(sp_dir, cn_titles, en_titles, title_chinese_only=False):
     english_title = "" if title_chinese_only or not en_titles else random.choice(en_titles)
     return {
         "product_id": sp_dir.name,
+        "material": load_material_from_sp_dir(sp_dir),
         "title": title,
         "english_title": english_title,
         "main_path": str((sp_dir / "main").resolve()),
         "detail_path": str((sp_dir / "detail").resolve()),
         "sku_path": str((sp_dir / "sku").resolve()),
     }
+
+
+def load_material_from_sp_dir(sp_dir):
+    metadata_path = Path(sp_dir) / SOURCE_METADATA_NAME
+    try:
+        payload = json.loads(metadata_path.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError):
+        return "lychee_grain"
+
+    value = str(payload.get("material") or "").strip().casefold()
+    return "suede" if value in {"suede", "麂皮绒"} else "lychee_grain"
 
 
 def process_sp_dir(sp_dir, records):
@@ -699,6 +712,7 @@ def build_products_json(main_rows, matched_rows):
     for row in main_rows:
         by_product[row["product_id"]] = {
             "card_folder_path": str(Path(row["main_path"]).parent.resolve()),
+            "material": row.get("material", "lychee_grain"),
             "title": row["title"],
             "english_title": row["english_title"],
             "main_file_folder": row["main_path"],
@@ -712,6 +726,7 @@ def build_products_json(main_rows, matched_rows):
             item["product_id"],
             {
                 "card_folder_path": "",
+                "material": "lychee_grain",
                 "title": "",
                 "english_title": "",
                 "main_file_folder": "",

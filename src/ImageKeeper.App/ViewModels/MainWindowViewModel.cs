@@ -76,6 +76,12 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private const string IconWordTemplateType = "icon-word";
 
+	private const string LycheeMaterial = "荔枝纹";
+
+	private const string SuedeMaterial = "麂皮绒";
+
+	private static readonly string[] TemplateMaterialOptions = { LycheeMaterial, SuedeMaterial };
+
 	private static readonly string[] SkuMasterColorTokens =
 	{
 		"黑色",
@@ -342,6 +348,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private ObservableCollection<ColorTemplateGroupViewModel> _colorTemplateGroups = new ObservableCollection<ColorTemplateGroupViewModel>();
 
+	private ObservableCollection<ColorTemplateGroupViewModel> _generationColorTemplateGroups = new ObservableCollection<ColorTemplateGroupViewModel>();
+
 	private readonly ObservableCollection<ColorTemplateColorViewModel> _spBatchColorSelectionColors = new ObservableCollection<ColorTemplateColorViewModel>();
 
 	private string _selectedSection = "image-generate";
@@ -353,6 +361,16 @@ public sealed class MainWindowViewModel : ViewModelBase
 	private ImageTemplateType _selectedLayoutImageType;
 
 	private string _selectedTitleTemplateType = MainTitleTemplateType;
+
+	private bool _isLycheeMaterialSelected = true;
+
+	private bool _isSuedeMaterialSelected;
+
+	private string _selectedGenerationMaterial = LycheeMaterial;
+
+	private string _templateEditorMaterial = LycheeMaterial;
+
+	private string _colorTemplateGroupEditorMaterial = LycheeMaterial;
 
 	private long _selectedColorTemplateGroupId;
 
@@ -393,6 +411,10 @@ public sealed class MainWindowViewModel : ViewModelBase
 	private int _iconWordTemplateCount;
 
 	private int _colorTemplateGroupCount;
+
+	private int _lycheeMaterialTemplateCount;
+
+	private int _suedeMaterialTemplateCount;
 
 	private bool _isBusy;
 
@@ -628,6 +650,12 @@ public sealed class MainWindowViewModel : ViewModelBase
 		private set => SetProperty(ref _colorTemplateGroups, value, "ColorTemplateGroups");
 	}
 
+	public ObservableCollection<ColorTemplateGroupViewModel> GenerationColorTemplateGroups
+	{
+		get => _generationColorTemplateGroups;
+		private set => SetProperty(ref _generationColorTemplateGroups, value, "GenerationColorTemplateGroups");
+	}
+
 	public ColorTemplateGroupViewModel? SelectedColorTemplateGroupForGeneration
 	{
 		get => _selectedColorTemplateGroupForGeneration;
@@ -673,6 +701,68 @@ public sealed class MainWindowViewModel : ViewModelBase
 	public ObservableCollection<GenerationTemplateOptionViewModel> GenerationTemplateOptions { get; } = new ObservableCollection<GenerationTemplateOptionViewModel>();
 
 	public ObservableCollection<ColorTemplateColorViewModel> ColorTemplateEditorColors { get; } = new ObservableCollection<ColorTemplateColorViewModel>();
+
+	public IReadOnlyList<string> MaterialOptions => TemplateMaterialOptions;
+
+	public bool IsLycheeMaterialSelected
+	{
+		get => _isLycheeMaterialSelected;
+		set
+		{
+			if (value)
+			{
+				SetSelectedTemplateMaterial(LycheeMaterial);
+			}
+		}
+	}
+
+	public bool IsSuedeMaterialSelected
+	{
+		get => _isSuedeMaterialSelected;
+		set
+		{
+			if (value)
+			{
+				SetSelectedTemplateMaterial(SuedeMaterial);
+			}
+		}
+	}
+
+	public bool IsGenerationLycheeMaterialSelected
+	{
+		get => string.Equals(_selectedGenerationMaterial, LycheeMaterial, StringComparison.OrdinalIgnoreCase);
+		set
+		{
+			if (value)
+			{
+				SetSelectedGenerationMaterial(LycheeMaterial);
+			}
+		}
+	}
+
+	public bool IsGenerationSuedeMaterialSelected
+	{
+		get => string.Equals(_selectedGenerationMaterial, SuedeMaterial, StringComparison.OrdinalIgnoreCase);
+		set
+		{
+			if (value)
+			{
+				SetSelectedGenerationMaterial(SuedeMaterial);
+			}
+		}
+	}
+
+	public string TemplateEditorMaterial
+	{
+		get => _templateEditorMaterial;
+		set => SetProperty(ref _templateEditorMaterial, NormalizeMaterial(value), "TemplateEditorMaterial");
+	}
+
+	public string ColorTemplateGroupEditorMaterial
+	{
+		get => _colorTemplateGroupEditorMaterial;
+		set => SetProperty(ref _colorTemplateGroupEditorMaterial, NormalizeMaterial(value), "ColorTemplateGroupEditorMaterial");
+	}
 
 	public ICommand ChooseFolderCommand => _chooseFolderCommand;
 
@@ -1019,7 +1109,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	public bool IsColorTemplateTabSelected => _selectedTemplateCategory == TemplateCategory.Color;
 
-	public double TemplateEditorDialogHeight => IsSubjectTemplateTabSelected ? 230 : (IsTitleTemplateTabSelected ? 310 : 760);
+	public double TemplateEditorDialogHeight => IsSubjectTemplateTabSelected ? 230 : (IsTitleTemplateTabSelected ? 430 : 760);
 
 	public bool IsMainImageLayoutTypeSelected => _selectedLayoutImageType == ImageTemplateType.MainImage;
 
@@ -1121,6 +1211,30 @@ public sealed class MainWindowViewModel : ViewModelBase
 		private set
 		{
 			SetProperty(ref _colorTemplateGroupCount, value, "ColorTemplateGroupCount");
+		}
+	}
+
+	public int LycheeMaterialTemplateCount
+	{
+		get
+		{
+			return _lycheeMaterialTemplateCount;
+		}
+		private set
+		{
+			SetProperty(ref _lycheeMaterialTemplateCount, value, "LycheeMaterialTemplateCount");
+		}
+	}
+
+	public int SuedeMaterialTemplateCount
+	{
+		get
+		{
+			return _suedeMaterialTemplateCount;
+		}
+		private set
+		{
+			SetProperty(ref _suedeMaterialTemplateCount, value, "SuedeMaterialTemplateCount");
 		}
 	}
 
@@ -3201,11 +3315,12 @@ public sealed class MainWindowViewModel : ViewModelBase
 		await _autoPublishStateService.MarkIncompletePublishingAsFailedAsync();
 		await _cardSizeInfoService.InitializeAsync();
 		await _templateLibraryService.InitializeAsync();
+		AppUserPathsState appUserPathsState = _appSettingsService.LoadUserPaths();
+		ApplyUserPathSettings(appUserPathsState);
 		await LoadTemplateTabCountsAsync();
 		await LoadManagedTemplatesAsync();
 		await LoadColorTemplateGroupsAsync();
-		AppUserPathsState appUserPathsState = _appSettingsService.LoadUserPaths();
-		ApplyUserPathSettings(appUserPathsState);
+		await RefreshGenerationMaterialResourcesAsync();
 		EnsurePlaceholderTab();
 		ResetSummary();
 		ResetGenerationSummary();
@@ -3507,6 +3622,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		{
 			_selectedTemplateCategory = category;
 			NotifyTemplateCategoryChanged();
+			await LoadTemplateTabCountsAsync();
 			await LoadManagedTemplatesAsync();
 		}
 	}
@@ -3574,6 +3690,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 			await Task.WhenAll(subjectTemplatesTask, sceneBindingsTask);
 		}
 		IReadOnlyList<TemplateItemRecord> records = await recordsTask;
+		records = FilterTemplatesBySelectedMaterials(records);
 		if (isTitleTemplateTabSelected)
 		{
 			records = records.Where(item => GetTitleTemplateType(item) == selectedTitleTemplateType).ToArray();
@@ -3609,40 +3726,151 @@ public sealed class MainWindowViewModel : ViewModelBase
 		await LoadManagedTemplatesAsync();
 	}
 
+	private async Task OnTemplateMaterialFilterChangedAsync()
+	{
+		await LoadTemplateTabCountsAsync();
+		await LoadManagedTemplatesAsync();
+		await LoadGenerationTemplateOptionsAsync();
+	}
+
+	private void SetSelectedTemplateMaterial(string material)
+	{
+		string normalizedMaterial = NormalizeMaterial(material);
+		bool isLychee = string.Equals(normalizedMaterial, LycheeMaterial, StringComparison.OrdinalIgnoreCase);
+		if (_isLycheeMaterialSelected == isLychee && _isSuedeMaterialSelected == !isLychee)
+		{
+			return;
+		}
+
+		_isLycheeMaterialSelected = isLychee;
+		_isSuedeMaterialSelected = !isLychee;
+		OnPropertyChanged("IsLycheeMaterialSelected");
+		OnPropertyChanged("IsSuedeMaterialSelected");
+		_ = OnTemplateMaterialFilterChangedAsync();
+	}
+
+	private IReadOnlyList<string> GetSelectedTemplateMaterials()
+	{
+		List<string> materials = new List<string>();
+		if (IsLycheeMaterialSelected)
+		{
+			materials.Add(LycheeMaterial);
+		}
+		if (IsSuedeMaterialSelected)
+		{
+			materials.Add(SuedeMaterial);
+		}
+		return materials;
+	}
+
+	private bool IsMaterialSelected(string material)
+	{
+		string normalizedMaterial = NormalizeMaterial(material);
+		return (IsLycheeMaterialSelected && string.Equals(normalizedMaterial, LycheeMaterial, StringComparison.OrdinalIgnoreCase))
+			|| (IsSuedeMaterialSelected && string.Equals(normalizedMaterial, SuedeMaterial, StringComparison.OrdinalIgnoreCase));
+	}
+
+	private bool IsGenerationMaterialSelected(string material)
+	{
+		return string.Equals(NormalizeMaterial(material), _selectedGenerationMaterial, StringComparison.OrdinalIgnoreCase);
+	}
+
+	private IReadOnlyList<string> GetSelectedGenerationMaterials()
+	{
+		return new[] { _selectedGenerationMaterial };
+	}
+
+	private void SetSelectedGenerationMaterial(string material)
+	{
+		string normalizedMaterial = NormalizeMaterial(material);
+		if (string.Equals(_selectedGenerationMaterial, normalizedMaterial, StringComparison.OrdinalIgnoreCase))
+		{
+			return;
+		}
+
+		_selectedGenerationMaterial = normalizedMaterial;
+		OnPropertyChanged("IsGenerationLycheeMaterialSelected");
+		OnPropertyChanged("IsGenerationSuedeMaterialSelected");
+		_ = RefreshGenerationMaterialResourcesAsync();
+		PersistUserPathSettings();
+	}
+
+	private async Task RefreshGenerationMaterialResourcesAsync()
+	{
+		await LoadGenerationColorTemplateGroupsAsync();
+		await LoadGenerationTemplateOptionsAsync();
+	}
+
+	private IReadOnlyList<TemplateItemRecord> FilterTemplatesBySelectedMaterials(IReadOnlyList<TemplateItemRecord> records)
+	{
+		return records.Where(item => IsMaterialSelected(item.Material)).ToArray();
+	}
+
+	private IReadOnlyList<ColorTemplateGroupRecord> FilterColorGroupsBySelectedMaterials(IReadOnlyList<ColorTemplateGroupRecord> records)
+	{
+		return records.Where(item => IsMaterialSelected(item.Material)).ToArray();
+	}
+
+	private string GetDefaultEditorMaterial()
+	{
+		IReadOnlyList<string> selectedMaterials = GetSelectedTemplateMaterials();
+		if (selectedMaterials.Count == 1)
+		{
+			return selectedMaterials[0];
+		}
+		return LycheeMaterial;
+	}
+
 	private async Task LoadTemplateTabCountsAsync()
 	{
 		Task<IReadOnlyList<TemplateItemRecord>> layoutTemplatesTask = _templateLibraryService.GetByCategoryAsync(TemplateCategory.Layout);
+		Task<IReadOnlyList<TemplateItemRecord>> sceneTemplatesTask = _templateLibraryService.GetByCategoryAsync(TemplateCategory.Scene);
+		Task<IReadOnlyList<TemplateItemRecord>> subjectTemplatesTask = _templateLibraryService.GetByCategoryAsync(TemplateCategory.Subject);
 		Task<IReadOnlyList<TemplateItemRecord>> titleTemplatesTask = _templateLibraryService.GetByCategoryAsync(TemplateCategory.Title);
 		Task<IReadOnlyList<ColorTemplateGroupRecord>> colorGroupsTask = _templateLibraryService.GetColorGroupsAsync();
-		await Task.WhenAll(layoutTemplatesTask, titleTemplatesTask, colorGroupsTask);
-		UpdateLayoutTemplateCounts(await layoutTemplatesTask);
-		UpdateTitleTemplateCounts(await titleTemplatesTask);
-		ColorTemplateGroupCount = (await colorGroupsTask).Count;
+		await Task.WhenAll(layoutTemplatesTask, sceneTemplatesTask, subjectTemplatesTask, titleTemplatesTask, colorGroupsTask);
+		IReadOnlyList<TemplateItemRecord> layoutTemplates = await layoutTemplatesTask;
+		IReadOnlyList<TemplateItemRecord> sceneTemplates = await sceneTemplatesTask;
+		IReadOnlyList<TemplateItemRecord> subjectTemplates = await subjectTemplatesTask;
+		IReadOnlyList<TemplateItemRecord> titleTemplates = await titleTemplatesTask;
+		IReadOnlyList<ColorTemplateGroupRecord> colorGroups = await colorGroupsTask;
+		UpdateLayoutTemplateCounts(FilterTemplatesBySelectedMaterials(layoutTemplates));
+		UpdateTitleTemplateCounts(FilterTemplatesBySelectedMaterials(titleTemplates));
+		ColorTemplateGroupCount = FilterColorGroupsBySelectedMaterials(colorGroups).Count;
+		UpdateMaterialTemplateCounts(layoutTemplates, sceneTemplates, subjectTemplates, titleTemplates, colorGroups);
 	}
 
 	private async Task LoadColorTemplateGroupsAsync()
 	{
-		IReadOnlyList<ColorTemplateGroupRecord> records = await _templateLibraryService.GetColorGroupsAsync();
+		IReadOnlyList<ColorTemplateGroupRecord> records = FilterColorGroupsBySelectedMaterials(await _templateLibraryService.GetColorGroupsAsync());
 		ColorTemplateGroups = new ObservableCollection<ColorTemplateGroupViewModel>(records.Select(item => new ColorTemplateGroupViewModel(item)));
 		ColorTemplateGroupCount = records.Count;
 		if (_selectedColorTemplateGroupId <= 0 || ColorTemplateGroups.All(item => item.Id != _selectedColorTemplateGroupId))
 		{
 			_selectedColorTemplateGroupId = ColorTemplateGroups.FirstOrDefault()?.Id ?? 0;
 		}
-		if (_selectedGenerationColorTemplateGroupId <= 0 || ColorTemplateGroups.All(item => item.Id != _selectedGenerationColorTemplateGroupId))
-		{
-			_selectedGenerationColorTemplateGroupId = ColorTemplateGroups.FirstOrDefault()?.Id ?? 0;
-		}
-		if (_selectedSpBatchColorTemplateGroupId <= 0 || ColorTemplateGroups.All(item => item.Id != _selectedSpBatchColorTemplateGroupId))
-		{
-			_selectedSpBatchColorTemplateGroupId = ColorTemplateGroups.FirstOrDefault()?.Id ?? 0;
-		}
-		_selectedColorTemplateGroupForGeneration = ColorTemplateGroups.FirstOrDefault(item => item.Id == _selectedGenerationColorTemplateGroupId);
-		_selectedSpBatchColorTemplateGroupForGeneration = ColorTemplateGroups.FirstOrDefault(item => item.Id == _selectedSpBatchColorTemplateGroupId);
-		RefreshSpBatchColorSelectionForCurrentGroup();
 		OnPropertyChanged("HasManagedTemplateItems");
 		OnPropertyChanged("IsTemplateContentPanelVisible");
 		OnPropertyChanged("SelectedColorTemplateGroupName");
+	}
+
+	private async Task LoadGenerationColorTemplateGroupsAsync()
+	{
+		IReadOnlyList<ColorTemplateGroupRecord> records = (await _templateLibraryService.GetColorGroupsAsync())
+			.Where(item => IsGenerationMaterialSelected(item.Material))
+			.ToArray();
+		GenerationColorTemplateGroups = new ObservableCollection<ColorTemplateGroupViewModel>(records.Select(item => new ColorTemplateGroupViewModel(item)));
+		if (_selectedGenerationColorTemplateGroupId <= 0 || GenerationColorTemplateGroups.All(item => item.Id != _selectedGenerationColorTemplateGroupId))
+		{
+			_selectedGenerationColorTemplateGroupId = GenerationColorTemplateGroups.FirstOrDefault()?.Id ?? 0;
+		}
+		if (_selectedSpBatchColorTemplateGroupId <= 0 || GenerationColorTemplateGroups.All(item => item.Id != _selectedSpBatchColorTemplateGroupId))
+		{
+			_selectedSpBatchColorTemplateGroupId = GenerationColorTemplateGroups.FirstOrDefault()?.Id ?? 0;
+		}
+		_selectedColorTemplateGroupForGeneration = GenerationColorTemplateGroups.FirstOrDefault(item => item.Id == _selectedGenerationColorTemplateGroupId);
+		_selectedSpBatchColorTemplateGroupForGeneration = GenerationColorTemplateGroups.FirstOrDefault(item => item.Id == _selectedSpBatchColorTemplateGroupId);
+		RefreshSpBatchColorSelectionForCurrentGroup();
 		OnPropertyChanged("SelectedColorTemplateGroupForGeneration");
 		OnPropertyChanged("SelectedSpBatchColorTemplateGroupForGeneration");
 		OnPropertyChanged("SpBatchColorSelectionTitle");
@@ -3653,7 +3881,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private IReadOnlyList<ColorTemplateColorRecord> GetSelectedColorTemplateColors()
 	{
-		ColorTemplateGroupViewModel? group = ColorTemplateGroups.FirstOrDefault(item => item.Id == _selectedGenerationColorTemplateGroupId);
+		ColorTemplateGroupViewModel? group = GenerationColorTemplateGroups.FirstOrDefault(item => item.Id == _selectedGenerationColorTemplateGroupId);
 		return group?.Colors
 			.Select((ColorTemplateColorViewModel color, int index) => color.ToRecord(group.Id, index))
 			.ToArray()
@@ -3662,14 +3890,14 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private ColorTemplateGroupViewModel? GetSelectedSpBatchColorTemplateGroup()
 	{
-		ColorTemplateGroupViewModel? group = ColorTemplateGroups.FirstOrDefault(item => item.Id == _selectedSpBatchColorTemplateGroupId);
+		ColorTemplateGroupViewModel? group = GenerationColorTemplateGroups.FirstOrDefault(item => item.Id == _selectedSpBatchColorTemplateGroupId);
 		if (group != null)
 		{
 			return group;
 		}
-		return SelectedSpBatchColorTemplateGroupForGeneration != null && ColorTemplateGroups.Any(item => item.Id == SelectedSpBatchColorTemplateGroupForGeneration.Id)
+		return SelectedSpBatchColorTemplateGroupForGeneration != null && GenerationColorTemplateGroups.Any(item => item.Id == SelectedSpBatchColorTemplateGroupForGeneration.Id)
 			? SelectedSpBatchColorTemplateGroupForGeneration
-			: ColorTemplateGroups.FirstOrDefault();
+			: GenerationColorTemplateGroups.FirstOrDefault();
 	}
 
 	private IReadOnlyList<string> GetSelectedSpBatchColorNamesForCurrentGroup()
@@ -3802,6 +4030,31 @@ public sealed class MainWindowViewModel : ViewModelBase
 		IconWordTemplateCount = records.Count(item => GetTitleTemplateType(item) == IconWordTemplateType);
 	}
 
+	private void UpdateMaterialTemplateCounts(
+		IReadOnlyList<TemplateItemRecord> layoutTemplates,
+		IReadOnlyList<TemplateItemRecord> sceneTemplates,
+		IReadOnlyList<TemplateItemRecord> subjectTemplates,
+		IReadOnlyList<TemplateItemRecord> titleTemplates,
+		IReadOnlyList<ColorTemplateGroupRecord> colorGroups)
+	{
+		if (_selectedTemplateCategory == TemplateCategory.Color)
+		{
+			LycheeMaterialTemplateCount = colorGroups.Count(item => string.Equals(NormalizeMaterial(item.Material), LycheeMaterial, StringComparison.OrdinalIgnoreCase));
+			SuedeMaterialTemplateCount = colorGroups.Count(item => string.Equals(NormalizeMaterial(item.Material), SuedeMaterial, StringComparison.OrdinalIgnoreCase));
+			return;
+		}
+
+		IReadOnlyList<TemplateItemRecord> source = _selectedTemplateCategory switch
+		{
+			TemplateCategory.Scene => sceneTemplates,
+			TemplateCategory.Subject => subjectTemplates,
+			TemplateCategory.Title => titleTemplates,
+			_ => layoutTemplates
+		};
+		LycheeMaterialTemplateCount = source.Count(item => string.Equals(NormalizeMaterial(item.Material), LycheeMaterial, StringComparison.OrdinalIgnoreCase));
+		SuedeMaterialTemplateCount = source.Count(item => string.Equals(NormalizeMaterial(item.Material), SuedeMaterial, StringComparison.OrdinalIgnoreCase));
+	}
+
 	private static string GetTitleTemplateType(TemplateItemRecord item)
 	{
 		if (string.Equals(item.Subject, SubTitleTemplateType, StringComparison.Ordinal))
@@ -3813,6 +4066,19 @@ public sealed class MainWindowViewModel : ViewModelBase
 			return IconWordTemplateType;
 		}
 		return MainTitleTemplateType;
+	}
+
+	private static string NormalizeMaterial(string? material)
+	{
+		string text = (material ?? string.Empty).Trim();
+		return string.IsNullOrWhiteSpace(text) ? LycheeMaterial : text;
+	}
+
+	private static string ToMaterialToken(string? material)
+	{
+		return string.Equals(NormalizeMaterial(material), SuedeMaterial, StringComparison.OrdinalIgnoreCase)
+			? "suede"
+			: "lychee_grain";
 	}
 
 	private static string CreateTitleTemplateName(string content)
@@ -3831,6 +4097,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 			where item.IsSelected
 			select item.Id).ToHashSet();
 		TemplateItemRecord[] array = (from item in await _templateLibraryService.GetByCategoryAsync(TemplateCategory.Layout, CurrentGenerationImageType)
+			where IsGenerationMaterialSelected(item.Material)
 			where item.IsEnabled
 			orderby item.Id
 			select item).ToArray();
@@ -3885,6 +4152,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		SelectedTemplateItem = null;
 		TemplateEditorName = string.Empty;
 		TemplateEditorContent = string.Empty;
+		TemplateEditorMaterial = GetDefaultEditorMaterial();
 		IsTemplateSubjectPickerOpen = false;
 		SetTemplateSubjectTags(Array.Empty<long>());
 		if (refreshSubjectOptions)
@@ -3922,6 +4190,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 			OnPropertyChanged("CurrentTemplateExportButtonText");
 		}
 		TemplateEditorName = item.Category == TemplateCategory.Title ? string.Empty : item.Name;
+		TemplateEditorMaterial = item.Material;
 		TemplateEditorContent = item.Content;
 		IsTemplateSubjectPickerOpen = false;
 		IReadOnlyList<long> sceneSubjectIdsForEditor = GetSceneSubjectIdsForEditor(item);
@@ -4033,6 +4302,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 			Id = (SelectedTemplateItem?.Id ?? 0),
 			Category = _selectedTemplateCategory,
 			Name = trimmedName,
+			Material = TemplateEditorMaterial,
 			Content = (IsSceneTemplateTabSelected ? JoinSceneContentLines() : (IsSubjectTemplateTabSelected ? trimmedName : TemplateEditorContent)),
 			Subject = (IsSceneTemplateTabSelected ? JoinTemplateSubjectTagTexts() : (IsTitleTemplateTabSelected ? _selectedTitleTemplateType : string.Empty)),
 			PreviewImagePath = (IsLayoutTemplateTabSelected ? TemplateEditorPreviewImagePath : string.Empty),
@@ -4089,6 +4359,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 			{
 				Category = TemplateCategory.Title,
 				Name = CreateTitleTemplateName(normalizedTitle),
+				Material = TemplateEditorMaterial,
 				Content = normalizedTitle,
 				Subject = titleType,
 				PreviewImagePath = string.Empty,
@@ -4126,6 +4397,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 	{
 		_selectedColorTemplateGroup = null;
 		ColorTemplateGroupEditorName = string.Empty;
+		ColorTemplateGroupEditorMaterial = GetDefaultEditorMaterial();
 		ColorTemplateEditorColors.Clear();
 		AddColorTemplateEditorRow();
 		OnPropertyChanged("ColorTemplateGroupEditorTitle");
@@ -4141,6 +4413,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		_selectedColorTemplateGroup = item;
 		_selectedColorTemplateGroupId = item.Id;
 		ColorTemplateGroupEditorName = item.Name;
+		ColorTemplateGroupEditorMaterial = item.Material;
 		ColorTemplateEditorColors.Clear();
 		foreach (ColorTemplateColorViewModel color in item.Colors)
 		{
@@ -4250,6 +4523,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		{
 			Id = _selectedColorTemplateGroup?.Id ?? 0,
 			Name = groupName,
+			Material = ColorTemplateGroupEditorMaterial,
 			SortOrder = _selectedColorTemplateGroup?.Model.SortOrder ?? ColorTemplateGroups.Count,
 			IsEnabled = true,
 			Colors = colors
@@ -4257,6 +4531,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		_selectedColorTemplateGroupId = saved.Id;
 		CloseColorTemplateGroupEditor();
 		await LoadColorTemplateGroupsAsync();
+		await LoadGenerationColorTemplateGroupsAsync();
 		StatusMessage = "已保存颜色组：" + saved.Name;
 	}
 
@@ -4276,6 +4551,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 			_selectedColorTemplateGroupId = 0;
 		}
 		await LoadColorTemplateGroupsAsync();
+		await LoadGenerationColorTemplateGroupsAsync();
 		StatusMessage = "已删除颜色组：" + item.Name;
 	}
 
@@ -4285,6 +4561,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		CloseColorTemplateColorPreview();
 		_selectedColorTemplateGroup = null;
 		ColorTemplateGroupEditorName = string.Empty;
+		ColorTemplateGroupEditorMaterial = LycheeMaterial;
 		ColorTemplateEditorColors.Clear();
 		OnPropertyChanged("ColorTemplateGroupEditorTitle");
 	}
@@ -4820,11 +5097,12 @@ public sealed class MainWindowViewModel : ViewModelBase
 		{
 			previewImagePath = await _templateLibraryService.ImportPreviewImageAsync(item.PreviewImagePath);
 		}
-		string copyName = CreateLayoutTemplateCopyName(item.Name);
+		string copyName = CreateLayoutTemplateCopyName(item.Name, item.Material);
 		TemplateItemRecord saved = await _templateLibraryService.SaveAsync(new TemplateItemRecord
 		{
 			Category = TemplateCategory.Layout,
 			Name = copyName,
+			Material = item.Material,
 			Content = item.Content,
 			Subject = string.Empty,
 			PreviewImagePath = previewImagePath,
@@ -4837,12 +5115,12 @@ public sealed class MainWindowViewModel : ViewModelBase
 		StatusMessage = $"已复制布局模板：{saved.Name}";
 	}
 
-	private string CreateLayoutTemplateCopyName(string sourceName)
+	private string CreateLayoutTemplateCopyName(string sourceName, string material)
 	{
 		string baseName = string.IsNullOrWhiteSpace(sourceName) ? "布局模板" : sourceName.Trim();
 		string copyBaseName = baseName.EndsWith(" - 副本", StringComparison.OrdinalIgnoreCase) ? baseName : baseName + " - 副本";
 		HashSet<string> existingNames = ManagedTemplateItems
-			.Where((TemplateItemViewModel item) => item.Category == TemplateCategory.Layout && item.ImageType == _selectedLayoutImageType)
+			.Where((TemplateItemViewModel item) => item.Category == TemplateCategory.Layout && item.ImageType == _selectedLayoutImageType && string.Equals(NormalizeMaterial(item.Material), NormalizeMaterial(material), StringComparison.OrdinalIgnoreCase))
 			.Select((TemplateItemViewModel item) => item.Name.Trim())
 			.ToHashSet(StringComparer.OrdinalIgnoreCase);
 		if (!existingNames.Contains(copyBaseName))
@@ -4907,17 +5185,17 @@ public sealed class MainWindowViewModel : ViewModelBase
 				if (category == TemplateCategory.Layout)
 				{
 					long[] selectedIds = ManagedTemplateItems.Where((TemplateItemViewModel item) => item.IsSelectedForExport).Select((TemplateItemViewModel item) => item.Id).ToArray();
-					int value = await _templateLibraryService.ExportLayoutTemplatesAsync(dialog.FileName, _selectedLayoutImageType, selectedIds.Length > 0 ? selectedIds : null);
+					int value = await _templateLibraryService.ExportLayoutTemplatesAsync(dialog.FileName, _selectedLayoutImageType, selectedIds.Length > 0 ? selectedIds : null, GetSelectedTemplateMaterials());
 					StatusMessage = selectedIds.Length > 0 ? $"已导出选中布局模板：{value} 个" : $"已导出布局模板：{value} 个";
 				}
 				else if (category == TemplateCategory.Color)
 				{
-					int value = await _templateLibraryService.ExportColorTemplatesAsync(dialog.FileName);
+					int value = await _templateLibraryService.ExportColorTemplatesAsync(dialog.FileName, GetSelectedTemplateMaterials());
 					StatusMessage = $"已导出{GetTemplateCategoryDisplayName(category)}：{value} 个";
 				}
 				else
 				{
-					int value = await _templateLibraryService.ExportTemplateCategoryAsync(dialog.FileName, category, category == TemplateCategory.Title ? _selectedTitleTemplateType : null);
+					int value = await _templateLibraryService.ExportTemplateCategoryAsync(dialog.FileName, category, category == TemplateCategory.Title ? _selectedTitleTemplateType : null, GetSelectedTemplateMaterials());
 					StatusMessage = $"已导出{GetTemplateCategoryDisplayName(category)}：{value} 个";
 				}
 			}
@@ -5906,7 +6184,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 			ImageTemplateType.CompareImage => "compare-image-library.json", 
 			_ => "main-image-library.json", 
 		});
-		await _templateLibraryService.ExportGenerationLibraryAsync(currentImageType, generationLibraryPath, selectedGenerationTemplateIds);
+		await _templateLibraryService.ExportGenerationLibraryAsync(currentImageType, generationLibraryPath, selectedGenerationTemplateIds, GetSelectedGenerationMaterials());
 		TemplateLibraryPath = generationLibraryPath;
 		if (!File.Exists(TemplateLibraryPath))
 		{
@@ -6059,6 +6337,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 				Retries = retries,
 				Mode = _spBatchMode,
 				Overwrite = true,
+				Material = ToMaterialToken(_selectedGenerationMaterial),
 				ColorTemplateColors = GetSelectedColorTemplateColors()
 			};
 			ApplySpBatchVisualResult(await _spBatchService.GenerateAsync(request, _spBatchCancellationTokenSource.Token));
@@ -6925,6 +7204,9 @@ public sealed class MainWindowViewModel : ViewModelBase
 		SkuOptimizeOutputDirectory = NormalizeWritableWorkspacePath(state.SkuOptimizeOutputDirectory ?? string.Empty);
 		SelectedImageGenerationProvider = state.ImageGenerationProvider;
 		TitleChineseOnly = state.TitleChineseOnly;
+		_selectedGenerationMaterial = NormalizeMaterial(state.GenerationMaterial);
+		OnPropertyChanged("IsGenerationLycheeMaterialSelected");
+		OnPropertyChanged("IsGenerationSuedeMaterialSelected");
 		long restoredSpBatchColorGroupId = state.SelectedSpBatchColorTemplateGroupId;
 		_spBatchSelectedColorNamesByGroupId.Clear();
 		foreach (KeyValuePair<long, string[]> item in state.SpBatchSelectedColorNamesByGroupId ?? new Dictionary<long, string[]>())
@@ -6939,9 +7221,9 @@ public sealed class MainWindowViewModel : ViewModelBase
 				_spBatchSelectedColorNamesByGroupId[item.Key] = new HashSet<string>(selectedNames, StringComparer.OrdinalIgnoreCase);
 			}
 		}
-		ColorTemplateGroupViewModel? spBatchGroup = ColorTemplateGroups.FirstOrDefault(item => item.Id == restoredSpBatchColorGroupId)
+		ColorTemplateGroupViewModel? spBatchGroup = GenerationColorTemplateGroups.FirstOrDefault(item => item.Id == restoredSpBatchColorGroupId)
 			?? _selectedSpBatchColorTemplateGroupForGeneration
-			?? ColorTemplateGroups.FirstOrDefault();
+			?? GenerationColorTemplateGroups.FirstOrDefault();
 		_selectedSpBatchColorTemplateGroupId = spBatchGroup?.Id ?? 0;
 		_selectedSpBatchColorTemplateGroupForGeneration = spBatchGroup;
 		RefreshSpBatchColorSelectionForCurrentGroup();
@@ -6982,6 +7264,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		appUserPathsState.SkuOptimizeOutputDirectory = SkuOptimizeOutputDirectory;
 		appUserPathsState.ImageGenerationProvider = SelectedImageGenerationProvider;
 		appUserPathsState.TitleChineseOnly = TitleChineseOnly;
+		appUserPathsState.GenerationMaterial = _selectedGenerationMaterial;
 		appUserPathsState.SelectedSpBatchColorTemplateGroupId = _selectedSpBatchColorTemplateGroupId;
 		appUserPathsState.SpBatchSelectedColorNamesByGroupId = _spBatchSelectedColorNamesByGroupId.ToDictionary(
 			item => item.Key,
@@ -7855,6 +8138,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 				Retries = retries,
 				Mode = mode,
 				Overwrite = true,
+				Material = ToMaterialToken(_selectedGenerationMaterial),
 				ColorTemplateColors = GetSelectedSpBatchColorTemplateColors(),
 				SelectedColors = GetSelectedSpBatchColorNamesForCurrentGroup()
 			};

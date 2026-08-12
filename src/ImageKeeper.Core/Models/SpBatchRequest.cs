@@ -11,6 +11,8 @@ public sealed class SpBatchRequest
 
 	public string Image2ScriptPath { get; init; } = string.Empty;
 
+	public string Material { get; init; } = "lychee_grain";
+
 	public int Concurrency { get; init; } = 2;
 
 	public int Retries { get; init; } = 4;

@@ -51,6 +51,7 @@ class RequestOptions:
     input_dir: Path
     output_dir: Path
     image2_script: Path
+    material: str
     concurrency: int
     retries: int
     overwrite: bool
@@ -152,6 +153,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--input-dir", help="Override input image directory.")
     parser.add_argument("--output-dir", help="Override output image directory.")
     parser.add_argument("--image2-script", required=True, help="Path to the image2 generation script.")
+    parser.add_argument("--material", default="lychee_grain", help="Stable material token stored in the SP metadata.")
     parser.add_argument("--color-template", help="Optional JSON color template exported by the desktop app.")
     parser.add_argument("--concurrency", type=int, help="Override worker count.")
     parser.add_argument("--retries", type=int, help="Override retry count per job.")
@@ -251,6 +253,7 @@ def resolve_options(args: argparse.Namespace) -> RequestOptions:
     input_dir = Path(args.input_dir or parsed.get("input_dir") or DEFAULT_INPUT_DIR).expanduser().resolve()
     output_dir = Path(args.output_dir or parsed.get("output_dir") or DEFAULT_OUTPUT_DIR).expanduser().resolve()
     image2_script = Path(args.image2_script).expanduser().resolve()
+    material = normalize_material_token(args.material)
     concurrency = max(1, int(args.concurrency or parsed.get("concurrency") or DEFAULT_CONCURRENCY))
     retries = max(1, int(args.retries or parsed.get("retries") or DEFAULT_RETRIES))
     overwrite = bool(args.overwrite or parsed.get("overwrite", False))
@@ -272,6 +275,7 @@ def resolve_options(args: argparse.Namespace) -> RequestOptions:
         input_dir=input_dir,
         output_dir=output_dir,
         image2_script=image2_script,
+        material=material,
         concurrency=concurrency,
         retries=retries,
         overwrite=overwrite,
@@ -365,13 +369,42 @@ def clear_directory_contents(directory: Path) -> None:
             child.unlink()
 
 
-def write_source_metadata(sp_dir: Path, image_path: Path) -> None:
+def normalize_material_token(value: str | None) -> str:
+    text = (value or "").strip().casefold()
+    if text in {"suede", "麂皮绒"}:
+        return "suede"
+    return "lychee_grain"
+
+
+def write_source_metadata(sp_dir: Path, image_path: Path, material: str) -> None:
     metadata = {
         "source_file_name": image_path.name,
         "source_original_path": str(image_path.resolve()),
         "updated_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "material": normalize_material_token(material),
     }
     (sp_dir / SOURCE_METADATA_NAME).write_text(
+        json.dumps(metadata, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
+def update_source_material(sp_dir: Path, image_path: Path, material: str) -> None:
+    metadata_path = sp_dir / SOURCE_METADATA_NAME
+    metadata: dict[str, Any] = {}
+    if metadata_path.exists():
+        try:
+            loaded = json.loads(metadata_path.read_text(encoding="utf-8-sig"))
+            if isinstance(loaded, dict):
+                metadata.update(loaded)
+        except (OSError, json.JSONDecodeError):
+            pass
+
+    metadata.setdefault("source_file_name", image_path.name)
+    metadata.setdefault("source_original_path", str(image_path.resolve()))
+    metadata["updated_at"] = time.strftime("%Y-%m-%dT%H:%M:%S%z")
+    metadata["material"] = normalize_material_token(material)
+    metadata_path.write_text(
         json.dumps(metadata, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
@@ -413,6 +446,7 @@ def ensure_output_bundles(
     images: list[Path],
     output_dir: Path,
     overwrite: bool,
+    material: str,
     copy_source_to_sku: bool = False,
     linked_bundles: dict[str, dict[str, Any]] | None = None,
 ) -> dict[Path, OutputBundle]:
@@ -434,6 +468,7 @@ def ensure_output_bundles(
             detail_dir = sp_dir / "detail"
             for folder in (main_dir, sku_dir, detail_dir):
                 folder.mkdir(parents=True, exist_ok=True)
+            update_source_material(sp_dir, image_path, material)
             source_copy_text = str(linked_bundle.get("source_copy_path") or "")
             source_copy_path = Path(source_copy_text).expanduser().resolve() if source_copy_text else image_path
             bundles[image_path] = OutputBundle(
@@ -466,7 +501,7 @@ def ensure_output_bundles(
         source_copy_path = sku_dir / image_path.name if copy_source_to_sku else main_dir / MAIN_IMAGE_NAME
         if overwrite or not source_copy_path.exists() or source_copy_path.stat().st_size == 0:
             shutil.copy2(image_path, source_copy_path)
-        write_source_metadata(sp_dir, image_path)
+        write_source_metadata(sp_dir, image_path, material)
 
         bundles[image_path] = OutputBundle(
             sp_dir=sp_dir,
@@ -1011,6 +1046,7 @@ def main() -> int:
             images,
             options.output_dir,
             options.overwrite,
+            options.material,
             copy_source_to_sku=options.recolor_only,
             linked_bundles=linked_bundles,
         )

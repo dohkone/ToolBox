@@ -31,6 +31,8 @@ public sealed class TemplateItemViewModel : ViewModelBase
 
 	public string Subject => Model.Subject;
 
+	public string Material => Model.Material;
+
 	public string PreviewImagePath => Model.PreviewImagePath;
 
 	public ImageTemplateType ImageType => Model.ImageType;
@@ -181,6 +183,7 @@ public sealed class TemplateItemViewModel : ViewModelBase
 		OnPropertyChanged("Name");
 		OnPropertyChanged("Content");
 		OnPropertyChanged("Subject");
+		OnPropertyChanged("Material");
 		OnPropertyChanged("PreviewImagePath");
 		OnPropertyChanged("ImageType");
 		OnPropertyChanged("ImageTypeText");

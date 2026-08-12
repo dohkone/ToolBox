@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media;
@@ -16,6 +17,8 @@ namespace ImageKeeper.App.ViewModels;
 public sealed class RootCardViewModel : ViewModelBase
 {
 	private const int ImagePageSize = 60;
+
+	private const string SourceMetadataName = ".sku-source.json";
 
 	private static readonly HashSet<string> SizeImageExtensions = new(StringComparer.OrdinalIgnoreCase)
 	{
@@ -181,6 +184,7 @@ public sealed class RootCardViewModel : ViewModelBase
 				OnPropertyChanged("AutoPublishKeyPath");
 				OnPropertyChanged("CollapsedSummaryText");
 				OnPropertyChanged("CollapsedPathText");
+				OnPropertyChanged("MaterialSummaryText");
 				RefreshCurrentImages();
 			}
 		}
@@ -666,6 +670,8 @@ public sealed class RootCardViewModel : ViewModelBase
 		_batchSelectionChanged?.Invoke();
 	}
 
+	public string MaterialSummaryText => "材质：" + GetMaterialDisplayName();
+
 	public void ApplyAutoPublishRecord(AutoPublishCardRecord? record)
 	{
 		AutoPublishStatus = record?.Status ?? AutoPublishStatus.NotPublished;
@@ -853,6 +859,48 @@ public sealed class RootCardViewModel : ViewModelBase
 	private string? GetSpRootFolder()
 	{
 		return SpRootResolver.Resolve(RootFolderPath) ?? SpRootResolver.Resolve(CurrentFolderPath);
+	}
+
+	private string GetMaterialDisplayName()
+	{
+		string? spRootFolder = GetSpRootFolder();
+		if (string.IsNullOrWhiteSpace(spRootFolder))
+		{
+			return "荔枝纹";
+		}
+
+		string metadataPath = Path.Combine(spRootFolder, SourceMetadataName);
+		if (!File.Exists(metadataPath))
+		{
+			return "荔枝纹";
+		}
+
+		try
+		{
+			using JsonDocument document = JsonDocument.Parse(File.ReadAllText(metadataPath));
+			if (document.RootElement.ValueKind == JsonValueKind.Object
+				&& document.RootElement.TryGetProperty("material", out JsonElement materialElement)
+				&& materialElement.ValueKind == JsonValueKind.String)
+			{
+				string material = (materialElement.GetString() ?? string.Empty).Trim();
+				if (string.Equals(material, "suede", StringComparison.OrdinalIgnoreCase)
+					|| string.Equals(material, "麂皮绒", StringComparison.OrdinalIgnoreCase))
+				{
+					return "麂皮绒";
+				}
+			}
+		}
+		catch (IOException)
+		{
+		}
+		catch (JsonException)
+		{
+		}
+		catch (UnauthorizedAccessException)
+		{
+		}
+
+		return "荔枝纹";
 	}
 
 	private static string? ValidateAutoPublishInput(string spRootFolder)

@@ -9,6 +9,8 @@ public sealed class ColorTemplateGroupRecord
 
 	public string Name { get; init; } = string.Empty;
 
+	public string Material { get; init; } = "荔枝纹";
+
 	public int SortOrder { get; init; }
 
 	public bool IsEnabled { get; init; } = true;

@@ -14,6 +14,8 @@ public sealed class TemplateItemRecord
 
 	public string Subject { get; init; } = string.Empty;
 
+	public string Material { get; init; } = "荔枝纹";
+
 	public string PreviewImagePath { get; init; } = string.Empty;
 
 	public ImageTemplateType ImageType { get; init; }

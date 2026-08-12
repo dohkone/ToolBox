@@ -153,6 +153,8 @@ public sealed class SpBatchService : ISpBatchService
 		processStartInfo.ArgumentList.Add(request.OutputDirectory);
 		processStartInfo.ArgumentList.Add("--image2-script");
 		processStartInfo.ArgumentList.Add(request.Image2ScriptPath);
+		processStartInfo.ArgumentList.Add("--material");
+		processStartInfo.ArgumentList.Add(request.Material);
 		string? colorTemplatePath = ColorTemplateFileHelper.Write(request.ColorTemplateColors, request.SelectedColors);
 		if (!string.IsNullOrWhiteSpace(colorTemplatePath))
 		{

@@ -21,7 +21,7 @@ public interface ITemplateLibraryService
 
 	Task DeleteColorGroupAsync(long id, CancellationToken cancellationToken = default(CancellationToken));
 
-	Task<int> ExportColorTemplatesAsync(string packagePath, CancellationToken cancellationToken = default(CancellationToken));
+	Task<int> ExportColorTemplatesAsync(string packagePath, IReadOnlyList<string>? materials = null, CancellationToken cancellationToken = default(CancellationToken));
 
 	Task<int> ImportColorTemplatesAsync(string packagePath, CancellationToken cancellationToken = default(CancellationToken));
 
@@ -33,11 +33,11 @@ public interface ITemplateLibraryService
 
 	Task<string> ImportPreviewImageAsync(string sourceImagePath, CancellationToken cancellationToken = default(CancellationToken));
 
-	Task<int> ExportLayoutTemplatesAsync(string packagePath, ImageTemplateType imageType, IReadOnlyList<long>? selectedTemplateIds = null, CancellationToken cancellationToken = default(CancellationToken));
+	Task<int> ExportLayoutTemplatesAsync(string packagePath, ImageTemplateType imageType, IReadOnlyList<long>? selectedTemplateIds = null, IReadOnlyList<string>? materials = null, CancellationToken cancellationToken = default(CancellationToken));
 
 	Task<int> ImportLayoutTemplatesAsync(string packagePath, CancellationToken cancellationToken = default(CancellationToken));
 
-	Task<int> ExportTemplateCategoryAsync(string packagePath, TemplateCategory category, string? templateType = null, CancellationToken cancellationToken = default(CancellationToken));
+	Task<int> ExportTemplateCategoryAsync(string packagePath, TemplateCategory category, string? templateType = null, IReadOnlyList<string>? materials = null, CancellationToken cancellationToken = default(CancellationToken));
 
 	Task<int> ImportTemplateCategoryAsync(string packagePath, TemplateCategory category, string? templateType = null, CancellationToken cancellationToken = default(CancellationToken));
 
@@ -45,5 +45,5 @@ public interface ITemplateLibraryService
 
 	Task<int> ImportAllTemplatesAsync(string packagePath, CancellationToken cancellationToken = default(CancellationToken));
 
-	Task<string> ExportGenerationLibraryAsync(ImageTemplateType imageType, string outputPath, IReadOnlyList<long>? selectedLayoutTemplateIds = null, CancellationToken cancellationToken = default(CancellationToken));
+	Task<string> ExportGenerationLibraryAsync(ImageTemplateType imageType, string outputPath, IReadOnlyList<long>? selectedLayoutTemplateIds = null, IReadOnlyList<string>? materials = null, CancellationToken cancellationToken = default(CancellationToken));
 }

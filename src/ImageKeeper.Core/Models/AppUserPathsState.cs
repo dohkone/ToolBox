@@ -20,6 +20,8 @@ public sealed class AppUserPathsState
 
 	public bool TitleChineseOnly { get; set; }
 
+	public string GenerationMaterial { get; set; } = string.Empty;
+
 	public long SelectedSpBatchColorTemplateGroupId { get; set; }
 
 	public Dictionary<long, string[]> SpBatchSelectedColorNamesByGroupId { get; set; } = new Dictionary<long, string[]>();

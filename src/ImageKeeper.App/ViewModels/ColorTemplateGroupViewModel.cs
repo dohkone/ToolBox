@@ -12,6 +12,8 @@ public sealed class ColorTemplateGroupViewModel : ViewModelBase
 
 	public string Name => Model.Name;
 
+	public string Material => Model.Material;
+
 	public int ColorCount => Colors.Count;
 
 	public string ColorCountText => $"{ColorCount} 个颜色";

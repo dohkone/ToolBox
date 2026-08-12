@@ -961,15 +961,23 @@
                                                                                                Text="{Binding AutoPublishStatusText}" />
                                                                                 </Border>
                                                                             </StackPanel>
-                                                                            <TextBlock Grid.Row="1"
-                                                                                       Margin="0,1,0,0"
-                                                                                       MaxWidth="760"
-                                                                                       FontSize="12"
-                                                                                       Foreground="{Binding SizeStatusForeground}"
-                                                                                       Text="{Binding SizeSummaryText}"
-                                                                                       TextTrimming="CharacterEllipsis"
-                                                                                       TextWrapping="NoWrap"
-                                                                                       ToolTip="{Binding SizeSummaryText}" />
+                                                                            <StackPanel Grid.Row="1"
+                                                                                        Margin="0,1,0,0"
+                                                                                        Orientation="Horizontal">
+                                                                                <TextBlock MaxWidth="520"
+                                                                                           FontSize="12"
+                                                                                           Foreground="{Binding SizeStatusForeground}"
+                                                                                           Text="{Binding SizeSummaryText}"
+                                                                                           TextTrimming="CharacterEllipsis"
+                                                                                           TextWrapping="NoWrap"
+                                                                                           ToolTip="{Binding SizeSummaryText}" />
+                                                                                <TextBlock Margin="14,0,0,0"
+                                                                                           FontSize="12"
+                                                                                           Foreground="#606266"
+                                                                                           Text="{Binding MaterialSummaryText}"
+                                                                                           TextWrapping="NoWrap"
+                                                                                           ToolTip="{Binding MaterialSummaryText}" />
+                                                                            </StackPanel>
                                                                         </Grid>
                                                                     </Button>
                                                                     <StackPanel Grid.Column="3"
@@ -1499,6 +1507,31 @@
                                 </Button.Style>
                                 <TextBlock Text="对比图生成" />
                             </Button>
+                            <Border Margin="8,0,0,0"
+                                    Height="32"
+                                    Padding="10,0"
+                                    VerticalAlignment="Center"
+                                    Background="White"
+                                    BorderBrush="#D9E1EC"
+                                    BorderThickness="1"
+                                    CornerRadius="6">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Margin="0,0,8,0"
+                                               VerticalAlignment="Center"
+                                               FontSize="13"
+                                               Foreground="{StaticResource MutedTextBrush}"
+                                               Text="材质" />
+                                    <CheckBox VerticalAlignment="Center"
+                                              FontSize="13"
+                                              Content="荔枝纹"
+                                              IsChecked="{Binding IsGenerationLycheeMaterialSelected, Mode=TwoWay}" />
+                                    <CheckBox Margin="10,0,0,0"
+                                              VerticalAlignment="Center"
+                                              FontSize="13"
+                                              Content="麂皮绒"
+                                              IsChecked="{Binding IsGenerationSuedeMaterialSelected, Mode=TwoWay}" />
+                                </StackPanel>
+                            </Border>
                         </WrapPanel>
                     </StackPanel>
 
@@ -1881,7 +1914,7 @@
                                             <ComboBox Grid.Column="0"
                                                       Height="30"
                                                       Style="{StaticResource ElementComboBoxStyle}"
-                                                      ItemsSource="{Binding ColorTemplateGroups}"
+                                                      ItemsSource="{Binding GenerationColorTemplateGroups}"
                                                       SelectedItem="{Binding SelectedSpBatchColorTemplateGroupForGeneration, Mode=TwoWay}" />
                                             <Button Grid.Column="1"
                                                     Margin="8,0,0,0"
@@ -2180,7 +2213,7 @@
                                         <ComboBox Grid.Column="1"
                                                   Margin="10,0,0,0"
                                                   Style="{StaticResource ElementComboBoxStyle}"
-                                                  ItemsSource="{Binding ColorTemplateGroups}"
+                                                  ItemsSource="{Binding GenerationColorTemplateGroups}"
                                                   SelectedItem="{Binding SelectedColorTemplateGroupForGeneration, Mode=TwoWay}" />
                                     </Grid>
 
@@ -2336,7 +2369,7 @@
                                                           Height="30"
                                                           VerticalAlignment="Center"
                                                           Style="{StaticResource ElementComboBoxStyle}"
-                                                          ItemsSource="{Binding ColorTemplateGroups}"
+                                                          ItemsSource="{Binding GenerationColorTemplateGroups}"
                                                           SelectedItem="{Binding SelectedSpBatchColorTemplateGroupForGeneration, Mode=TwoWay}" />
                                                 <Button Grid.Column="2"
                                                         Margin="8,0,0,0"
@@ -3314,19 +3347,27 @@
                                    TextWrapping="Wrap" />
 
                         <StackPanel Margin="0,-42,0,0"
-                                    HorizontalAlignment="Right"
-                                    Orientation="Horizontal">
-                            <Button Content="导入全部"
-                                    Style="{StaticResource ElementSecondaryButtonStyle}"
-                                    Command="{Binding ImportAllTemplatesCommand}" />
-                            <Button Margin="8,0,0,0"
-                                    Content="导出全部"
-                                    Style="{StaticResource ElementSecondaryButtonStyle}"
-                                    Command="{Binding ExportAllTemplatesCommand}" />
+                                    HorizontalAlignment="Right">
+                            <StackPanel HorizontalAlignment="Right"
+                                        Orientation="Horizontal">
+                                <Button Content="导入全部"
+                                        Style="{StaticResource ElementSecondaryButtonStyle}"
+                                        Command="{Binding ImportAllTemplatesCommand}" />
+                                <Button Margin="8,0,0,0"
+                                        Content="导出全部"
+                                        Style="{StaticResource ElementSecondaryButtonStyle}"
+                                        Command="{Binding ExportAllTemplatesCommand}" />
+                            </StackPanel>
                         </StackPanel>
 
-                        <WrapPanel Margin="0,12,0,0">
-                            <Button Padding="12,5"
+                        <Grid Margin="0,12,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <WrapPanel Grid.Column="0"
+                                       HorizontalAlignment="Left">
+                                <Button Padding="12,5"
                                     Command="{Binding ShowLayoutTemplateTabCommand}">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
@@ -3408,7 +3449,41 @@
                                     <Run Text="{Binding ColorTemplateGroupCount, Mode=OneWay, StringFormat=({0})}" />
                                 </TextBlock>
                             </Button>
-                        </WrapPanel>
+                            <Border Margin="8,0,0,0"
+                                    Height="32"
+                                    Padding="10,0"
+                                    VerticalAlignment="Center"
+                                    Background="White"
+                                    BorderBrush="#D9E1EC"
+                                    BorderThickness="1"
+                                    CornerRadius="6">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Margin="0,0,8,0"
+                                               VerticalAlignment="Center"
+                                               FontSize="13"
+                                               Foreground="{StaticResource MutedTextBrush}"
+                                               Text="材质" />
+                                    <CheckBox VerticalAlignment="Center"
+                                              FontSize="13"
+                                              IsChecked="{Binding IsLycheeMaterialSelected, Mode=TwoWay}">
+                                        <TextBlock>
+                                            <Run Text="荔枝纹 " />
+                                            <Run Text="{Binding LycheeMaterialTemplateCount, Mode=OneWay, StringFormat=({0})}" />
+                                        </TextBlock>
+                                    </CheckBox>
+                                    <CheckBox Margin="10,0,0,0"
+                                              VerticalAlignment="Center"
+                                              FontSize="13"
+                                              IsChecked="{Binding IsSuedeMaterialSelected, Mode=TwoWay}">
+                                        <TextBlock>
+                                            <Run Text="麂皮绒 " />
+                                            <Run Text="{Binding SuedeMaterialTemplateCount, Mode=OneWay, StringFormat=({0})}" />
+                                        </TextBlock>
+                                    </CheckBox>
+                                </StackPanel>
+                            </Border>
+                            </WrapPanel>
+                        </Grid>
                     </StackPanel>
 
                     <Grid Grid.Row="1"
@@ -3590,6 +3665,7 @@
                                                     <ColumnDefinition Width="52" />
                                                     <ColumnDefinition Width="126" />
                                                     <ColumnDefinition Width="170" />
+                                                    <ColumnDefinition Width="82" />
                                                     <ColumnDefinition Width="2*" />
                                                     <ColumnDefinition Width="120" />
                                                     <ColumnDefinition Width="120" />
@@ -3599,11 +3675,12 @@
                                                 <TextBlock FontWeight="SemiBold" Text="选择" />
                                                 <TextBlock Grid.Column="1" FontWeight="SemiBold" Text="预览图" />
                                                 <TextBlock Grid.Column="2" FontWeight="SemiBold" Text="名称" />
-                                                <TextBlock Grid.Column="3" FontWeight="SemiBold" Text="内容" />
-                                                <TextBlock Grid.Column="4" FontWeight="SemiBold" Text="创建时间" />
-                                                <TextBlock Grid.Column="5" FontWeight="SemiBold" Text="更新" />
-                                                <TextBlock Grid.Column="6" FontWeight="SemiBold" Text="是否启用" />
-                                                <TextBlock Grid.Column="7" FontWeight="SemiBold" Text="操作" />
+                                                <TextBlock Grid.Column="3" FontWeight="SemiBold" Text="材质" />
+                                                <TextBlock Grid.Column="4" FontWeight="SemiBold" Text="内容" />
+                                                <TextBlock Grid.Column="5" FontWeight="SemiBold" Text="创建时间" />
+                                                <TextBlock Grid.Column="6" FontWeight="SemiBold" Text="更新" />
+                                                <TextBlock Grid.Column="7" FontWeight="SemiBold" Text="是否启用" />
+                                                <TextBlock Grid.Column="8" FontWeight="SemiBold" Text="操作" />
                                             </Grid>
                                         </Border>
 
@@ -3616,20 +3693,22 @@
                                              <Grid>
                                                  <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="150" />
+                                                    <ColumnDefinition Width="82" />
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="145" />
                                                     <ColumnDefinition Width="145" />
                                                     <ColumnDefinition Width="90" />
                                                     <ColumnDefinition Width="140" />
-                                                 </Grid.ColumnDefinitions>
+                                                </Grid.ColumnDefinitions>
                                                 <TextBlock FontWeight="SemiBold" Text="名称" />
-                                                <TextBlock Grid.Column="1" FontWeight="SemiBold" Text="内容" />
-                                                <TextBlock Grid.Column="2" FontWeight="SemiBold" Text="主体" />
-                                                <TextBlock Grid.Column="3" FontWeight="SemiBold" Text="创建时间" />
-                                                <TextBlock Grid.Column="4" FontWeight="SemiBold" Text="更新" />
-                                                <TextBlock Grid.Column="5" FontWeight="SemiBold" Text="是否启用" />
-                                                <TextBlock Grid.Column="6" FontWeight="SemiBold" Text="操作" />
+                                                <TextBlock Grid.Column="1" FontWeight="SemiBold" Text="材质" />
+                                                <TextBlock Grid.Column="2" FontWeight="SemiBold" Text="内容" />
+                                                <TextBlock Grid.Column="3" FontWeight="SemiBold" Text="主体" />
+                                                <TextBlock Grid.Column="4" FontWeight="SemiBold" Text="创建时间" />
+                                                <TextBlock Grid.Column="5" FontWeight="SemiBold" Text="更新" />
+                                                <TextBlock Grid.Column="6" FontWeight="SemiBold" Text="是否启用" />
+                                                <TextBlock Grid.Column="7" FontWeight="SemiBold" Text="操作" />
                                              </Grid>
                                          </Border>
 
@@ -3642,14 +3721,16 @@
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="82" />
                                                     <ColumnDefinition Width="145" />
                                                     <ColumnDefinition Width="145" />
                                                     <ColumnDefinition Width="140" />
                                                 </Grid.ColumnDefinitions>
                                                 <TextBlock FontWeight="SemiBold" Text="元素内容" />
-                                                <TextBlock Grid.Column="1" FontWeight="SemiBold" Text="创建时间" />
-                                                <TextBlock Grid.Column="2" FontWeight="SemiBold" Text="更新" />
-                                                <TextBlock Grid.Column="3" FontWeight="SemiBold" Text="操作" />
+                                                <TextBlock Grid.Column="1" FontWeight="SemiBold" Text="材质" />
+                                                <TextBlock Grid.Column="2" FontWeight="SemiBold" Text="创建时间" />
+                                                <TextBlock Grid.Column="3" FontWeight="SemiBold" Text="更新" />
+                                                <TextBlock Grid.Column="4" FontWeight="SemiBold" Text="操作" />
                                                 </Grid>
                                             </Border>
 
@@ -3662,12 +3743,14 @@
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="180" />
+                                                    <ColumnDefinition Width="82" />
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="180" />
                                                 </Grid.ColumnDefinitions>
                                                 <TextBlock FontWeight="SemiBold" Text="颜色组名称" />
-                                                <TextBlock Grid.Column="1" FontWeight="SemiBold" Text="颜色展示" />
-                                                <TextBlock Grid.Column="2" FontWeight="SemiBold" Text="操作" />
+                                                <TextBlock Grid.Column="1" FontWeight="SemiBold" Text="材质" />
+                                                <TextBlock Grid.Column="2" FontWeight="SemiBold" Text="颜色展示" />
+                                                <TextBlock Grid.Column="3" FontWeight="SemiBold" Text="操作" />
                                             </Grid>
                                         </Border>
 
@@ -3718,6 +3801,7 @@
                                                                 <ColumnDefinition Width="52" />
                                                                 <ColumnDefinition Width="126" />
                                                                 <ColumnDefinition Width="170" />
+                                                                <ColumnDefinition Width="82" />
                                                                 <ColumnDefinition Width="2*" />
                                                                 <ColumnDefinition Width="120" />
                                                                 <ColumnDefinition Width="120" />
@@ -3760,20 +3844,24 @@
                                                                        Text="{Binding Name}"
                                                                        TextTrimming="CharacterEllipsis" />
                                                             <TextBlock Grid.Column="3"
+                                                                       VerticalAlignment="Center"
+                                                                       Foreground="{StaticResource MutedTextBrush}"
+                                                                       Text="{Binding Material}" />
+                                                            <TextBlock Grid.Column="4"
                                                                        Margin="0,0,14,0"
                                                                        VerticalAlignment="Center"
                                                                        Foreground="{StaticResource MutedTextBrush}"
                                                                        Text="{Binding ContentSummary}"
                                                                        TextTrimming="CharacterEllipsis" />
-                                                            <TextBlock Grid.Column="4"
-                                                                       VerticalAlignment="Center"
-                                                                       Foreground="{StaticResource MutedTextBrush}"
-                                                                       Text="{Binding CreatedAtText}" />
                                                             <TextBlock Grid.Column="5"
                                                                        VerticalAlignment="Center"
                                                                        Foreground="{StaticResource MutedTextBrush}"
+                                                                       Text="{Binding CreatedAtText}" />
+                                                            <TextBlock Grid.Column="6"
+                                                                       VerticalAlignment="Center"
+                                                                       Foreground="{StaticResource MutedTextBrush}"
                                                                        Text="{Binding UpdatedAtText}" />
-                                                            <Border Grid.Column="6"
+                                                            <Border Grid.Column="7"
                                                                     Width="54"
                                                                     Padding="8,2"
                                                                     HorizontalAlignment="Left"
@@ -3788,7 +3876,7 @@
                                                                            Text="{Binding EnabledText}" />
                                                             </Border>
 
-                                                            <StackPanel Grid.Column="7"
+                                                            <StackPanel Grid.Column="8"
                                                                         Orientation="Horizontal"
                                                                         VerticalAlignment="Center">
                                                                 <Button Height="28"
@@ -3869,6 +3957,7 @@
                                                              <Grid>
                                                                  <Grid.ColumnDefinitions>
                                                                     <ColumnDefinition Width="150" />
+                                                                    <ColumnDefinition Width="82" />
                                                                     <ColumnDefinition Width="*" />
                                                                     <ColumnDefinition Width="*" />
                                                                     <ColumnDefinition Width="145" />
@@ -3884,26 +3973,30 @@
                                                                            Text="{Binding Name}"
                                                                            TextTrimming="CharacterEllipsis" />
                                                                 <TextBlock Grid.Column="1"
+                                                                           VerticalAlignment="Center"
+                                                                           Foreground="{StaticResource MutedTextBrush}"
+                                                                           Text="{Binding Material}" />
+                                                                <TextBlock Grid.Column="2"
                                                                            Margin="0,0,14,0"
                                                                            VerticalAlignment="Center"
                                                                            Foreground="{StaticResource MutedTextBrush}"
                                                                            Text="{Binding ContentSummary}"
                                                                            TextTrimming="CharacterEllipsis" />
-                                                                <TextBlock Grid.Column="2"
+                                                                <TextBlock Grid.Column="3"
                                                                            Margin="0,0,14,0"
                                                                            VerticalAlignment="Center"
                                                                            Foreground="{StaticResource MutedTextBrush}"
                                                                            Text="{Binding SubjectSummary}"
                                                                            TextTrimming="CharacterEllipsis" />
-                                                                <TextBlock Grid.Column="3"
-                                                                           VerticalAlignment="Center"
-                                                                           Foreground="{StaticResource MutedTextBrush}"
-                                                                           Text="{Binding CreatedAtText}" />
                                                                 <TextBlock Grid.Column="4"
                                                                            VerticalAlignment="Center"
                                                                            Foreground="{StaticResource MutedTextBrush}"
+                                                                           Text="{Binding CreatedAtText}" />
+                                                                <TextBlock Grid.Column="5"
+                                                                           VerticalAlignment="Center"
+                                                                           Foreground="{StaticResource MutedTextBrush}"
                                                                            Text="{Binding UpdatedAtText}" />
-                                                                <Border Grid.Column="5"
+                                                                <Border Grid.Column="6"
                                                                         Width="54"
                                                                         Padding="8,2"
                                                                         HorizontalAlignment="Left"
@@ -3918,7 +4011,7 @@
                                                                                Text="{Binding EnabledText}" />
                                                                 </Border>
 
-                                                                <StackPanel Grid.Column="6"
+                                                                <StackPanel Grid.Column="7"
                                                                             Orientation="Horizontal"
                                                                             VerticalAlignment="Center">
                                                                     <Button Height="28"
@@ -4000,7 +4093,7 @@
                                                                                    Foreground="{StaticResource TitleTextBrush}"
                                                                                    Text="{Binding Name}"
                                                                                    TextWrapping="Wrap"
-                                                                                   MaxHeight="38" />
+                                                                                   MaxHeight="44" />
                                                                         <Border Width="46"
                                                                                 Grid.Column="1"
                                                                                 Margin="8,0,0,0"
@@ -4101,6 +4194,7 @@
                                                                 <Grid>
                                                                     <Grid.ColumnDefinitions>
                                                                         <ColumnDefinition Width="*" />
+                                                                        <ColumnDefinition Width="82" />
                                                                         <ColumnDefinition Width="145" />
                                                                         <ColumnDefinition Width="145" />
                                                                         <ColumnDefinition Width="140" />
@@ -4114,12 +4208,16 @@
                                                                     <TextBlock Grid.Column="1"
                                                                                VerticalAlignment="Center"
                                                                                Foreground="{StaticResource MutedTextBrush}"
-                                                                               Text="{Binding CreatedAtText}" />
+                                                                               Text="{Binding Material}" />
                                                                     <TextBlock Grid.Column="2"
                                                                                VerticalAlignment="Center"
                                                                                Foreground="{StaticResource MutedTextBrush}"
+                                                                               Text="{Binding CreatedAtText}" />
+                                                                    <TextBlock Grid.Column="3"
+                                                                               VerticalAlignment="Center"
+                                                                               Foreground="{StaticResource MutedTextBrush}"
                                                                                Text="{Binding UpdatedAtText}" />
-                                                                    <StackPanel Grid.Column="3"
+                                                                    <StackPanel Grid.Column="4"
                                                                                 Orientation="Horizontal"
                                                                                 VerticalAlignment="Center">
                                                                         <Button Height="28"
@@ -4183,6 +4281,7 @@
                                                                 <Grid>
                                                                     <Grid.ColumnDefinitions>
                                                                         <ColumnDefinition Width="180" />
+                                                                        <ColumnDefinition Width="82" />
                                                                         <ColumnDefinition Width="*" />
                                                                         <ColumnDefinition Width="180" />
                                                                     </Grid.ColumnDefinitions>
@@ -4191,7 +4290,11 @@
                                                                                Foreground="{StaticResource TitleTextBrush}"
                                                                                Text="{Binding Name}"
                                                                                TextTrimming="CharacterEllipsis" />
-                                                                    <ItemsControl Grid.Column="1"
+                                                                    <TextBlock Grid.Column="1"
+                                                                               VerticalAlignment="Center"
+                                                                               Foreground="{StaticResource MutedTextBrush}"
+                                                                               Text="{Binding Material}" />
+                                                                    <ItemsControl Grid.Column="2"
                                                                                   Margin="12,0"
                                                                                   ItemsSource="{Binding Colors}">
                                                                         <ItemsControl.ItemsPanel>
@@ -4219,7 +4322,7 @@
                                                                             </DataTemplate>
                                                                         </ItemsControl.ItemTemplate>
                                                                     </ItemsControl>
-                                                                    <StackPanel Grid.Column="2"
+                                                                    <StackPanel Grid.Column="3"
                                                                                 Orientation="Horizontal"
                                                                                 VerticalAlignment="Center">
                                                                         <Button Height="28"
@@ -4415,6 +4518,7 @@
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
                                         <RowDefinition Height="*" />
                                         <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
@@ -4441,7 +4545,25 @@
                                                   IsChecked="{Binding TemplateEditorIsEnabled, Mode=TwoWay}" />
                                     </Grid>
 
-                                     <StackPanel Grid.Row="1"
+                                    <StackPanel Grid.Row="1"
+                                                Margin="0,12,0,0">
+                                        <TextBlock Margin="0,0,0,6"
+                                                   Foreground="{StaticResource MutedTextBrush}"
+                                                   Text="材质" />
+                                        <ComboBox Width="160"
+                                                  HorizontalAlignment="Left"
+                                                  Style="{StaticResource ElementComboBoxStyle}"
+                                                  ItemsSource="{Binding MaterialOptions}"
+                                                  SelectedItem="{Binding TemplateEditorMaterial, Mode=TwoWay}">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding}" />
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                    </StackPanel>
+
+                                     <StackPanel Grid.Row="2"
                                                  Margin="0,12,0,0"
                                                  Visibility="{Binding IsTemplateEditorSubjectVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
                                          <TextBlock Margin="0,0,0,6"
@@ -4568,8 +4690,8 @@
                                         </Border>
                                      </StackPanel>
 
-                                    <Grid Grid.Row="2"
-                                          Margin="0,14,0,0"
+                                    <Grid Grid.Row="3"
+                                          Margin="0,8,0,0"
                                           Visibility="{Binding IsTemplateEditorContentVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto" />
@@ -4587,8 +4709,8 @@
                                                                               Text="{Binding TemplateEditorContent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                                               Visibility="{Binding IsLayoutTemplateTabSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                         <TextBox Grid.Row="1"
-                                                 Height="120"
-                                                 MinHeight="120"
+                                                 MinHeight="170"
+                                                 VerticalAlignment="Stretch"
                                                  Padding="8"
                                                  TextWrapping="Wrap"
                                                  AcceptsReturn="True"
@@ -4772,7 +4894,7 @@
                                         </StackPanel>
                                     </ScrollViewer>
 
-                                    <Border Grid.Row="3"
+                                    <Border Grid.Row="4"
                                             Margin="0,14,0,0"
                                             Padding="8"
                                             HorizontalAlignment="Stretch"
@@ -4881,24 +5003,51 @@
 
                             <Grid>
                                 <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="380" />
+                                    <ColumnDefinition Width="250" />
                                     <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <StackPanel>
                                     <TextBlock Margin="0,0,0,6"
                                                Foreground="{StaticResource MutedTextBrush}"
                                                Text="颜色组名称" />
-                                    <TextBox Style="{StaticResource ElementInputTextBoxStyle}"
-                                             Text="{Binding ColorTemplateGroupEditorName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                     <TextBox Width="380"
+                                              HorizontalAlignment="Left"
+                                              Style="{StaticResource ElementInputTextBoxStyle}"
+                                              Text="{Binding ColorTemplateGroupEditorName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                 </StackPanel>
-                                <Button Grid.Column="1"
-                                        Margin="12,24,0,0"
-                                        Height="32"
-                                        MinWidth="76"
-                                        Padding="14,0"
-                                        Content="添加"
-                                        Style="{StaticResource ElementSecondaryButtonStyle}"
-                                        Command="{Binding AddColorTemplateRowCommand}" />
+                                <Grid Grid.Column="1"
+                                      Margin="12,0,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="134" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="84" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Margin="0,0,0,6"
+                                                   Foreground="{StaticResource MutedTextBrush}"
+                                                   Text="材质" />
+                                        <ComboBox Height="34"
+                                                  Style="{StaticResource ElementComboBoxStyle}"
+                                                  ItemsSource="{Binding MaterialOptions}"
+                                                  SelectedItem="{Binding ColorTemplateGroupEditorMaterial, Mode=TwoWay}">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding}" />
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                    </StackPanel>
+                                    <Button Grid.Column="2"
+                                            Margin="0,24,0,0"
+                                            Width="84"
+                                            Height="34"
+                                            MinWidth="84"
+                                            Padding="0"
+                                            Content="添加"
+                                            Style="{StaticResource ElementSecondaryButtonStyle}"
+                                            Command="{Binding AddColorTemplateRowCommand}" />
+                                </Grid>
                             </Grid>
 
                             <Border Grid.Row="1"

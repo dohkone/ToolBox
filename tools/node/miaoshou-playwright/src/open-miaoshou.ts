@@ -60,7 +60,8 @@ const backingMaterialText = "\u5e95\u5e03\u6750\u8d28";
 const backingMaterialValueText = "\u5c3c\u9f99";
 const moreAttributesText = "\u66f4\u591a\u5c5e\u6027";
 const surfacePatternText = "\u8868\u76ae\u82b1\u7eb9";
-const surfacePatternValueText = "\u8354\u679d\u7eb9";
+const lycheeSurfacePatternValueText = "\u8354\u679d\u7eb9";
+const suedeSurfacePatternValueText = "\u9e82\u76ae\u7ed2";
 const thicknessText = "\u539a\u5ea6\uff08mm\uff09";
 const thicknessValueText = "1.01";
 const leatherTypeText = "\u8868\u76ae\u7c7b\u578b";
@@ -503,6 +504,10 @@ function getSkuSizeWeightEntries(product: ProductJsonItem) {
 function getPreviewImageFolder(product: ProductJsonItem) {
   const folder = product.preview_image_folder;
   return typeof folder === "string" && folder.trim().length > 0 ? folder.trim() : "";
+}
+
+function getMaterialToken(product: ProductJsonItem) {
+  return product.material === "suede" ? "suede" : "lychee_grain";
 }
 
 function getSkuColorItems(product: ProductJsonItem): SkuColorItem[] {
@@ -1485,10 +1490,12 @@ async function clickMoreAttributes(page: Page) {
   await page.waitForTimeout(500);
 }
 
-async function selectSurfacePattern(page: Page) {
+async function selectSurfacePattern(page: Page, productItem: ProductJsonItem) {
   await waitForBlockingLayersToClear(page);
   await page.waitForTimeout(500);
-  return await selectFormItemOption(page, surfacePatternText, surfacePatternValueText);
+  const material = getMaterialToken(productItem);
+  const patternValue = material === "suede" ? suedeSurfacePatternValueText : lycheeSurfacePatternValueText;
+  return await selectFormItemOption(page, surfacePatternText, patternValue);
 }
 
 async function inputFormItemValue(page: Page, labelText: string, value: string) {
@@ -4085,7 +4092,7 @@ async function prepareCreateProductFlow(page: Page, productItem: ProductJsonItem
   }
 
   await clickMoreAttributes(page);
-  await selectSurfacePattern(page);
+  await selectSurfacePattern(page, productItem);
   await inputThickness(page);
   await selectLeatherType(page);
 
