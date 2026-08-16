@@ -8,6 +8,8 @@ public sealed class TemplateGenerateRequest
 
 	public string Image2ScriptPath { get; init; } = string.Empty;
 
+	public string Material { get; init; } = "lychee_grain";
+
 	public ImageTemplateType ImageType { get; init; }
 
 	public int Count { get; init; }

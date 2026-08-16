@@ -61,11 +61,12 @@ const backingMaterialValueText = "\u5c3c\u9f99";
 const moreAttributesText = "\u66f4\u591a\u5c5e\u6027";
 const surfacePatternText = "\u8868\u76ae\u82b1\u7eb9";
 const lycheeSurfacePatternValueText = "\u8354\u679d\u7eb9";
-const suedeSurfacePatternValueText = "\u9e82\u76ae\u7ed2";
+const suedeSurfacePatternValueText = "\u7eaf\u8272";
 const thicknessText = "\u539a\u5ea6\uff08mm\uff09";
 const thicknessValueText = "1.01";
 const leatherTypeText = "\u8868\u76ae\u7c7b\u578b";
-const leatherTypeValueText = "\u6f06\u76ae";
+const lycheeLeatherTypeValueText = "\u6f06\u76ae";
+const suedeLeatherTypeValueText = "\u7ed2\u9762\u76ae";
 const productTitleText = "\u4ea7\u54c1\u6807\u9898";
 const englishTitleText = "\u82f1\u8bed\u6807\u9898";
 const originText = "\u4ea7\u5730";
@@ -87,7 +88,7 @@ const createPublishText = "\u521b\u5efa\u5e76\u53d1\u5e03";
 const releaseProductDialogTitleText = "\u53d1\u5e03\u4ea7\u54c1";
 const publishToSelectedShopText = "\u53d1\u5e03\u5230\u9009\u4e2d\u5e97\u94fa";
 const promptDialogTitleText = "\u63d0\u793a";
-const closeText = "\u5173\u95ed";
+const exitEditText = "\u9000\u51fa\u7f16\u8f91";
 const batchDeleteText = "\u6279\u91cf\u5220\u9664";
 const deleteCurrentPageText = "\u5220\u9664\u672c\u9875";
 const confirmDeleteText = "\u786e\u5b9a\u5220\u9664";
@@ -1552,10 +1553,12 @@ async function inputThickness(page: Page) {
   await inputFormItemValue(page, thicknessText, thicknessValueText);
 }
 
-async function selectLeatherType(page: Page) {
+async function selectLeatherType(page: Page, productItem: ProductJsonItem) {
   await waitForBlockingLayersToClear(page);
   await page.waitForTimeout(500);
-  return await selectFormItemOption(page, leatherTypeText, leatherTypeValueText);
+  const material = getMaterialToken(productItem);
+  const leatherTypeValue = material === "suede" ? suedeLeatherTypeValueText : lycheeLeatherTypeValueText;
+  return await selectFormItemOption(page, leatherTypeText, leatherTypeValue);
 }
 
 async function inputProductTitle(page: Page, titleValue: string) {
@@ -3301,7 +3304,7 @@ async function clickDialogConfirmButton(page: Page, batchDialog: Locator, logTex
 
 async function getVisibleDialogWithTitle(page: Page, titleText: string) {
   await page.waitForFunction((expectedTitle) => {
-    const dialogs = Array.from(document.querySelectorAll(".jx-overlay-dialog")) as HTMLElement[];
+    const dialogs = Array.from(document.querySelectorAll(".jx-overlay-dialog, .jx-dialog")) as HTMLElement[];
     return dialogs.some((dialog) => {
       const style = window.getComputedStyle(dialog);
       const rect = dialog.getBoundingClientRect();
@@ -3310,13 +3313,13 @@ async function getVisibleDialogWithTitle(page: Page, titleText: string) {
         style.visibility !== "hidden" &&
         rect.width > 0 &&
         rect.height > 0;
-      const title = (dialog.querySelector(".jx-dialog__title")?.textContent || "").trim();
+      const title = (dialog.querySelector(".jx-dialog__title, .header-title")?.textContent || "").trim();
       return isVisible && title === expectedTitle;
     });
   }, titleText, { timeout: 20_000 });
 
   const dialogIndex = await page.evaluate((expectedTitle) => {
-    const dialogs = Array.from(document.querySelectorAll(".jx-overlay-dialog")) as HTMLElement[];
+    const dialogs = Array.from(document.querySelectorAll(".jx-overlay-dialog, .jx-dialog")) as HTMLElement[];
     return dialogs.findIndex((dialog) => {
       const style = window.getComputedStyle(dialog);
       const rect = dialog.getBoundingClientRect();
@@ -3325,7 +3328,7 @@ async function getVisibleDialogWithTitle(page: Page, titleText: string) {
         style.visibility !== "hidden" &&
         rect.width > 0 &&
         rect.height > 0;
-      const title = (dialog.querySelector(".jx-dialog__title")?.textContent || "").trim();
+      const title = (dialog.querySelector(".jx-dialog__title, .header-title")?.textContent || "").trim();
       return isVisible && title === expectedTitle;
     });
   }, titleText);
@@ -3334,7 +3337,7 @@ async function getVisibleDialogWithTitle(page: Page, titleText: string) {
     throw new Error(`Could not find visible dialog titled '${titleText}'.`);
   }
 
-  return page.locator(".jx-overlay-dialog").nth(dialogIndex);
+  return page.locator(".jx-overlay-dialog, .jx-dialog").nth(dialogIndex);
 }
 
 async function configureSkuClassificationBatchDialog(page: Page) {
@@ -3999,10 +4002,27 @@ async function getReleaseProductDialog(page: Page) {
 
 async function clickPromptDialogClose(page: Page) {
   const promptDialog = await getVisibleDialogWithTitle(page, promptDialogTitleText);
-  const closeButton = promptDialog.locator("button").filter({ hasText: closeText }).first();
-  await closeButton.waitFor({ state: "visible", timeout: 20_000 });
-  await clickLocatorLowConflict(closeButton, page);
-  console.log(`Clicked ${promptDialogTitleText} dialog ${closeText}`);
+
+  const exitEditButton = promptDialog.locator(".jx-dialog__footer button").filter({ hasText: exitEditText }).first();
+  if (await exitEditButton.isVisible().catch(() => false)) {
+    await clickLocatorLowConflict(exitEditButton, page);
+    console.log(`Clicked ${promptDialogTitleText} dialog ${exitEditText}`);
+    await waitForDialogTitleToClose(page, promptDialogTitleText, 20_000).catch(() => {});
+    return;
+  }
+
+  const firstFooterButton = promptDialog.locator(".jx-dialog__footer button").first();
+  if (await firstFooterButton.isVisible().catch(() => false)) {
+    await clickLocatorLowConflict(firstFooterButton, page);
+    console.log(`Clicked ${promptDialogTitleText} dialog first footer button`);
+    await waitForDialogTitleToClose(page, promptDialogTitleText, 20_000).catch(() => {});
+    return;
+  }
+
+  const headerCloseButton = promptDialog.locator("button.jx-dialog__headerbtn").first();
+  await headerCloseButton.waitFor({ state: "visible", timeout: 20_000 });
+  await clickLocatorLowConflict(headerCloseButton, page);
+  console.log(`Clicked ${promptDialogTitleText} dialog header close`);
   await waitForDialogTitleToClose(page, promptDialogTitleText, 20_000).catch(() => {});
 }
 
@@ -4094,7 +4114,7 @@ async function prepareCreateProductFlow(page: Page, productItem: ProductJsonItem
   await clickMoreAttributes(page);
   await selectSurfacePattern(page, productItem);
   await inputThickness(page);
-  await selectLeatherType(page);
+  await selectLeatherType(page, productItem);
 
   const productTitle = getProductTitle(productItem);
   if (productTitle) {

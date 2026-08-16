@@ -103,7 +103,28 @@ def parse_price_range(text):
     match = re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\s*", text or "")
     if not match:
         return None, None
-    return float(match.group(1)), float(match.group(2))
+    first = float(match.group(1))
+    second = float(match.group(2))
+    return min(first, second), max(first, second)
+
+
+def parse_numeric_range(value, label):
+    if value in ("", None):
+        return None, None, ""
+
+    text = str(value).strip()
+    range_match = re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\s*", text)
+    if range_match:
+        first = float(range_match.group(1))
+        second = float(range_match.group(2))
+        return min(first, second), max(first, second), text
+
+    number_match = re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*", text)
+    if number_match:
+        value_number = float(number_match.group(1))
+        return value_number, value_number, text
+
+    raise ValueError(f"Invalid {label} value: {text}")
 
 
 def to_number(value):
@@ -124,6 +145,10 @@ def build_payload(source_path):
         width_min, width_max, width_range_text = parse_width_range(row.get("A", ""))
         length_min, length_max = parse_length_range(row.get("B", ""))
         price_min, price_max = parse_price_range(row.get("G", ""))
+        longest_edge_min, longest_edge_max, longest_edge_range_text = parse_numeric_range(row.get("C", ""), "longest edge")
+        second_longest_edge_min, second_longest_edge_max, second_longest_edge_range_text = parse_numeric_range(row.get("D", ""), "second longest edge")
+        shortest_edge_min, shortest_edge_max, shortest_edge_range_text = parse_numeric_range(row.get("E", ""), "shortest edge")
+        weight_min, weight_max, weight_range_text = parse_numeric_range(row.get("F", ""), "weight")
         records.append(
             {
                 "row_number": row_number,
@@ -134,10 +159,22 @@ def build_payload(source_path):
                 "length_range_text": row.get("B", ""),
                 "length_min_cm": length_min,
                 "length_max_cm": length_max,
-                "longest_edge_cm": to_number(row.get("C")),
-                "second_longest_edge_cm": to_number(row.get("D")),
-                "shortest_edge_cm": to_number(row.get("E")),
-                "weight_g": to_number(row.get("F")),
+                "longest_edge_cm": longest_edge_max,
+                "longest_edge_range_text": longest_edge_range_text,
+                "longest_edge_min_cm": longest_edge_min,
+                "longest_edge_max_cm": longest_edge_max,
+                "second_longest_edge_cm": second_longest_edge_max,
+                "second_longest_edge_range_text": second_longest_edge_range_text,
+                "second_longest_edge_min_cm": second_longest_edge_min,
+                "second_longest_edge_max_cm": second_longest_edge_max,
+                "shortest_edge_cm": shortest_edge_max,
+                "shortest_edge_range_text": shortest_edge_range_text,
+                "shortest_edge_min_cm": shortest_edge_min,
+                "shortest_edge_max_cm": shortest_edge_max,
+                "weight_g": weight_max,
+                "weight_range_text": weight_range_text,
+                "weight_min_g": weight_min,
+                "weight_max_g": weight_max,
                 "declared_price_range_text": row.get("G", ""),
                 "declared_price_min": price_min,
                 "declared_price_max": price_max,

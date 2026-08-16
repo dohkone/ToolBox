@@ -51,8 +51,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--size",
-        default="2880x2880",
-        help="Requested image size, for example 2880x2880.",
+        default="2048x2048",
+        help="Requested image size, for example 2048x2048.",
     )
     parser.add_argument(
         "--quality",
@@ -325,6 +325,43 @@ def detect_extension_from_url(url: str) -> str:
     return ".png"
 
 
+def resolve_image_url(url: str, base_url: str) -> str:
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme and parsed.netloc:
+        return url
+    return urllib.parse.urljoin(base_url.rstrip("/") + "/", url)
+
+
+def is_supported_image_bytes(data: bytes) -> bool:
+    return (
+        data.startswith(b"\x89PNG\r\n\x1a\n")
+        or data.startswith(b"\xff\xd8\xff")
+        or (data.startswith(b"RIFF") and data[8:12] == b"WEBP")
+    )
+
+
+def describe_non_image_payload(data: bytes) -> str:
+    if not data:
+        return "empty response body"
+    try:
+        text = data[:1000].decode("utf-8-sig")
+    except UnicodeDecodeError:
+        try:
+            text = data[:1000].decode("gbk")
+        except UnicodeDecodeError:
+            return f"non-image response starts with bytes: {data[:32].hex()}"
+    text = text.strip()
+    if not text:
+        return "blank response body"
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        return text[:500]
+    if isinstance(payload, dict):
+        return extract_error_message(payload)
+    return text[:500]
+
+
 def normalize_filename(filename: str | None, fallback_stem: str, extension: str) -> str:
     if filename:
         candidate = Path(filename).name
@@ -479,6 +516,8 @@ def run_curl_multipart(
         f"quality={quality}",
         "--form",
         f"n={n_value}",
+        "--form",
+        "response_format=b64_json",
         "--write-out",
         "\n%{http_code}",
     ]
@@ -523,6 +562,8 @@ def run_curl_download(url: str, output_path: Path) -> None:
         "--location",
         "--output",
         str(output_path),
+        "--write-out",
+        "\n%{http_code}",
         url,
     ]
     completed = subprocess.run(
@@ -532,7 +573,19 @@ def run_curl_download(url: str, output_path: Path) -> None:
     )
     if completed.returncode != 0:
         message = decode_subprocess_output(completed.stderr).strip() or decode_subprocess_output(completed.stdout).strip()
+        output_path.unlink(missing_ok=True)
         raise Image2Error(message or "Failed to download generated image URL.")
+    status_lines = decode_subprocess_output(completed.stdout).strip().splitlines()
+    status_code = int(status_lines[-1]) if status_lines and status_lines[-1].isdigit() else 0
+    downloaded = output_path.read_bytes() if output_path.exists() else b""
+    if status_code >= 400:
+        message = describe_non_image_payload(downloaded)
+        output_path.unlink(missing_ok=True)
+        raise Image2Error(f"Image URL download failed ({status_code}): {message}")
+    if not is_supported_image_bytes(downloaded):
+        message = describe_non_image_payload(downloaded)
+        output_path.unlink(missing_ok=True)
+        raise Image2Error(f"Image URL did not return a valid image: {message}")
 
 
 def parse_json_response(body: str) -> dict[str, Any]:
@@ -625,18 +678,19 @@ def save_b64_image(item: dict[str, Any], output_dir: Path, filename: str | None,
     return compress_image_if_needed(output_path)
 
 
-def download_url_image(item: dict[str, Any], output_dir: Path, filename: str | None, prompt: str) -> Path:
+def download_url_image(item: dict[str, Any], output_dir: Path, filename: str | None, prompt: str, base_url: str) -> Path:
     url = item.get("url")
     if not isinstance(url, str) or not url:
         raise Image2Error("Response item did not contain a URL.")
-    extension = detect_extension_from_url(url)
+    image_url = resolve_image_url(url, base_url)
+    extension = detect_extension_from_url(image_url)
     final_name = normalize_filename(filename, slugify_filename(prompt), extension)
     output_path = output_dir / final_name
-    run_curl_download(url, output_path)
+    run_curl_download(image_url, output_path)
     return compress_image_if_needed(output_path)
 
 
-def save_images(payload: dict[str, Any], output_dir: Path, filename: str | None, prompt: str) -> list[Path]:
+def save_images(payload: dict[str, Any], output_dir: Path, filename: str | None, prompt: str, base_url: str) -> list[Path]:
     data = payload.get("data")
     if not isinstance(data, list) or not data:
         raise Image2Error("Image response did not contain any image data.")
@@ -659,7 +713,7 @@ def save_images(payload: dict[str, Any], output_dir: Path, filename: str | None,
         if isinstance(b64_value, str) and b64_value:
             saved_paths.append(save_b64_image(item, output_dir, current_filename, prompt))
         elif isinstance(url_value, str) and url_value:
-            saved_paths.append(download_url_image(item, output_dir, current_filename, prompt))
+            saved_paths.append(download_url_image(item, output_dir, current_filename, prompt, base_url))
         else:
             raise Image2Error("Image response item contained neither usable b64_json nor url.")
 
@@ -671,6 +725,7 @@ def save_images(payload: dict[str, Any], output_dir: Path, filename: str | None,
 def generate_images(
     endpoint: str,
     models_endpoint: str,
+    base_url: str,
     api_key: str,
     prompt: str,
     model: str,
@@ -686,6 +741,7 @@ def generate_images(
         "size": size,
         "quality": quality,
         "n": n_value,
+        "response_format": "b64_json",
     }
 
     status_code, body = run_curl_json(endpoint, payload, api_key)
@@ -707,15 +763,16 @@ def generate_images(
                     raise Image2Error("image2 dedicated key was rejected by the image generation endpoint.")
                 if status_code >= 400:
                     raise Image2Error(extract_error_message(parsed))
-                return save_images(parsed, output_dir, filename, prompt), preferred_model
+                return save_images(parsed, output_dir, filename, prompt, base_url), preferred_model
         raise Image2Error(message)
 
-    return save_images(parsed, output_dir, filename, prompt), model
+    return save_images(parsed, output_dir, filename, prompt, base_url), model
 
 
 def edit_images(
     endpoint: str,
     models_endpoint: str,
+    base_url: str,
     api_key: str,
     prompt: str,
     model: str,
@@ -765,10 +822,10 @@ def edit_images(
                     raise Image2Error("image2 dedicated key was rejected by the image editing endpoint.")
                 if status_code >= 400:
                     raise Image2Error(extract_error_message(parsed))
-                return save_images(parsed, output_dir, filename, prompt), preferred_model
+                return save_images(parsed, output_dir, filename, prompt, base_url), preferred_model
         raise Image2Error(message)
 
-    return save_images(parsed, output_dir, filename, prompt), model
+    return save_images(parsed, output_dir, filename, prompt, base_url), model
 
 
 def main() -> int:
@@ -796,6 +853,7 @@ def main() -> int:
             saved_paths, resolved_model = edit_images(
                 endpoint=edits_endpoint,
                 models_endpoint=models_endpoint,
+                base_url=base_url,
                 api_key=api_key,
                 prompt=args.prompt,
                 model=requested_model,
@@ -811,6 +869,7 @@ def main() -> int:
             saved_paths, resolved_model = generate_images(
                 endpoint=endpoint,
                 models_endpoint=models_endpoint,
+                base_url=base_url,
                 api_key=api_key,
                 prompt=args.prompt,
                 model=requested_model,

@@ -66,9 +66,9 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private const string Image2GenerationProvider = "image2";
 
-	private const string GitHubLatestReleaseApiUrl = "https://api.github.com/repos/dohkone/ToolBox/releases/latest";
+	private const string UpdateServerBaseUrl = "http://124.222.17.225";
 
-	private const string GitHubReleaseDownloadUrl = "https://github.com/dohkone/ToolBox/releases/latest";
+	private const string UpdateServerManifestUrl = UpdateServerBaseUrl + "/download/last.json";
 
 	private const string MainTitleTemplateType = "main-title";
 
@@ -755,7 +755,17 @@ public sealed class MainWindowViewModel : ViewModelBase
 	public string TemplateEditorMaterial
 	{
 		get => _templateEditorMaterial;
-		set => SetProperty(ref _templateEditorMaterial, NormalizeMaterial(value), "TemplateEditorMaterial");
+		set
+		{
+			if (SetProperty(ref _templateEditorMaterial, NormalizeMaterial(value), "TemplateEditorMaterial"))
+			{
+				if (IsSceneTemplateTabSelected)
+				{
+					RemoveTemplateSubjectTagsOutsideCurrentMaterial();
+					RefreshTemplateSubjectOptions();
+				}
+			}
+		}
 	}
 
 	public string ColorTemplateGroupEditorMaterial
@@ -1109,7 +1119,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	public bool IsColorTemplateTabSelected => _selectedTemplateCategory == TemplateCategory.Color;
 
-	public double TemplateEditorDialogHeight => IsSubjectTemplateTabSelected ? 230 : (IsTitleTemplateTabSelected ? 430 : 760);
+	public double TemplateEditorDialogHeight => IsSubjectTemplateTabSelected ? 320 : (IsTitleTemplateTabSelected ? 430 : 760);
 
 	public bool IsMainImageLayoutTypeSelected => _selectedLayoutImageType == ImageTemplateType.MainImage;
 
@@ -3338,8 +3348,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 	{
 		try
 		{
-			using HttpClient client = CreateGitHubHttpClient();
-			using HttpResponseMessage response = await client.GetAsync(GitHubLatestReleaseApiUrl);
+			using HttpClient client = CreateUpdateHttpClient();
+			using HttpResponseMessage response = await client.GetAsync(UpdateServerManifestUrl);
 			if (!response.IsSuccessStatusCode)
 			{
 				return;
@@ -3347,7 +3357,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 			using Stream stream = await response.Content.ReadAsStreamAsync();
 			using JsonDocument document = await JsonDocument.ParseAsync(stream);
 			JsonElement root = document.RootElement;
-			string latestVersionText = root.TryGetProperty("tag_name", out JsonElement tagElement) ? tagElement.GetString() ?? string.Empty : string.Empty;
+			string latestVersionText = GetJsonString(root, "version", "latest_version", "tag_name");
 			if (!TryParseAppVersion(latestVersionText, out Version? latestVersion) || !TryParseAppVersion(_appCurrentVersion, out Version? currentVersion))
 			{
 				return;
@@ -3356,40 +3366,25 @@ public sealed class MainWindowViewModel : ViewModelBase
 			{
 				return;
 			}
-			string installerUrl = string.Empty;
-			string installerName = string.Empty;
-			if (root.TryGetProperty("assets", out JsonElement assetsElement) && assetsElement.ValueKind == JsonValueKind.Array)
+			string installerUrl = GetJsonString(root, "download_url", "installer_url", "url");
+			string installerName = GetJsonString(root, "file_name", "installer_name", "name");
+			if (!string.IsNullOrWhiteSpace(installerUrl) && Uri.TryCreate(installerUrl, UriKind.RelativeOrAbsolute, out Uri? installerUri))
 			{
-				List<(string Name, string Url)> executableAssets = new List<(string Name, string Url)>();
-				foreach (JsonElement asset in assetsElement.EnumerateArray())
+				if (!installerUri.IsAbsoluteUri)
 				{
-					string assetName = asset.TryGetProperty("name", out JsonElement nameElement) ? nameElement.GetString() ?? string.Empty : string.Empty;
-					string assetUrl = asset.TryGetProperty("browser_download_url", out JsonElement urlElement) ? urlElement.GetString() ?? string.Empty : string.Empty;
-					if (assetName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(assetUrl))
-					{
-						executableAssets.Add((assetName, assetUrl));
-					}
+					installerUrl = new Uri(new Uri(UpdateServerBaseUrl + "/"), installerUri).ToString();
 				}
-				(string Name, string Url) preferredAsset = executableAssets.FirstOrDefault(asset => asset.Name.StartsWith("EcomTool_Update_", StringComparison.OrdinalIgnoreCase));
-				if (string.IsNullOrWhiteSpace(preferredAsset.Url))
-				{
-					preferredAsset = executableAssets.FirstOrDefault(asset => asset.Name.StartsWith("EcomTool_Setup_", StringComparison.OrdinalIgnoreCase));
-				}
-				if (string.IsNullOrWhiteSpace(preferredAsset.Url))
-				{
-					preferredAsset = executableAssets.FirstOrDefault();
-				}
-				installerName = preferredAsset.Name ?? string.Empty;
-				installerUrl = preferredAsset.Url ?? string.Empty;
 			}
 			if (string.IsNullOrWhiteSpace(installerUrl))
 			{
 				return;
 			}
 			_availableAppUpdateVersion = NormalizeAppVersionText(latestVersionText);
-			_availableAppUpdateReleaseNotes = root.TryGetProperty("body", out JsonElement bodyElement) ? bodyElement.GetString() ?? string.Empty : string.Empty;
+			_availableAppUpdateReleaseNotes = GetJsonString(root, "release_notes", "notes", "body");
 			_availableAppUpdateInstallerUrl = installerUrl;
-			_availableAppUpdateInstallerName = installerName;
+			_availableAppUpdateInstallerName = string.IsNullOrWhiteSpace(installerName)
+				? Path.GetFileName(new Uri(installerUrl).AbsolutePath)
+				: installerName;
 			IsAppUpdateAvailable = true;
 		}
 		catch
@@ -3402,11 +3397,6 @@ public sealed class MainWindowViewModel : ViewModelBase
 	{
 		if (string.IsNullOrWhiteSpace(_availableAppUpdateInstallerUrl))
 		{
-			Process.Start(new ProcessStartInfo
-			{
-				FileName = GitHubReleaseDownloadUrl,
-				UseShellExecute = true
-			});
 			return;
 		}
 		string releaseNotes = string.IsNullOrWhiteSpace(_availableAppUpdateReleaseNotes) ? "本次更新未填写更新公告。" : _availableAppUpdateReleaseNotes.Trim();
@@ -3454,7 +3444,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 	{
 		string directory = Path.GetDirectoryName(installerPath) ?? Path.GetTempPath();
 		string tempPath = CreateUniqueUpdateFilePath(directory, Path.GetFileNameWithoutExtension(installerPath) + ".download");
-		using HttpClient client = CreateGitHubHttpClient(TimeSpan.FromMinutes(30));
+		using HttpClient client = CreateUpdateHttpClient(TimeSpan.FromMinutes(30));
 		try
 		{
 			client.DefaultRequestHeaders.Accept.Clear();
@@ -3503,19 +3493,34 @@ public sealed class MainWindowViewModel : ViewModelBase
 		}
 	}
 
-	private static HttpClient CreateGitHubHttpClient()
+	private static string GetJsonString(JsonElement root, params string[] names)
 	{
-		return CreateGitHubHttpClient(TimeSpan.FromSeconds(20));
+		foreach (string name in names)
+		{
+			if (root.TryGetProperty(name, out JsonElement element) && element.ValueKind == JsonValueKind.String)
+			{
+				string value = element.GetString() ?? string.Empty;
+				if (!string.IsNullOrWhiteSpace(value))
+				{
+					return value.Trim();
+				}
+			}
+		}
+		return string.Empty;
 	}
 
-	private static HttpClient CreateGitHubHttpClient(TimeSpan timeout)
+	private static HttpClient CreateUpdateHttpClient()
+	{
+		return CreateUpdateHttpClient(TimeSpan.FromSeconds(20));
+	}
+
+	private static HttpClient CreateUpdateHttpClient(TimeSpan timeout)
 	{
 		HttpClient client = new HttpClient
 		{
 			Timeout = timeout
 		};
-		client.DefaultRequestHeaders.UserAgent.ParseAdd("EcomTool-Studio-Updater");
-		client.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
+		client.DefaultRequestHeaders.UserAgent.ParseAdd("EcomTool-Updater");
 		return client;
 	}
 
@@ -4315,6 +4320,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		{
 			await _templateLibraryService.SetSceneSubjectBindingsAsync(saved.Id, (from tag in TemplateSubjectTags
 				where tag.IsTag && tag.Id > 0
+				where _subjectTemplateLookup.TryGetValue(tag.Id, out TemplateItemRecord subject) && IsTemplateSubjectMaterialCompatible(subject)
 				select tag.Id).ToArray());
 		}
 		await ReloadManagedTemplatesAfterMutationAsync();
@@ -4583,6 +4589,10 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private IReadOnlyList<long> GetSceneSubjectIdsForEditor(TemplateItemViewModel item)
 	{
+		if (_sceneSubjectBindingCache.TryGetValue(item.Id, out IReadOnlyList<long> subjectIds) && subjectIds.Count > 0)
+		{
+			return subjectIds.Where(id => id > 0).Distinct().ToArray();
+		}
 		return (from text in item.Subject.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
 			select _subjectTemplateLookup.Values.FirstOrDefault((TemplateItemRecord subject) => string.Equals(subject.Name, text, StringComparison.OrdinalIgnoreCase) || string.Equals(subject.Content, text, StringComparison.OrdinalIgnoreCase))?.Id ?? 0 into id
 			where id > 0
@@ -4594,7 +4604,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		TemplateSubjectTags.Clear();
 		foreach (long item in subjectIds.Where((long id) => id > 0).Distinct())
 		{
-			if (_subjectTemplateLookup.TryGetValue(item, out TemplateItemRecord value))
+			if (_subjectTemplateLookup.TryGetValue(item, out TemplateItemRecord value) && IsTemplateSubjectMaterialCompatible(value))
 			{
 				TemplateSubjectTags.Add(TemplateSubjectTagViewModel.Create(item, value.Name, value.IsEnabled));
 			}
@@ -4618,12 +4628,42 @@ public sealed class MainWindowViewModel : ViewModelBase
 			{
 				removedDisabledSubjects = true;
 			}
+			else if (!IsTemplateSubjectMaterialCompatible(value))
+			{
+				removedDisabledSubjects = true;
+			}
 			else
 			{
 				list.Add(item);
 			}
 		}
 		return list;
+	}
+
+	private bool IsTemplateSubjectMaterialCompatible(TemplateItemRecord subject)
+	{
+		return string.Equals(NormalizeMaterial(subject.Material), NormalizeMaterial(TemplateEditorMaterial), StringComparison.OrdinalIgnoreCase);
+	}
+
+	private void RemoveTemplateSubjectTagsOutsideCurrentMaterial()
+	{
+		if (TemplateSubjectTags.Count == 0)
+		{
+			return;
+		}
+		TemplateSubjectTagViewModel[] tagsToRemove = TemplateSubjectTags
+			.Where(tag => tag.IsTag)
+			.Where(tag => !_subjectTemplateLookup.TryGetValue(tag.Id, out TemplateItemRecord subject) || !IsTemplateSubjectMaterialCompatible(subject))
+			.ToArray();
+		foreach (TemplateSubjectTagViewModel tag in tagsToRemove)
+		{
+			TemplateSubjectTags.Remove(tag);
+		}
+		if (tagsToRemove.Length > 0)
+		{
+			OnPropertyChanged("HasTemplateSubjectTags");
+			_saveTemplateCommand.RaiseCanExecuteChanged();
+		}
 	}
 
 	private static bool AreSubjectBindingsEqual(IReadOnlyList<long> left, IReadOnlyList<long> right)
@@ -4680,7 +4720,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 			CancelTemplateSubjectTagInput();
 			return;
 		}
-		TemplateItemRecord existingSubject = _subjectTemplateLookup.Values.FirstOrDefault((TemplateItemRecord subject) => string.Equals(subject.Name.Trim(), subjectName, StringComparison.OrdinalIgnoreCase) || string.Equals(subject.Content.Trim(), subjectName, StringComparison.OrdinalIgnoreCase));
+		TemplateItemRecord existingSubject = _subjectTemplateLookup.Values.FirstOrDefault((TemplateItemRecord subject) => IsTemplateSubjectMaterialCompatible(subject) && (string.Equals(subject.Name.Trim(), subjectName, StringComparison.OrdinalIgnoreCase) || string.Equals(subject.Content.Trim(), subjectName, StringComparison.OrdinalIgnoreCase)));
 		if (existingSubject != null && TemplateSubjectTags.Any((TemplateSubjectTagViewModel tag) => tag.IsTag && tag.Id == existingSubject.Id))
 		{
 			CancelTemplateSubjectTagInput();
@@ -4699,6 +4739,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		{
 			Category = TemplateCategory.Subject,
 			Name = subjectName,
+			Material = TemplateEditorMaterial,
 			Content = subjectName,
 			Subject = string.Empty,
 			PreviewImagePath = string.Empty,
@@ -4752,7 +4793,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 			where tag.IsTag
 			select tag.Id).ToHashSet();
 		TemplateSubjectOptions.Clear();
-		foreach (TemplateItemRecord item in _subjectTemplateLookup.Values.OrderBy((TemplateItemRecord item) => item.Id))
+		foreach (TemplateItemRecord item in _subjectTemplateLookup.Values.Where(IsTemplateSubjectMaterialCompatible).OrderBy((TemplateItemRecord item) => item.Id))
 		{
 			TemplateSubjectOptions.Add(new TemplateSubjectOptionViewModel(item.Id, item.Name, item.IsEnabled)
 			{
@@ -6224,6 +6265,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 				TemplatePath = TemplateLibraryPath,
 				OutputDirectory = GenerationOutputDirectory,
 				Image2ScriptPath = CurrentImageGenerationScriptPath,
+				Material = ToMaterialToken(_selectedGenerationMaterial),
 				ImageType = currentImageType,
 				Count = value,
 				Concurrency = value2,

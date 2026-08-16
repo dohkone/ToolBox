@@ -605,7 +605,10 @@ def build_recolor_jobs(
     return jobs
 
 
-def build_master_prompt(color: ColorSpec) -> str:
+def build_master_prompt(color: ColorSpec, material: str = "lychee_grain") -> str:
+    if normalize_material_token(material) == "suede":
+        return build_suede_master_prompt(color)
+
     return f"""
     Use the uploaded image as lifestyle scene reference.
 
@@ -713,7 +716,151 @@ def build_master_prompt(color: ColorSpec) -> str:
 """
 
 
-def build_recolor_prompt(color: ColorSpec) -> str:
+def build_suede_master_prompt(color: ColorSpec) -> str:
+    return f"""
+    Use the uploaded image as lifestyle scene reference.
+
+    Create a premium Amazon/TEMU ecommerce product photo.
+
+    Keep the original lifestyle environment and main subject structure.
+    The main furniture/object must remain clearly visible.
+
+    HIGHEST PRIORITY COLOR LOCK:
+    The target color must control BOTH:
+    the suede repair roll,
+    and the visible suede/fabric/upholstered surface of the main subject.
+
+    Do not preserve the original upholstery color from the reference image.
+    If the reference car interior, furniture, seat, door panel, armrest, or upholstered area is brown, black, gray,
+    or any other color, recolor the main suede/fabric/upholstered contact area to the exact target color.
+
+    For target color #F2EFE5, the roll, seat, door panel, armrest, and visible suede/fabric/upholstered surfaces
+    must all become warm off-white #F2EFE5.
+
+    Only keep non-upholstery parts unchanged:
+    steering wheel,
+    dashboard plastic,
+    metal trim,
+    glass,
+    buttons,
+    wood,
+    floor,
+    background,
+    and natural shadows.
+
+    The final image must show:
+    ONE main subject,
+    ONE self-adhesive suede repair wrap roll.
+
+    Remove all extra rolls, duplicate products, samples, labels, and unnecessary objects.
+
+    PRODUCT PLACEMENT:
+
+    Place the suede repair roll naturally within the scene.
+    It may rest on a seat, armrest, center console, shelf, floor mat, or other suitable nearby surface,
+    or lean naturally beside the main subject.
+    The roll does not need to touch or be attached to the main subject.
+    Prioritize a believable product-photography composition, realistic gravity, natural contact shadows,
+    and clear product visibility.
+    Do not let the roll float, stand unnaturally on an overhead surface, or intersect with the main subject.
+
+
+    PRODUCT FORM:
+
+    Show only ONE fully rolled self-adhesive suede repair wrap roll.
+
+    Keep a realistic cylindrical roll shape.
+
+    Create a slim elongated suede sheet roll.
+
+    Reduce roll diameter by approximately 50% compared with the reference.
+
+    Keep the roll length extended.
+
+    The roll should look thin, long, lightweight, and elegant.
+
+    Avoid:
+    short thick tape roll,
+    bulky cylinder,
+    compact spool.
+
+    COLOR MATCH:
+
+    Target suede color:
+    {color.hex_code}
+
+    The suede repair roll and the suede/fabric/upholstered area of the main subject MUST use the exact same target color.
+    Match:
+    hue,
+    brightness,
+    saturation,
+    and color tone.
+    Keep furniture/object shape unchanged.
+
+    MATERIAL:
+    The product material must be soft suede / microsuede / alcantara-like fabric.
+    Surface texture must be fine, short, dense, velvety nap.
+    Keep a soft-touch matte finish with gentle directional nap variation.
+    The surface should look smooth, plush, and slightly fuzzy at close distance.
+    No litchi grain.
+    No pebble grain.
+    No oily PU leather gloss.
+    No broad mirror specular highlights.
+    No plastic, rubber, PVC, or glossy leather finish.
+
+    PRODUCT PRIORITY:
+    The suede repair roll is the primary product element.
+    Keep the roll clear, sharp, and visually important.
+    Furniture and background are supporting elements only.
+    Do not enhance furniture texture.
+    The main subject only needs realistic shape and natural appearance.
+
+    DUAL LAYER:
+    Keep the roll as a real self-adhesive repair material roll.
+
+    Front:
+    suede fabric layer.
+
+    Back:
+    kraft paper release liner.
+    The liner must stay attached and aligned.
+    The kraft paper release liner must be tightly bonded to the suede layer.
+    It must not protrude beyond the outer roll edges.
+    Do not create a paper lip, lifted paper edge, curled edge, or separate exposed paper layer.
+    No loose paper.
+    No exposed edge.
+
+    CAMERA:
+    Close-up premium ecommerce photography.
+    Keep both:
+    the main subject,
+    and the suede repair roll visible.
+    The roll should be sharper than the environment.
+    Realistic commercial lighting.
+
+    REMOVE:
+    text,
+    logos,
+    icons,
+    watermarks,
+    labels,
+    extra products,
+    duplicate objects.
+
+
+    FINAL STYLE:
+    High-end Amazon/TEMU commercial product photography.
+    Realistic premium lifestyle presentation.
+    Clean modern composition.
+    The final image should look like the same real scene,
+    with one matching-color suede repair roll naturally applied to the main subject.
+"""
+
+
+def build_recolor_prompt(color: ColorSpec, material: str = "lychee_grain") -> str:
+    if normalize_material_token(material) == "suede":
+        return build_suede_recolor_prompt(color)
+
     return (
         "Use the uploaded image as the fixed master SKU composition.\n"
         "Create a color variant of the exact same SKU image.\n"
@@ -749,6 +896,42 @@ def build_recolor_prompt(color: ColorSpec) -> str:
         "Do not redraw the scene. Do not move the roll or patch. Do not resize anything.\n"
         "Final result must be a strict color-only SKU variant that matches the master image in every detail "
         "except the target leather color.\n"
+    )
+
+
+def build_suede_recolor_prompt(color: ColorSpec) -> str:
+    return (
+        "Use the uploaded image as the fixed master SKU composition.\n"
+        "Create a color variant of the exact same SKU image.\n"
+        f"Target color: {color.label} {color.hex_code}.\n"
+        "STRICT LOCK: Do not change the composition, camera angle, perspective, crop, object positions, "
+        "main subject size, main subject shape, repair wrap size, repair wrap position, roll size, roll angle, "
+        "roll position, background, props, lighting direction, shadows, depth of field, or layout.\n"
+        "The output must look like the same photo and the same scene as the uploaded master image, with only "
+        "the SKU color changed.\n"
+        "Only recolor suede-repair-related areas to the target color:\n"
+        "- the main suede, fabric, or upholstered surface\n"
+        "- the suede repair wrap/product material\n"
+        "- any repair demonstration suede surface\n"
+        "Do not recolor non-suede materials such as wood, marble, metal, glass, walls, floor, plants, curtains, "
+        "decorations, paper core, release liner, or background objects.\n"
+        "STRICT ROLL SPECIFICATION: preserve the exact roll specification established in the master image. Every visible "
+        "roll must remain a high-quality self-adhesive suede repair wrap roll kept in a fully rolled state. Do not unfold, "
+        "bend, fold, deform, or redesign the roll. Keep the overall roll as a standard slim cylindrical form.\n"
+        "Preserve the dual-layer structure exactly as shown in the master image: the front side is the suede fabric layer, "
+        "and the back side is the kraft paper release liner. The release liner must remain tightly attached to the suede "
+        "and must not be recolored into a suede surface. The kraft paper release liner must be tightly bonded to the suede "
+        "layer and must not protrude beyond the outer roll edges. Do not create a paper lip, lifted paper edge, curled edge, "
+        "or separate exposed paper layer.\n"
+        "Keep the same fine, short, dense, velvety suede nap on every visible suede surface. The material must stay soft, "
+        "smooth, plush, and matte with gentle directional nap variation.\n"
+        "Avoid litchi grain, pebble grain, oily PU leather gloss, broad mirror specular highlights, plastic texture, PVC "
+        "texture, rubber texture, rough fabric, long fur, wool, carpet, or shiny leather.\n"
+        "Do not add suede nap or fabric texture to the paper core, release liner, background, props, or any non-suede object.\n"
+        "Do not add or remove objects. Do not add text, icons, logos, watermarks, labels, or overlays. "
+        "Do not redraw the scene. Do not move the roll or patch. Do not resize anything.\n"
+        "Final result must be a strict color-only SKU variant that matches the master image in every detail "
+        "except the target suede color.\n"
     )
 
 
@@ -793,6 +976,7 @@ def run_job(
     input_image_path: Path | None = None,
     prompt: str | None = None,
     stage: str = "generated",
+    material: str = "lychee_grain",
 ) -> dict[str, Any]:
     if not overwrite and job.output_path.exists() and job.output_path.stat().st_size > 0:
         return {
@@ -814,7 +998,7 @@ def run_job(
         "--input-image",
         str(reference_image_path),
         "--prompt",
-        prompt or build_master_prompt(job.color),
+        prompt or build_master_prompt(job.color, material),
         "--output-dir",
         str(job.bundle.sku_dir),
         "--filename",
@@ -892,7 +1076,7 @@ def execute_job_group(group_jobs: list[Job], options: RequestOptions) -> list[di
         options.retries,
         options.overwrite,
         input_image_path=master_job.image_path,
-        prompt=build_master_prompt(master_job.color),
+        prompt=build_master_prompt(master_job.color, options.material),
         stage="master",
     )
     results = [master_result]
@@ -909,7 +1093,7 @@ def execute_job_group(group_jobs: list[Job], options: RequestOptions) -> list[di
                 options.retries,
                 options.overwrite,
                 input_image_path=master_image_path,
-                prompt=build_recolor_prompt(job.color),
+                prompt=build_recolor_prompt(job.color, options.material),
                 stage="recolor",
             )
         )
@@ -963,7 +1147,7 @@ def execute_master_jobs(jobs: list[Job], options: RequestOptions) -> list[dict[s
                 options.retries,
                 options.overwrite,
                 job.image_path,
-                build_master_prompt(job.color),
+                build_master_prompt(job.color, options.material),
                 "master",
             ): job
             for job in jobs
@@ -998,7 +1182,7 @@ def execute_recolor_jobs(jobs: list[Job], options: RequestOptions) -> list[dict[
                 options.retries,
                 options.overwrite,
                 job.image_path,
-                build_recolor_prompt(job.color),
+                build_recolor_prompt(job.color, options.material),
                 "recolor",
             ): job
             for job in jobs

@@ -1083,6 +1083,11 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 			where item.IsEnabled
 			where selectedLayoutIdSet == null || selectedLayoutIdSet.Count == 0 || selectedLayoutIdSet.Contains(item.Id)
 			select item).ToArray();
+		string[] fallbackSubjectTemplates = (from item in subjects
+			where item.IsEnabled
+			select item.Content.Trim() into text
+			where !string.IsNullOrWhiteSpace(text)
+			select text).Distinct<string>(StringComparer.OrdinalIgnoreCase).ToArray();
 		GenerationLibraryPayload generationLibraryPayload = new GenerationLibraryPayload
 		{
 			ImageType = (int)imageType,
@@ -1092,15 +1097,11 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 				select text).Distinct<string>(StringComparer.OrdinalIgnoreCase).ToArray(),
 			SceneTemplates = (from item in scenes
 				where item.IsEnabled
-				select CreateGenerationSceneTemplate(item, sceneSubjectBindings, enabledSubjectsById) into item
+				select CreateGenerationSceneTemplate(item, sceneSubjectBindings, enabledSubjectsById, fallbackSubjectTemplates) into item
 				where !string.IsNullOrWhiteSpace(item.Content)
 				where imageType != ImageTemplateType.MainImage || item.Subjects.Length != 0
 				select item).ToArray(),
-			SubjectTemplates = (from item in subjects
-				where item.IsEnabled
-				select item.Content.Trim() into text
-				where !string.IsNullOrWhiteSpace(text)
-				select text).Distinct<string>(StringComparer.OrdinalIgnoreCase).ToArray(),
+			SubjectTemplates = fallbackSubjectTemplates,
 			MainTitleTemplates = (from item in titles
 				where item.IsEnabled
 				where GetTitleTemplateType(item) == MainTitleTemplateType
@@ -1650,7 +1651,7 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 		}
 	}
 
-	private static GenerationSceneTemplatePayload CreateGenerationSceneTemplate(TemplateItemRecord sceneRecord, IReadOnlyDictionary<long, IReadOnlyList<long>> sceneSubjectBindings, IReadOnlyDictionary<long, TemplateItemRecord> enabledSubjectsById)
+	private static GenerationSceneTemplatePayload CreateGenerationSceneTemplate(TemplateItemRecord sceneRecord, IReadOnlyDictionary<long, IReadOnlyList<long>> sceneSubjectBindings, IReadOnlyDictionary<long, TemplateItemRecord> enabledSubjectsById, IReadOnlyList<string> fallbackSubjectTemplates)
 	{
 		string[] subjects = Array.Empty<string>();
 		if (sceneSubjectBindings.TryGetValue(sceneRecord.Id, out IReadOnlyList<long> value))
@@ -1659,6 +1660,10 @@ public sealed class TemplateLibraryService : ITemplateLibraryService
 				select (!enabledSubjectsById.TryGetValue(id, out TemplateItemRecord value2)) ? string.Empty : value2.Content.Trim() into text
 				where !string.IsNullOrWhiteSpace(text)
 				select text).Distinct<string>(StringComparer.OrdinalIgnoreCase).ToArray();
+		}
+		if (subjects.Length == 0)
+		{
+			subjects = fallbackSubjectTemplates.ToArray();
 		}
 		return new GenerationSceneTemplatePayload
 		{

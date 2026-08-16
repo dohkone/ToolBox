@@ -483,14 +483,43 @@ def load_titles(title_json_path):
     with Path(title_json_path).open("r", encoding="utf-8") as handle:
         payload = json.load(handle)
 
-    title_values = payload.get("titles")
-    if isinstance(title_values, list):
-        cn_titles = [str(value).strip() for value in title_values if str(value).strip()]
-        english_values = payload.get("english_title", payload.get("english_titles", payload.get("en_titles", [])))
-        en_titles = [str(value).strip() for value in english_values if str(value).strip()] if isinstance(english_values, list) else []
-        if not cn_titles:
-            raise ValueError(f"No usable Chinese titles found in: {title_json_path}")
-        return cn_titles, en_titles
+    title_pools = {}
+    for material_key in ("lychee_grain", "suede"):
+        material_payload = payload.get(material_key)
+        if isinstance(material_payload, dict):
+            pool = extract_title_pool(material_payload)
+            if pool["cn"] or pool["en"]:
+                title_pools[material_key] = pool
+
+    default_pool = extract_title_pool(payload)
+    if default_pool["cn"]:
+        existing_lychee_pool = title_pools.get("lychee_grain")
+        title_pools["lychee_grain"] = {
+            "cn": (existing_lychee_pool or {}).get("cn") or default_pool["cn"],
+            "en": (existing_lychee_pool or {}).get("en") or default_pool["en"],
+        }
+
+    material_title_values = payload.get("material_titles")
+    if isinstance(material_title_values, dict):
+        for raw_material, raw_pool in material_title_values.items():
+            if not isinstance(raw_pool, dict):
+                continue
+            material = normalize_material_token(raw_material)
+            pool = extract_title_pool(raw_pool)
+            if pool["cn"] or pool["en"]:
+                title_pools[material] = {
+                    "cn": pool["cn"] or default_pool["cn"],
+                    "en": pool["en"],
+                }
+
+    if title_pools:
+        if "lychee_grain" not in title_pools:
+            title_pools["lychee_grain"] = next(iter(title_pools.values()))
+        default_cn_titles = title_pools["lychee_grain"]["cn"]
+        for pool in title_pools.values():
+            if not pool["cn"]:
+                pool["cn"] = default_cn_titles
+        return title_pools
 
     title_groups = payload.get("title_groups")
     if not isinstance(title_groups, list):
@@ -509,7 +538,20 @@ def load_titles(title_json_path):
 
     if not cn_titles:
         raise ValueError(f"No usable Chinese titles found in: {title_json_path}")
-    return cn_titles, en_titles
+    return {"lychee_grain": {"cn": cn_titles, "en": en_titles}}
+
+
+def extract_title_pool(payload):
+    title_values = payload.get("titles")
+    cn_titles = [str(value).strip() for value in title_values if str(value).strip()] if isinstance(title_values, list) else []
+    english_values = payload.get("english_title", payload.get("english_titles", payload.get("en_titles", [])))
+    en_titles = [str(value).strip() for value in english_values if str(value).strip()] if isinstance(english_values, list) else []
+    return {"cn": cn_titles, "en": en_titles}
+
+
+def normalize_material_token(value):
+    text = str(value or "").strip().casefold()
+    return "suede" if text in {"suede", "麂皮绒"} else "lychee_grain"
 
 
 def match_record(records, width, length):
@@ -537,6 +579,51 @@ def match_record_by_values(records, width, length):
         if record["length_min_cm"] <= length <= record["length_max_cm"]:
             return record
     return None
+
+
+def random_numeric_value(record, minimum_key, maximum_key, fallback_key):
+    minimum = record.get(minimum_key, record.get(fallback_key))
+    maximum = record.get(maximum_key, record.get(fallback_key))
+    if minimum is None or maximum is None:
+        return None
+
+    minimum = float(minimum)
+    maximum = float(maximum)
+    if maximum < minimum:
+        minimum, maximum = maximum, minimum
+
+    if minimum.is_integer() and maximum.is_integer():
+        return random.randint(int(minimum), int(maximum))
+    return round(random.uniform(minimum, maximum), 2)
+
+
+def materialize_record_values(record):
+    return {
+        "longest_edge_cm": random_numeric_value(
+            record,
+            "longest_edge_min_cm",
+            "longest_edge_max_cm",
+            "longest_edge_cm",
+        ),
+        "second_longest_edge_cm": random_numeric_value(
+            record,
+            "second_longest_edge_min_cm",
+            "second_longest_edge_max_cm",
+            "second_longest_edge_cm",
+        ),
+        "shortest_edge_cm": random_numeric_value(
+            record,
+            "shortest_edge_min_cm",
+            "shortest_edge_max_cm",
+            "shortest_edge_cm",
+        ),
+        "weight_g": random_numeric_value(
+            record,
+            "weight_min_g",
+            "weight_max_g",
+            "weight_g",
+        ),
+    }
 
 
 def random_price(record):
@@ -605,12 +692,13 @@ def write_rows(sheet, matched_rows):
         apply_template_row_format(sheet, row_index, 2, 1, 7)
         record = item["record"]
         price = item["price"]
+        values = item.get("values") or materialize_record_values(record)
         sheet.cell(row_index, 1).value = item["product_id"]
         sheet.cell(row_index, 2).value = item["display_size_text"]
-        sheet.cell(row_index, 3).value = record["longest_edge_cm"]
-        sheet.cell(row_index, 4).value = record["second_longest_edge_cm"]
-        sheet.cell(row_index, 5).value = record["shortest_edge_cm"]
-        sheet.cell(row_index, 6).value = record["weight_g"]
+        sheet.cell(row_index, 3).value = values["longest_edge_cm"]
+        sheet.cell(row_index, 4).value = values["second_longest_edge_cm"]
+        sheet.cell(row_index, 5).value = values["shortest_edge_cm"]
+        sheet.cell(row_index, 6).value = values["weight_g"]
         sheet.cell(row_index, 7).value = price
         sheet.cell(row_index, 7).number_format = "0.00"
 
@@ -631,12 +719,16 @@ def collect_sp_directories(assert_dir):
     return sp_dirs
 
 
-def build_main_row(sp_dir, cn_titles, en_titles, title_chinese_only=False):
+def build_main_row(sp_dir, title_pools, title_chinese_only=False):
+    material = load_material_from_sp_dir(sp_dir)
+    title_pool = title_pools.get(material) or title_pools.get("lychee_grain") or next(iter(title_pools.values()))
+    cn_titles = title_pool["cn"]
+    en_titles = title_pool["en"]
     title = random.choice(cn_titles)
     english_title = "" if title_chinese_only or not en_titles else random.choice(en_titles)
     return {
         "product_id": sp_dir.name,
-        "material": load_material_from_sp_dir(sp_dir),
+        "material": material,
         "title": title,
         "english_title": english_title,
         "main_path": str((sp_dir / "main").resolve()),
@@ -653,7 +745,7 @@ def load_material_from_sp_dir(sp_dir):
         return "lychee_grain"
 
     value = str(payload.get("material") or "").strip().casefold()
-    return "suede" if value in {"suede", "麂皮绒"} else "lychee_grain"
+    return normalize_material_token(value)
 
 
 def process_sp_dir(sp_dir, records):
@@ -679,6 +771,7 @@ def process_sp_dir(sp_dir, records):
                 "display_size_text": size_item["display_size_text"],
                 "record": record,
                 "price": random_price(record),
+                "values": materialize_record_values(record),
             }
         )
 
@@ -736,14 +829,15 @@ def build_products_json(main_rows, matched_rows):
             },
         )
         record = item["record"]
+        values = item.get("values") or materialize_record_values(record)
         product["sku_size_list"].append(
             {
                 "size": item["display_size_text"],
                 "supply_price": "" if item["price"] is None else f"{item['price']:.2f}",
-                "length": str(record["longest_edge_cm"]),
-                "width": str(record["second_longest_edge_cm"]),
-                "height": str(record["shortest_edge_cm"]),
-                "weight": str(record["weight_g"]),
+                "length": str(values["longest_edge_cm"]),
+                "width": str(values["second_longest_edge_cm"]),
+                "height": str(values["shortest_edge_cm"]),
+                "weight": str(values["weight_g"]),
             }
         )
 
@@ -760,7 +854,7 @@ def main():
     title_json_path = Path(args.title_json)
     ensure_index(index_path, source_path)
     records = load_records(index_path)
-    cn_titles, en_titles = load_titles(title_json_path)
+    title_pools = load_titles(title_json_path)
 
     main_rows = []
     matched_rows = []
@@ -770,7 +864,7 @@ def main():
         sp_path = Path(args.sp_dir) if args.sp_dir else None
         product_id = sp_path.name if sp_path is not None else args.product_id
         if sp_path is not None:
-            main_rows.append(build_main_row(sp_path, cn_titles, en_titles, args.title_chinese_only))
+            main_rows.append(build_main_row(sp_path, title_pools, args.title_chinese_only))
 
         size_texts = list(args.sizes)
         current_matched_rows = []
@@ -788,6 +882,7 @@ def main():
                     "display_size_text": size_text,
                     "record": record,
                     "price": random_price(record),
+                    "values": materialize_record_values(record),
                 }
             )
 
@@ -802,13 +897,13 @@ def main():
         )
     elif args.sp_dir:
         sp_path = Path(args.sp_dir)
-        main_rows.append(build_main_row(sp_path, cn_titles, en_titles, args.title_chinese_only))
+        main_rows.append(build_main_row(sp_path, title_pools, args.title_chinese_only))
         summary = process_sp_dir(sp_path, records)
         matched_rows.extend(summary["matched_rows"])
         summaries.append(summary)
     else:
         for sp_path in collect_sp_directories(args.assert_dir):
-            main_rows.append(build_main_row(sp_path, cn_titles, en_titles, args.title_chinese_only))
+            main_rows.append(build_main_row(sp_path, title_pools, args.title_chinese_only))
             summaries.append(process_sp_dir(sp_path, records))
         for summary in summaries:
             matched_rows.extend(summary["matched_rows"])

@@ -87,7 +87,7 @@ public sealed class TemplateGenerationService : ITemplateGenerationService
 			processStartInfo.ArgumentList.Add("--color-template");
 			processStartInfo.ArgumentList.Add(colorTemplatePath);
 		}
-		if (request.ImageType == ImageTemplateType.MainImage && IsImage2Script(request.Image2ScriptPath))
+		if (request.ImageType == ImageTemplateType.MainImage && IsImage2Script(request.Image2ScriptPath) && !IsSuedeMaterial(request.Material))
 		{
 			string textureReferencePath = ResolveTextureReferencePath();
 			if (!File.Exists(textureReferencePath))
@@ -165,6 +165,12 @@ public sealed class TemplateGenerationService : ITemplateGenerationService
 	private static bool IsImage2Script(string scriptPath)
 	{
 		return scriptPath.Contains("image2-generate", StringComparison.OrdinalIgnoreCase);
+	}
+
+	private static bool IsSuedeMaterial(string material)
+	{
+		return string.Equals(material?.Trim(), "suede", StringComparison.OrdinalIgnoreCase)
+			|| string.Equals(material?.Trim(), "麂皮绒", StringComparison.OrdinalIgnoreCase);
 	}
 
 	private static string ResolveTextureReferencePath()
