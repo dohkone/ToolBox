@@ -603,9 +603,61 @@
                             <Setter Property="Foreground" Value="#2D6AE3" />
                             <Setter Property="FontSize" Value="12" />
                             <Setter Property="FontWeight" Value="SemiBold" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsAppUpdateDownloading}" Value="True">
+                                    <Setter Property="Opacity" Value="0.72" />
+                                </DataTrigger>
+                            </Style.Triggers>
                         </Style>
                     </Button.Style>
-                    <TextBlock Text="更新" />
+                    <Grid>
+                        <TextBlock VerticalAlignment="Center"
+                                   Text="更新"
+                                   Visibility="{Binding IsAppUpdateDownloading, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                            <TextBlock.Triggers>
+                                <EventTrigger RoutedEvent="Loaded">
+                                    <BeginStoryboard>
+                                        <Storyboard RepeatBehavior="Forever"
+                                                    AutoReverse="True">
+                                            <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                             From="0.52"
+                                                             To="1"
+                                                             Duration="0:0:1.15" />
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </EventTrigger>
+                            </TextBlock.Triggers>
+                        </TextBlock>
+                        <StackPanel Orientation="Horizontal"
+                                    VerticalAlignment="Center"
+                                    Visibility="{Binding IsAppUpdateDownloading, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <Ellipse Width="11"
+                                     Height="11"
+                                     Stroke="#2D6AE3"
+                                     StrokeThickness="1.6"
+                                     StrokeDashArray="2 2"
+                                     RenderTransformOrigin="0.5,0.5">
+                                <Ellipse.RenderTransform>
+                                    <RotateTransform />
+                                </Ellipse.RenderTransform>
+                                <Ellipse.Triggers>
+                                    <EventTrigger RoutedEvent="Loaded">
+                                        <BeginStoryboard>
+                                            <Storyboard RepeatBehavior="Forever">
+                                                <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
+                                                                 From="0"
+                                                                 To="360"
+                                                                 Duration="0:0:0.8" />
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </EventTrigger>
+                                </Ellipse.Triggers>
+                            </Ellipse>
+                            <TextBlock Margin="4,0,0,0"
+                                       VerticalAlignment="Center"
+                                       Text="{Binding AppUpdateDownloadText}" />
+                        </StackPanel>
+                    </Grid>
                 </Button>
             </StackPanel>
 

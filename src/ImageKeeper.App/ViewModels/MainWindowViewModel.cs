@@ -68,7 +68,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private const string UpdateServerBaseUrl = "http://124.222.17.225";
 
-	private const string UpdateServerManifestUrl = UpdateServerBaseUrl + "/download/last.json";
+	private const string UpdateServerManifestUrl = UpdateServerBaseUrl + "/download/latest.json";
 
 	private const string MainTitleTemplateType = "main-title";
 
@@ -389,6 +389,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 	private bool _isAppUpdateAvailable;
 
 	private bool _isAppUpdateDownloading;
+
+	private string _appUpdateDownloadText = string.Empty;
 
 	private string _availableAppUpdateVersion = string.Empty;
 
@@ -2286,6 +2288,18 @@ public sealed class MainWindowViewModel : ViewModelBase
 		}
 	}
 
+	public string AppUpdateDownloadText
+	{
+		get
+		{
+			return _appUpdateDownloadText;
+		}
+		private set
+		{
+			SetProperty(ref _appUpdateDownloadText, value, "AppUpdateDownloadText");
+		}
+	}
+
 	public bool IsScanProgressIndeterminate
 	{
 		get
@@ -3420,7 +3434,16 @@ public sealed class MainWindowViewModel : ViewModelBase
 			Directory.CreateDirectory(updatesFolder);
 			string installerName = string.IsNullOrWhiteSpace(_availableAppUpdateInstallerName) ? "EcomToolStudio_Update_" + _availableAppUpdateVersion + ".exe" : Path.GetFileName(_availableAppUpdateInstallerName);
 			string installerPath = CreateUniqueUpdateFilePath(updatesFolder, installerName);
-			await DownloadAppUpdateInstallerAsync(_availableAppUpdateInstallerUrl, installerPath);
+			AppUpdateDownloadText = "0 B";
+			await DownloadAppUpdateInstallerAsync(
+				_availableAppUpdateInstallerUrl,
+				installerPath,
+				(downloadedBytes, totalBytes) =>
+				{
+					AppUpdateDownloadText = totalBytes.HasValue
+						? FormatDownloadSize(downloadedBytes) + " / " + FormatDownloadSize(totalBytes.Value)
+						: FormatDownloadSize(downloadedBytes);
+				});
 			StatusMessage = "更新包下载完成，正在启动安装程序。";
 			Process.Start(new ProcessStartInfo
 			{
@@ -3437,10 +3460,11 @@ public sealed class MainWindowViewModel : ViewModelBase
 		finally
 		{
 			IsAppUpdateDownloading = false;
+			AppUpdateDownloadText = string.Empty;
 		}
 	}
 
-	private static async Task DownloadAppUpdateInstallerAsync(string url, string installerPath)
+	private static async Task DownloadAppUpdateInstallerAsync(string url, string installerPath, Action<long, long?>? progress = null)
 	{
 		string directory = Path.GetDirectoryName(installerPath) ?? Path.GetTempPath();
 		string tempPath = CreateUniqueUpdateFilePath(directory, Path.GetFileNameWithoutExtension(installerPath) + ".download");
@@ -3450,9 +3474,25 @@ public sealed class MainWindowViewModel : ViewModelBase
 			client.DefaultRequestHeaders.Accept.Clear();
 			using HttpResponseMessage response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
 			response.EnsureSuccessStatusCode();
-			await using Stream remoteStream = await response.Content.ReadAsStreamAsync();
-			await using FileStream fileStream = new FileStream(tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 1024 * 1024, useAsync: true);
-			await remoteStream.CopyToAsync(fileStream);
+			long? totalBytes = response.Content.Headers.ContentLength;
+			long downloadedBytes = 0;
+			byte[] buffer = new byte[1024 * 1024];
+			await using (Stream remoteStream = await response.Content.ReadAsStreamAsync())
+			{
+				await using FileStream fileStream = new FileStream(tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 1024 * 1024, useAsync: true);
+				while (true)
+				{
+					int bytesRead = await remoteStream.ReadAsync(buffer.AsMemory(0, buffer.Length));
+					if (bytesRead == 0)
+					{
+						break;
+					}
+
+					await fileStream.WriteAsync(buffer.AsMemory(0, bytesRead));
+					downloadedBytes += bytesRead;
+					progress?.Invoke(downloadedBytes, totalBytes);
+				}
+			}
 			File.Move(tempPath, installerPath);
 		}
 		catch
@@ -3460,6 +3500,24 @@ public sealed class MainWindowViewModel : ViewModelBase
 			TryDeleteFile(tempPath);
 			throw;
 		}
+	}
+
+	private static string FormatDownloadSize(long bytes)
+	{
+		const double unit = 1024.0;
+		if (bytes < unit)
+		{
+			return bytes + " B";
+		}
+		if (bytes < unit * unit)
+		{
+			return (bytes / unit).ToString("0.0", CultureInfo.InvariantCulture) + " KB";
+		}
+		if (bytes < unit * unit * unit)
+		{
+			return (bytes / (unit * unit)).ToString("0.0", CultureInfo.InvariantCulture) + " MB";
+		}
+		return (bytes / (unit * unit * unit)).ToString("0.0", CultureInfo.InvariantCulture) + " GB";
 	}
 
 	private static string CreateUniqueUpdateFilePath(string folder, string fileName)
