@@ -480,7 +480,7 @@ def load_records(index_path):
 
 
 def load_titles(title_json_path):
-    with Path(title_json_path).open("r", encoding="utf-8") as handle:
+    with Path(title_json_path).open("r", encoding="utf-8-sig") as handle:
         payload = json.load(handle)
 
     title_pools = {}

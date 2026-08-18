@@ -42,8 +42,8 @@
     </None>
     <None Include="..\..\tools\python\temu-product-sheet\data\**\*">
       <Link>tools\python\temu-product-sheet\data\%(RecursiveDir)%(Filename)%(Extension)</Link>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Always</CopyToPublishDirectory>
     </None>
     <None Include="..\..\tools\python\template-random-generate\**\*.py">
       <Link>tools\python\template-random-generate\%(RecursiveDir)%(Filename)%(Extension)</Link>
