@@ -90,6 +90,13 @@ COLORS: tuple[ColorSpec, ...] = (
     ColorSpec("royalblue", "Royal blue", "宝蓝色", "#2E3EA5"),
 )
 
+SUEDE_MASTER_COLOR = ColorSpec(
+    "caramel_red_brown",
+    "Caramel reddish brown",
+    "焦糖红棕色",
+    "#A05C3A",
+)
+
 COLOR_ALIAS_MAP: dict[str, str] = {
     "black": "black",
     "黑色": "black",
@@ -547,12 +554,17 @@ def build_master_jobs(
     images: list[Path],
     bundles: dict[Path, OutputBundle],
     selected_colors: tuple[str, ...],
+    material: str,
 ) -> list[Job]:
     color_map = {color.suffix: color for color in COLORS}
     master_color = (
-        color_map.get("offwhite")
-        or next((color for color in COLORS if color.file_name == "米白色" or color.hex_code.upper() == "#F2EFE5"), None)
-        or ColorSpec("offwhite", "Off-white", "米白色", "#F2EFE5")
+        SUEDE_MASTER_COLOR
+        if normalize_material_token(material) == "suede"
+        else (
+            color_map.get("offwhite")
+            or next((color for color in COLORS if color.file_name == "米白色" or color.hex_code.upper() == "#F2EFE5"), None)
+            or ColorSpec("offwhite", "Off-white", "米白色", "#F2EFE5")
+        )
     )
     jobs: list[Job] = []
 
@@ -610,250 +622,191 @@ def build_master_prompt(color: ColorSpec, material: str = "lychee_grain") -> str
         return build_suede_master_prompt(color)
 
     return f"""
-    Use the uploaded image as lifestyle scene reference.
+        Use the uploaded image as lifestyle scene reference.
 
-    Create a premium Amazon/TEMU ecommerce product photo.
+        Create a premium Amazon/TEMU ecommerce product photo.
 
-    Keep the original lifestyle environment and main subject structure.
-    The main furniture/object must remain clearly visible.
+        Keep the original lifestyle environment and main subject structure.
+        The main furniture/object must remain clearly visible.
 
-    The final image must show:
-    ONE main subject,
-    ONE PU leather repair roll.
+        The final image must show:
+        ONE main subject,
+        ONE PU leather repair roll.
 
-    Remove all extra rolls, duplicate products, samples, labels, and unnecessary objects.
+        Remove all extra rolls, duplicate products, samples, labels, and unnecessary objects.
 
-    PRODUCT PLACEMENT:
+        PRODUCT PLACEMENT:
 
-    The PU leather repair roll must physically touch the main subject.
+        The PU leather repair roll must physically touch the main subject.
 
-    Place the roll resting on, leaning against, or attached to the furniture surface.
+        Place the roll resting on, leaning against, or attached to the furniture surface.
 
-    Show realistic contact:
-    contact shadow,
-    occlusion,
-    natural weight and physical interaction.
+        Show realistic contact:
+        contact shadow,
+        occlusion,
+        natural weight and physical interaction.
 
-    Do not let the roll float.
-    Do not place the roll separately.
-    Do not create an isolated product display.
-
-
-    PRODUCT FORM:
-
-    Show only ONE fully rolled PU leather repair roll.
-
-    Keep a realistic cylindrical roll shape.
-
-    Create a slim elongated leather sheet roll.
-
-    Reduce roll diameter by approximately 50% compared with the reference.
-
-    Keep the roll length extended.
-
-    The roll should look thin, long, lightweight, and elegant.
-
-    Avoid:
-    short thick tape roll,
-    bulky cylinder,
-    compact spool.
-    COLOR MATCH:
-
-    Target leather color:
-    {color.hex_code}
-
-    The PU leather repair roll and the leather/upholstered area of the main subject MUST use the exact same target color.
-    Match:
-    hue,
-    brightness,
-    saturation,
-    and color tone.
-    Keep furniture shape unchanged.
-
-    PRODUCT PRIORITY:
-    The PU leather repair roll is the primary product element.
-    Keep the roll clear, sharp, and visually important.
-    Furniture and background are supporting elements only.
-    Do not enhance furniture texture.
-    The main subject only needs realistic shape and natural appearance.
-
-    DUAL LAYER:
-    Keep the roll as a real repair material roll.
-
-    Front:
-    PU leather layer.
-
-    Back:
-    kraft paper release liner.
-    The liner must stay attached and aligned.
-    No loose paper.
-    No exposed edge.
-
-    CAMERA:
-    Close-up premium ecommerce photography.
-    Keep both:
-    the main subject,
-    and the repair roll visible.
-    The roll should be sharper than the environment.
-    Realistic commercial lighting.
-
-    REMOVE:
-    text,
-    logos,
-    icons,
-    watermarks,
-    labels,
-    extra products,
-    duplicate objects.
+        Do not let the roll float.
+        Do not place the roll separately.
+        Do not create an isolated product display.
 
 
-    FINAL STYLE:
-    High-end Amazon/TEMU commercial product photography.
-    Realistic premium lifestyle presentation.
-    Clean modern composition.
-    The final image should look like the same real scene,
-    with one matching-color PU leather repair roll naturally applied to the main subject.
+        PRODUCT FORM:
+
+        Show only ONE fully rolled PU leather repair roll.
+
+        Keep a realistic cylindrical roll shape.
+
+        Create a slim elongated leather sheet roll.
+
+        Reduce roll diameter by approximately 50% compared with the reference.
+
+        Keep the roll length extended.
+
+        The roll should look thin, long, lightweight, and elegant.
+
+        Avoid:
+        short thick tape roll,
+        bulky cylinder,
+        compact spool.
+        COLOR MATCH:
+
+        Target leather color:
+        {color.hex_code}
+
+        The PU leather repair roll and the leather/upholstered area of the main subject MUST use the exact same target color.
+        Match:
+        hue,
+        brightness,
+        saturation,
+        and color tone.
+        Keep furniture shape unchanged.
+
+        PRODUCT PRIORITY:
+        The PU leather repair roll is the primary product element.
+        Keep the roll clear, sharp, and visually important.
+        Furniture and background are supporting elements only.
+        Do not enhance furniture texture.
+        The main subject only needs realistic shape and natural appearance.
+
+        DUAL LAYER:
+        Keep the roll as a real repair material roll.
+
+        Front:
+        PU leather layer.
+
+        Back:
+        kraft paper release liner.
+        The liner must stay attached and aligned.
+        No loose paper.
+        No exposed edge.
+
+        CAMERA:
+        Close-up premium ecommerce photography.
+        Keep both:
+        the main subject,
+        and the repair roll visible.
+        The roll should be sharper than the environment.
+        Realistic commercial lighting.
+
+        REMOVE:
+        text,
+        logos,
+        icons,
+        watermarks,
+        labels,
+        extra products,
+        duplicate objects.
+
+
+        FINAL STYLE:
+        High-end Amazon/TEMU commercial product photography.
+        Realistic premium lifestyle presentation.
+        Clean modern composition.
+        The final image should look like the same real scene,
+        with one matching-color PU leather repair roll naturally applied to the main subject.
 """
 
 
 def build_suede_master_prompt(color: ColorSpec) -> str:
     return f"""
-    Use the uploaded image as lifestyle scene reference.
+        MATERIAL — ABSOLUTE HIGHEST PRIORITY:
+        Premium automotive ultra-fine short-pile faux suede / microsuede.
+        The entire image must prioritize authentic suede material rendering above composition, furniture details, background, and product placement.
+        Extremely short, ultra-fine, ultra-dense fibers tightly packed and lying close to the surface. At close range, clearly visible fine short fibers create a dense, soft, slightly fuzzy velvety nap. Never long, shaggy, fluffy, or wool-like.
+        MOST IMPORTANT — NATURAL NAP DIRECTION:
 
-    Create a premium Amazon/TEMU ecommerce product photo.
+        Clear but natural brushed and reverse-brushed nap directions are REQUIRED.
 
-    Keep the original lifestyle environment and main subject structure.
-    The main furniture/object must remain clearly visible.
+        Different nap directions must create broad, soft, continuous light-dark variation:
+        brushed areas appear naturally lighter,
+        reverse-brushed areas appear naturally deeper.
 
-    HIGHEST PRIORITY COLOR LOCK:
-    The target color must control BOTH:
-    the suede repair roll,
-    and the visible suede/fabric/upholstered surface of the main subject.
+        This variation must come from real short-fiber direction and lighting, creating authentic suede nap shading and natural brushed color variation.
 
-    Do not preserve the original upholstery color from the reference image.
-    If the reference car interior, furniture, seat, door panel, armrest, or upholstered area is brown, black, gray,
-    or any other color, recolor the main suede/fabric/upholstered contact area to the exact target color.
+        The surface must NEVER look like a perfectly uniform solid-color plane.
 
-    For target color #F2EFE5, the roll, seat, door panel, armrest, and visible suede/fabric/upholstered surfaces
-    must all become warm off-white #F2EFE5.
+        NOT stains, dirt, mottling, blotches, color patches, scratches, or artificial gradients.
 
-    Only keep non-upholstery parts unchanged:
-    steering wheel,
-    dashboard plastic,
-    metal trim,
-    glass,
-    buttons,
-    wood,
-    floor,
-    background,
-    and natural shadows.
+        Low-reflective soft matte suede with subtle natural nap sheen.
 
-    The final image must show:
-    ONE main subject,
-    ONE self-adhesive suede repair wrap roll.
+        NOT leather, PU leather, pebble grain, litchi grain, embossed texture, woven texture, coarse fabric, plastic, rubber, PVC, long pile, shaggy or fluffy fabric.
 
-    Remove all extra rolls, duplicate products, samples, labels, and unnecessary objects.
+        TARGET COLOR + MATERIAL LOCK:
 
-    PRODUCT PLACEMENT:
+        Target suede color: {color.hex_code}
 
-    Place the suede repair roll naturally within the scene.
-    It may rest on a seat, armrest, center console, shelf, floor mat, or other suitable nearby surface,
-    or lean naturally beside the main subject.
-    The roll does not need to touch or be attached to the main subject.
-    Prioritize a believable product-photography composition, realistic gravity, natural contact shadows,
-    and clear product visibility.
-    Do not let the roll float, stand unnaturally on an overhead surface, or intersect with the main subject.
+        The repair roll and ALL intended covered surfaces of the main subject — including leather seats, door panels, armrests, padded areas, and other suitable interior surfaces — must be completely transformed into the SAME ultra-fine short-pile faux suede material and the SAME target color.
 
+        Color must match in hue, saturation, and overall tone.
+        Natural light-dark variation caused by suede nap direction is allowed and REQUIRED.
 
-    PRODUCT FORM:
+        Preserve the original geometry, contours, proportions, and structure, but completely replace the surface material with premium ultra-fine short-pile faux suede.
 
-    Show only ONE fully rolled self-adhesive suede repair wrap roll.
+        SCENE:
 
-    Keep a realistic cylindrical roll shape.
+        Use the uploaded image as lifestyle scene reference.
 
-    Create a slim elongated suede sheet roll.
+        Keep the original environment and main subject structure.
+        Keep steering wheel, dashboard plastic, metal trim, glass, buttons, wood, floor, background, and natural shadows unchanged.
 
-    Reduce roll diameter by approximately 50% compared with the reference.
+        PRODUCT:
 
-    Keep the roll length extended.
+        Show ONE main subject and ONE fully rolled self-adhesive suede repair roll.
 
-    The roll should look thin, long, lightweight, and elegant.
+        Create a slim, long, lightweight cylindrical roll.
+        Reduce roll diameter by approximately 50% compared with the reference.
+        Keep the roll elongated and clearly visible.
 
-    Avoid:
-    short thick tape roll,
-    bulky cylinder,
-    compact spool.
+        Place the roll naturally on a suitable nearby surface or beside the main subject.
+        Realistic gravity, contact shadows, and natural positioning.
+        Do not float, intersect, or duplicate the roll.
 
-    COLOR MATCH:
+        DUAL LAYER:
 
-    Target suede color:
-    {color.hex_code}
+        Front: premium ultra-fine short-pile faux suede.
 
-    The suede repair roll and the suede/fabric/upholstered area of the main subject MUST use the exact same target color.
-    Match:
-    hue,
-    brightness,
-    saturation,
-    and color tone.
-    Keep furniture/object shape unchanged.
+        Back: tightly attached kraft paper release liner.
 
-    MATERIAL:
-    The product material must be soft suede / microsuede / alcantara-like fabric.
-    Surface texture must be fine, short, dense, velvety nap.
-    Keep a soft-touch matte finish with gentle directional nap variation.
-    The surface should look smooth, plush, and slightly fuzzy at close distance.
-    No litchi grain.
-    No pebble grain.
-    No oily PU leather gloss.
-    No broad mirror specular highlights.
-    No plastic, rubber, PVC, or glossy leather finish.
+        The liner must remain aligned with the suede layer and stay completely inside the roll edges.
+        No paper lip, exposed edge, lifted edge, curled edge, or loose paper.
 
-    PRODUCT PRIORITY:
-    The suede repair roll is the primary product element.
-    Keep the roll clear, sharp, and visually important.
-    Furniture and background are supporting elements only.
-    Do not enhance furniture texture.
-    The main subject only needs realistic shape and natural appearance.
+        CAMERA:
 
-    DUAL LAYER:
-    Keep the roll as a real self-adhesive repair material roll.
+        Premium Amazon/TEMU commercial product photography.
+        Close-up realistic lifestyle composition.
+        Keep both the main subject and roll visible.
+        The roll should be sharp and visually prominent.
 
-    Front:
-    suede fabric layer.
+        REMOVE:
 
-    Back:
-    kraft paper release liner.
-    The liner must stay attached and aligned.
-    The kraft paper release liner must be tightly bonded to the suede layer.
-    It must not protrude beyond the outer roll edges.
-    Do not create a paper lip, lifted paper edge, curled edge, or separate exposed paper layer.
-    No loose paper.
-    No exposed edge.
+        text, logos, icons, watermarks, labels, samples, extra rolls, duplicate products, unnecessary objects.
 
-    CAMERA:
-    Close-up premium ecommerce photography.
-    Keep both:
-    the main subject,
-    and the suede repair roll visible.
-    The roll should be sharper than the environment.
-    Realistic commercial lighting.
+        FINAL PRIORITY:
 
-    REMOVE:
-    text,
-    logos,
-    icons,
-    watermarks,
-    labels,
-    extra products,
-    duplicate objects.
+        If any instruction conflicts with authentic ultra-fine short-pile faux suede rendering, PRIORITIZE THE MATERIAL.
 
 
-    FINAL STYLE:
-    High-end Amazon/TEMU commercial product photography.
-    Realistic premium lifestyle presentation.
-    Clean modern composition.
-    The final image should look like the same real scene,
-    with one matching-color suede repair roll naturally applied to the main subject.
 """
 
 
@@ -1235,7 +1188,7 @@ def main() -> int:
             linked_bundles=linked_bundles,
         )
         if options.master_only:
-            jobs = build_master_jobs(images, bundles, options.selected_colors)
+            jobs = build_master_jobs(images, bundles, options.selected_colors, options.material)
             mode_name = "master_generated"
         elif options.recolor_only:
             jobs = build_recolor_jobs(images, bundles, options.selected_colors)

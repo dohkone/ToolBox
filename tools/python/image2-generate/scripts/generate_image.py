@@ -31,6 +31,10 @@ class Image2Error(Exception):
     """Raised for expected operational failures."""
 
 
+class RetryImageResponseWithUrl(Exception):
+    """Internal signal to retry with url response format."""
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Generate images with the image2 dedicated key.",
@@ -492,6 +496,7 @@ def run_curl_multipart(
     size: str,
     quality: str,
     n_value: int,
+    response_format: str,
     input_images: list[Path],
     mask_path: Path | None,
 ) -> tuple[int, str]:
@@ -517,7 +522,7 @@ def run_curl_multipart(
         "--form",
         f"n={n_value}",
         "--form",
-        "response_format=b64_json",
+        f"response_format={response_format}",
         "--write-out",
         "\n%{http_code}",
     ]
@@ -550,6 +555,13 @@ def run_curl_multipart(
     except ValueError as exc:
         raise Image2Error(f"Unexpected HTTP status output: {status_line!r}") from exc
     return status_code, body
+
+
+def should_retry_with_url(error: Image2Error) -> bool:
+    message = str(error)
+    return message.startswith("Failed to parse JSON response:") or message.startswith(
+        "Unexpected JSON response shape."
+    )
 
 
 def run_curl_download(url: str, output_path: Path) -> None:
@@ -722,6 +734,64 @@ def save_images(payload: dict[str, Any], output_dir: Path, filename: str | None,
     return saved_paths
 
 
+def generate_images_once(
+    endpoint: str,
+    models_endpoint: str,
+    base_url: str,
+    api_key: str,
+    prompt: str,
+    model: str,
+    size: str,
+    quality: str,
+    n_value: int,
+    output_dir: Path,
+    filename: str | None,
+    response_format: str,
+) -> tuple[list[Path], str]:
+    payload = {
+        "model": model,
+        "prompt": prompt,
+        "size": size,
+        "quality": quality,
+        "n": n_value,
+        "response_format": response_format,
+    }
+
+    status_code, body = run_curl_json(endpoint, payload, api_key)
+    try:
+        parsed = parse_json_response(body)
+    except Image2Error as exc:
+        if response_format == "b64_json" and should_retry_with_url(exc):
+            raise RetryImageResponseWithUrl() from exc
+        raise
+
+    if status_code in {401, 403}:
+        raise Image2Error("image2 dedicated key was rejected by the image generation endpoint.")
+
+    if status_code >= 400:
+        message = extract_error_message(parsed)
+        if "No available compatible accounts" in message:
+            available_models = list_image_models(models_endpoint, api_key)
+            preferred_model = available_models[0]
+            if model != preferred_model:
+                payload["model"] = preferred_model
+                status_code, body = run_curl_json(endpoint, payload, api_key)
+                try:
+                    parsed = parse_json_response(body)
+                except Image2Error as exc:
+                    if response_format == "b64_json" and should_retry_with_url(exc):
+                        raise RetryImageResponseWithUrl() from exc
+                    raise
+                if status_code in {401, 403}:
+                    raise Image2Error("image2 dedicated key was rejected by the image generation endpoint.")
+                if status_code >= 400:
+                    raise Image2Error(extract_error_message(parsed))
+                return save_images(parsed, output_dir, filename, prompt, base_url), preferred_model
+        raise Image2Error(message)
+
+    return save_images(parsed, output_dir, filename, prompt, base_url), model
+
+
 def generate_images(
     endpoint: str,
     models_endpoint: str,
@@ -735,20 +805,64 @@ def generate_images(
     output_dir: Path,
     filename: str | None,
 ) -> tuple[list[Path], str]:
-    payload = {
-        "model": model,
-        "prompt": prompt,
-        "size": size,
-        "quality": quality,
-        "n": n_value,
-        "response_format": "b64_json",
-    }
+    for response_format in ("url", "b64_json"):
+        try:
+            return generate_images_once(
+                endpoint,
+                models_endpoint,
+                base_url,
+                api_key,
+                prompt,
+                model,
+                size,
+                quality,
+                n_value,
+                output_dir,
+                filename,
+                response_format,
+            )
+        except RetryImageResponseWithUrl:
+            continue
+    raise Image2Error("Failed to generate image response in both b64_json and url modes.")
 
-    status_code, body = run_curl_json(endpoint, payload, api_key)
-    parsed = parse_json_response(body)
+
+def edit_images_once(
+    endpoint: str,
+    models_endpoint: str,
+    base_url: str,
+    api_key: str,
+    prompt: str,
+    model: str,
+    size: str,
+    quality: str,
+    n_value: int,
+    output_dir: Path,
+    filename: str | None,
+    input_images: list[Path],
+    mask_path: Path | None,
+    response_format: str,
+) -> tuple[list[Path], str]:
+    status_code, body = run_curl_multipart(
+        url=endpoint,
+        api_key=api_key,
+        prompt=prompt,
+        model=model,
+        size=size,
+        quality=quality,
+        n_value=n_value,
+        response_format=response_format,
+        input_images=input_images,
+        mask_path=mask_path,
+    )
+    try:
+        parsed = parse_json_response(body)
+    except Image2Error as exc:
+        if response_format == "b64_json" and should_retry_with_url(exc):
+            raise RetryImageResponseWithUrl() from exc
+        raise
 
     if status_code in {401, 403}:
-        raise Image2Error("image2 dedicated key was rejected by the image generation endpoint.")
+        raise Image2Error("image2 dedicated key was rejected by the image editing endpoint.")
 
     if status_code >= 400:
         message = extract_error_message(parsed)
@@ -756,11 +870,26 @@ def generate_images(
             available_models = list_image_models(models_endpoint, api_key)
             preferred_model = available_models[0]
             if model != preferred_model:
-                payload["model"] = preferred_model
-                status_code, body = run_curl_json(endpoint, payload, api_key)
-                parsed = parse_json_response(body)
+                status_code, body = run_curl_multipart(
+                    url=endpoint,
+                    api_key=api_key,
+                    prompt=prompt,
+                    model=preferred_model,
+                    size=size,
+                    quality=quality,
+                    n_value=n_value,
+                    response_format=response_format,
+                    input_images=input_images,
+                    mask_path=mask_path,
+                )
+                try:
+                    parsed = parse_json_response(body)
+                except Image2Error as exc:
+                    if response_format == "b64_json" and should_retry_with_url(exc):
+                        raise RetryImageResponseWithUrl() from exc
+                    raise
                 if status_code in {401, 403}:
-                    raise Image2Error("image2 dedicated key was rejected by the image generation endpoint.")
+                    raise Image2Error("image2 dedicated key was rejected by the image editing endpoint.")
                 if status_code >= 400:
                     raise Image2Error(extract_error_message(parsed))
                 return save_images(parsed, output_dir, filename, prompt, base_url), preferred_model
@@ -784,48 +913,27 @@ def edit_images(
     input_images: list[Path],
     mask_path: Path | None,
 ) -> tuple[list[Path], str]:
-    status_code, body = run_curl_multipart(
-        url=endpoint,
-        api_key=api_key,
-        prompt=prompt,
-        model=model,
-        size=size,
-        quality=quality,
-        n_value=n_value,
-        input_images=input_images,
-        mask_path=mask_path,
-    )
-    parsed = parse_json_response(body)
-
-    if status_code in {401, 403}:
-        raise Image2Error("image2 dedicated key was rejected by the image editing endpoint.")
-
-    if status_code >= 400:
-        message = extract_error_message(parsed)
-        if "No available compatible accounts" in message:
-            available_models = list_image_models(models_endpoint, api_key)
-            preferred_model = available_models[0]
-            if model != preferred_model:
-                status_code, body = run_curl_multipart(
-                    url=endpoint,
-                    api_key=api_key,
-                    prompt=prompt,
-                    model=preferred_model,
-                    size=size,
-                    quality=quality,
-                    n_value=n_value,
-                    input_images=input_images,
-                    mask_path=mask_path,
-                )
-                parsed = parse_json_response(body)
-                if status_code in {401, 403}:
-                    raise Image2Error("image2 dedicated key was rejected by the image editing endpoint.")
-                if status_code >= 400:
-                    raise Image2Error(extract_error_message(parsed))
-                return save_images(parsed, output_dir, filename, prompt, base_url), preferred_model
-        raise Image2Error(message)
-
-    return save_images(parsed, output_dir, filename, prompt, base_url), model
+    for response_format in ("url", "b64_json"):
+        try:
+            return edit_images_once(
+                endpoint,
+                models_endpoint,
+                base_url,
+                api_key,
+                prompt,
+                model,
+                size,
+                quality,
+                n_value,
+                output_dir,
+                filename,
+                input_images,
+                mask_path,
+                response_format,
+            )
+        except RetryImageResponseWithUrl:
+            continue
+    raise Image2Error("Failed to generate edited image response in both b64_json and url modes.")
 
 
 def main() -> int:
