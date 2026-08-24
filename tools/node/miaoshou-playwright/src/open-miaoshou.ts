@@ -212,6 +212,22 @@ function readJsonInstance() {
   return parsed as ProductJsonItem[];
 }
 
+function getPublishShopNames(productItem: ProductJsonItem) {
+  const rawNames = productItem.publish_shop_names;
+  if (!Array.isArray(rawNames)) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      rawNames
+        .filter((name): name is string => typeof name === "string")
+        .map((name) => name.trim())
+        .filter((name) => name.length > 0),
+    ),
+  );
+}
+
 function getExistingProfileLockPaths(userDataDir: string) {
   const lockFileNames = [
     "SingletonLock",
@@ -960,6 +976,7 @@ type ShopSelectorSnapshot = {
   checkAllChecked: boolean;
   shopCount: number;
   checkedCount: number;
+  checkedNames: string[];
   uncheckedNames: string[];
 };
 
@@ -1037,9 +1054,15 @@ async function getShopSelectorSnapshot(page: Page): Promise<ShopSelectorSnapshot
         checkAllChecked: false,
         shopCount: 0,
         checkedCount: 0,
+        checkedNames: [],
         uncheckedNames: [],
       };
     }
+
+    const checkedNames = context.shopLabels
+      .filter((label) => isChecked(label))
+      .map((label) => label.textContent?.replace(/\s+/g, " ").trim() ?? "")
+      .filter((name) => name.length > 0);
 
     const uncheckedNames = context.shopLabels
       .filter((label) => !isChecked(label))
@@ -1050,7 +1073,8 @@ async function getShopSelectorSnapshot(page: Page): Promise<ShopSelectorSnapshot
       found: true,
       checkAllChecked: isChecked(context.checkAll),
       shopCount: context.shopLabels.length,
-      checkedCount: context.shopLabels.length - uncheckedNames.length,
+      checkedCount: checkedNames.length,
+      checkedNames,
       uncheckedNames,
     };
   });
@@ -1234,6 +1258,194 @@ async function clickShopSelectorCheckAll(page: Page) {
   console.log(
     `Shop selection remained incomplete. Still unchecked: ${finalSnapshot.uncheckedNames.join(", ") || "unknown"}.`,
   );
+}
+
+function normalizeShopName(name: string) {
+  return name.replace(/\s+/g, " ").trim().toLocaleLowerCase();
+}
+
+async function selectConfiguredShops(page: Page, releaseDialog: Locator, requestedShopNames: string[]) {
+  const selectedShopNames = Array.from(
+    new Set(requestedShopNames.map(normalizeShopName).filter((name) => name.length > 0)),
+  );
+
+  await page.waitForTimeout(500);
+  const selectionResult = await releaseDialog.evaluate((root, requestedNames) => {
+    const isVisible = (node: Element | null) => {
+      if (!(node instanceof HTMLElement)) {
+        return false;
+      }
+
+      const rect = node.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0;
+    };
+
+    const isChecked = (label: Element | null) => {
+      if (!(label instanceof HTMLElement)) {
+        return false;
+      }
+
+      const input = label.querySelector("input") as HTMLInputElement | null;
+      return (
+        label.classList.contains("is-checked") ||
+        label.querySelector(".jx-checkbox__input.is-checked") !== null ||
+        input?.checked === true
+      );
+    };
+
+    const clickLabel = (label: HTMLElement) => {
+      label.click();
+    };
+
+    const normalize = (name: string) => name.replace(/\s+/g, " ").trim().toLocaleLowerCase();
+    const checkAll = Array.from(
+      root.querySelectorAll("label.shop-selector-check-all, label.pro-checkbox-group-all-select"),
+    ).find(isVisible) as HTMLElement | undefined;
+    if (!checkAll) {
+      return { found: false, missingNames: requestedNames };
+    }
+
+    const candidateContainers = [
+      checkAll.closest(".pro-checkbox-group"),
+      checkAll.closest(".jx-checkbox-group"),
+      checkAll.closest(".jx-scrollbar"),
+      checkAll.closest(".shop-selector"),
+      checkAll.closest(".jx-popper"),
+      checkAll.closest(".jx-overlay"),
+      checkAll.parentElement,
+      checkAll.parentElement?.parentElement,
+      root,
+    ].filter((node): node is Element => node instanceof Element);
+    const container =
+      candidateContainers.find((node) => {
+        const visibleLabels = Array.from(node.querySelectorAll("label.jx-checkbox, label.pro-checkbox")).filter(isVisible);
+        return visibleLabels.length >= 2;
+      }) ?? checkAll.parentElement ?? checkAll;
+    const shopLabels = Array.from(container.querySelectorAll("label.jx-checkbox, label.pro-checkbox"))
+      .filter(isVisible)
+      .filter((label) => label !== checkAll)
+      .filter((label) => {
+        const element = label as HTMLElement;
+        return (
+          !element.classList.contains("shop-selector-check-all") &&
+          !element.classList.contains("pro-checkbox-group-all-select")
+        );
+      }) as HTMLElement[];
+
+    const requested = new Set(requestedNames);
+    const available = new Map(
+      shopLabels.map((label) => [normalize(label.textContent ?? ""), label] as const).filter(([name]) => name.length > 0),
+    );
+    const missingNames = requestedNames.filter((name) => !available.has(name));
+
+    if (requestedNames.length === 0) {
+      for (const label of shopLabels) {
+        if (!isChecked(label)) {
+          clickLabel(label);
+        }
+      }
+    } else {
+      for (const label of shopLabels) {
+        if (isChecked(label)) {
+          clickLabel(label);
+        }
+      }
+
+      for (const name of requested) {
+        const label = available.get(name);
+        if (label) {
+          clickLabel(label);
+        }
+      }
+    }
+
+    return { found: true, missingNames };
+  }, selectedShopNames);
+
+  if (!selectionResult.found) {
+    await captureShopDebugState(page, "miaoshou-shop-selection-missing.png");
+    throw new Error("Could not find the shop selector.");
+  }
+  if (selectionResult.missingNames.length > 0) {
+    throw new Error(`Configured shops were not found in Miaoshou: ${selectionResult.missingNames.join(", ")}`);
+  }
+
+  await page.waitForTimeout(500);
+  const snapshot = await releaseDialog.evaluate((root) => {
+    const isVisible = (node: Element | null) => {
+      if (!(node instanceof HTMLElement)) {
+        return false;
+      }
+
+      const rect = node.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0;
+    };
+
+    const isChecked = (label: Element | null) => {
+      if (!(label instanceof HTMLElement)) {
+        return false;
+      }
+
+      const input = label.querySelector("input") as HTMLInputElement | null;
+      return (
+        label.classList.contains("is-checked") ||
+        label.querySelector(".jx-checkbox__input.is-checked") !== null ||
+        input?.checked === true
+      );
+    };
+
+    const checkAll = Array.from(
+      root.querySelectorAll("label.shop-selector-check-all, label.pro-checkbox-group-all-select"),
+    ).find(isVisible) as HTMLElement | undefined;
+    if (!checkAll) {
+      return { found: false, shopCount: 0, checkedNames: [] as string[] };
+    }
+
+    const candidateContainers = [
+      checkAll.closest(".pro-checkbox-group"),
+      checkAll.closest(".jx-checkbox-group"),
+      checkAll.closest(".jx-scrollbar"),
+      checkAll.closest(".shop-selector"),
+      checkAll.closest(".jx-popper"),
+      checkAll.closest(".jx-overlay"),
+      checkAll.parentElement,
+      checkAll.parentElement?.parentElement,
+      root,
+    ].filter((node): node is Element => node instanceof Element);
+    const container =
+      candidateContainers.find((node) => {
+        const visibleLabels = Array.from(node.querySelectorAll("label.jx-checkbox, label.pro-checkbox")).filter(isVisible);
+        return visibleLabels.length >= 2;
+      }) ?? checkAll.parentElement ?? checkAll;
+    const shopLabels = Array.from(container.querySelectorAll("label.jx-checkbox, label.pro-checkbox"))
+      .filter(isVisible)
+      .filter((label) => label !== checkAll)
+      .filter((label) => {
+        const element = label as HTMLElement;
+        return (
+          !element.classList.contains("shop-selector-check-all") &&
+          !element.classList.contains("pro-checkbox-group-all-select")
+        );
+      });
+    const checkedNames = shopLabels
+      .filter(isChecked)
+      .map((label) => label.textContent?.replace(/\s+/g, " ").trim() ?? "")
+      .filter((name) => name.length > 0);
+    return { found: true, shopCount: shopLabels.length, checkedNames };
+  });
+  if (!snapshot.found) {
+    await captureShopDebugState(page, "miaoshou-release-shop-selection-missing.png");
+    throw new Error("Could not verify the shop selector in the release dialog.");
+  }
+  const selectedNames = new Set(snapshot.checkedNames.map(normalizeShopName));
+  const missingSelections = selectedShopNames.filter((name) => !selectedNames.has(name));
+  const expectedSelectionCount = selectedShopNames.length === 0 ? snapshot.shopCount : selectedShopNames.length;
+  if (missingSelections.length > 0 || snapshot.checkedNames.length !== expectedSelectionCount) {
+    await captureShopDebugState(page, "miaoshou-release-shop-selection-incomplete.png");
+    throw new Error(`Shop selection did not match the configured shops: ${missingSelections.join(", ") || "unknown"}`);
+  }
+
+  console.log(`Selected configured shops: ${snapshot.checkedNames.join(", ")}`);
 }
 
 async function selectProductCategory(page: Page) {
@@ -4026,14 +4238,14 @@ async function clickPromptDialogClose(page: Page) {
   await waitForDialogTitleToClose(page, promptDialogTitleText, 20_000).catch(() => {});
 }
 
-async function publishCreatedProduct(page: Page) {
+async function publishCreatedProduct(page: Page, publishShopNames: string[]) {
   await clickVisibleButtonByName(page, createPublishText);
   console.log(`Clicked ${createPublishText}`);
 
   const releaseDialog = await getReleaseProductDialog(page);
   console.log(`Opened ${releaseProductDialogTitleText} dialog`);
 
-  await clickShopSelectorCheckAll(page);
+  await selectConfiguredShops(page, releaseDialog, publishShopNames);
 
   const publishButton = releaseDialog.locator("button").filter({ hasText: publishToSelectedShopText }).first();
   await publishButton.waitFor({ state: "visible", timeout: 20_000 });
@@ -4090,6 +4302,7 @@ async function clearPictureIndexCurrentPage(page: Page) {
 
 async function prepareCreateProductFlow(page: Page, productItem: ProductJsonItem) {
   const skuColorItems = getSkuColorItems(productItem);
+  const publishShopNames = getPublishShopNames(productItem);
   console.log(`SKU colors for current product: ${skuColorItems.map((item) => item.color).join(", ")}`);
 
   await clickVisibleButtonByName(page, createProductText);
@@ -4101,6 +4314,8 @@ async function prepareCreateProductFlow(page: Page, productItem: ProductJsonItem
   await clickShopDropdown(page);
   console.log("Clicked shop dropdown");
 
+  // All shops must be selected while editing the product. Per-card shop filtering
+  // is applied only in the final publish dialog.
   await clickShopSelectorCheckAll(page);
 
   await selectProductCategory(page);
@@ -4158,7 +4373,7 @@ async function prepareCreateProductFlow(page: Page, productItem: ProductJsonItem
   await configureWeightBatchDialog(page, productItem);
   await configurePackagingInfo(page, productItem);
   await configureProductDescription(page, productItem);
-  await publishCreatedProduct(page);
+  await publishCreatedProduct(page, publishShopNames);
   // await clearPictureIndexCurrentPage(page);
 }
 

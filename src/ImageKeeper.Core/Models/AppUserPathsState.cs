@@ -22,6 +22,8 @@ public sealed class AppUserPathsState
 
 	public string GenerationMaterial { get; set; } = string.Empty;
 
+	public List<string> AutoPublishShopNames { get; set; } = new List<string>();
+
 	public long SelectedSpBatchColorTemplateGroupId { get; set; }
 
 	public Dictionary<long, string[]> SpBatchSelectedColorNamesByGroupId { get; set; } = new Dictionary<long, string[]>();

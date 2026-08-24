@@ -37,6 +37,7 @@ public partial class MainWindow : Window
             CreateMiaoshouPublishService(),
             CreateAutoPublishStateService(),
             CreateCardSizeInfoService(),
+            CreateCardPublishShopInfoService(),
             CreateTemplateLibraryService());
         DataContext = _viewModel;
         SizeToCurrentWorkArea();
@@ -102,6 +103,12 @@ public partial class MainWindow : Window
         if (_viewModel.IsCardSizeDialogOpen)
         {
             _viewModel.CancelCardSizeInfoCommand.Execute(null);
+            return true;
+        }
+
+        if (_viewModel.IsPublishShopSelectionDialogOpen)
+        {
+            _viewModel.CancelPublishShopSelectionCommand.Execute(null);
             return true;
         }
 
@@ -217,6 +224,14 @@ public partial class MainWindow : Window
         var databasePath = Path.Combine(localAppData, "ToolBox", "toolbox.db");
         MigrateLegacyDatabaseIfNeeded(databasePath);
         return new CardSizeInfoService(databasePath);
+    }
+
+    private static ICardPublishShopInfoService CreateCardPublishShopInfoService()
+    {
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        var databasePath = Path.Combine(localAppData, "ToolBox", "toolbox.db");
+        MigrateLegacyDatabaseIfNeeded(databasePath);
+        return new CardPublishShopInfoService(databasePath);
     }
 
     private static ITemplateLibraryService CreateTemplateLibraryService()
@@ -494,6 +509,52 @@ public partial class MainWindow : Window
         else if (_viewModel.CancelTemplateSubjectTagCommand.CanExecute(null))
         {
             _viewModel.CancelTemplateSubjectTagCommand.Execute(null);
+        }
+    }
+
+    private void AutoPublishShopInput_Loaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is TextBox textBox)
+        {
+            textBox.Dispatcher.BeginInvoke(new Action(() =>
+            {
+                textBox.Focus();
+                textBox.SelectAll();
+            }));
+        }
+    }
+
+    private void AutoPublishShopInput_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            if (_viewModel.CommitAutoPublishShopCommand.CanExecute(null))
+            {
+                _viewModel.CommitAutoPublishShopCommand.Execute(null);
+            }
+            else
+            {
+                _viewModel.CancelAutoPublishShopCommand.Execute(null);
+            }
+
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            _viewModel.CancelAutoPublishShopCommand.Execute(null);
+            e.Handled = true;
+        }
+    }
+
+    private void AutoPublishShopInput_LostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        if (_viewModel.CommitAutoPublishShopCommand.CanExecute(null))
+        {
+            _viewModel.CommitAutoPublishShopCommand.Execute(null);
+        }
+        else
+        {
+            _viewModel.CancelAutoPublishShopCommand.Execute(null);
         }
     }
 

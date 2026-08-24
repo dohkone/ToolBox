@@ -124,11 +124,19 @@ public sealed class RootCardViewModel : ViewModelBase
 
 	private bool _hasStaleSizeImage;
 
+	private IReadOnlyList<string> _selectedPublishShopNames = Array.Empty<string>();
+
 	public string DisplayName => _rootNode.DisplayName;
 
 	public string RootFolderPath => _rootNode.FolderPath;
 
 	public string AutoPublishKeyPath => GetSpRootFolder() ?? RootFolderPath;
+
+	public IReadOnlyList<string> SelectedPublishShopNames => _selectedPublishShopNames;
+
+	public string PublishShopDisplayText => _selectedPublishShopNames.Count == 0
+		? "上架店铺：全部"
+		: "上架店铺：" + string.Join("、", _selectedPublishShopNames);
 
 	public ObservableCollection<FolderNodeViewModel> VisibleNodes { get; } = new ObservableCollection<FolderNodeViewModel>();
 
@@ -683,6 +691,27 @@ public sealed class RootCardViewModel : ViewModelBase
 		SizeText = (hasStaleSizeImage ? string.Empty : (record?.SizeText ?? string.Empty));
 		SizeRawInput = ((!hasStaleSizeImage) ? (record?.SizeRawInput ?? string.Empty) : (record?.SizeRawInput ?? string.Empty));
 		HasStaleSizeImage = hasStaleSizeImage;
+	}
+
+	public void ApplyCardPublishShopInfo(CardPublishShopInfoRecord? record)
+	{
+		string[] selectedNames;
+		try
+		{
+			selectedNames = JsonSerializer.Deserialize<string[]>(record?.ShopNamesJson ?? "[]") ?? Array.Empty<string>();
+		}
+		catch (JsonException)
+		{
+			selectedNames = Array.Empty<string>();
+		}
+
+		_selectedPublishShopNames = selectedNames
+			.Where(name => !string.IsNullOrWhiteSpace(name))
+			.Select(name => name.Trim())
+			.Distinct(StringComparer.OrdinalIgnoreCase)
+			.ToArray();
+		OnPropertyChanged("SelectedPublishShopNames");
+		OnPropertyChanged("PublishShopDisplayText");
 	}
 
 	public void SetAutoPublishStatus(AutoPublishStatus status, string lastError = "")

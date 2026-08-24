@@ -1029,6 +1029,14 @@
                                                                                            Text="{Binding MaterialSummaryText}"
                                                                                            TextWrapping="NoWrap"
                                                                                            ToolTip="{Binding MaterialSummaryText}" />
+                                                                                <TextBlock Margin="14,0,0,0"
+                                                                                           MaxWidth="300"
+                                                                                           FontSize="12"
+                                                                                           Foreground="#606266"
+                                                                                           Text="{Binding PublishShopDisplayText}"
+                                                                                           TextTrimming="CharacterEllipsis"
+                                                                                           TextWrapping="NoWrap"
+                                                                                           ToolTip="{Binding PublishShopDisplayText}" />
                                                                             </StackPanel>
                                                                         </Grid>
                                                                     </Button>
@@ -1171,6 +1179,11 @@
                                                                                     Style="{StaticResource SecondaryButtonStyle}"
                                                                                     Command="{Binding CopyMainToDetailCommand}"
                                                                                     Content="复制main到detail" />
+                                                                            <Button Margin="0,0,8,8"
+                                                                                    Style="{StaticResource SecondaryButtonStyle}"
+                                                                                    Command="{Binding DataContext.OpenPublishShopSelectionCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                                    CommandParameter="{Binding}"
+                                                                                    Content="上架店铺" />
                                                                             <Button Margin="0,0,8,8"
                                                                                     Style="{StaticResource SecondaryButtonStyle}"
                                                                                     Command="{Binding OpenCardSizeDialogCommand}"
@@ -5631,6 +5644,104 @@
                                           IsChecked="{Binding TitleChineseOnly, Mode=TwoWay}"
                                           Content="仅中文" />
                             </Grid>
+
+                            <Grid Margin="0,14,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="86" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock VerticalAlignment="Center"
+                                           FontWeight="SemiBold"
+                                           Text="店铺" />
+                                <StackPanel Grid.Column="1"
+                                            VerticalAlignment="Center">
+                                    <Border Padding="7,6"
+                                            Background="White"
+                                            BorderBrush="#DCDFE6"
+                                            BorderThickness="1"
+                                            CornerRadius="4">
+                                        <WrapPanel VerticalAlignment="Center">
+                                            <ItemsControl ItemsSource="{Binding AutoPublishShopTags}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <WrapPanel />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Grid Margin="0,0,6,6">
+                                                            <Border Height="26"
+                                                                    Padding="8,0"
+                                                                    Background="{Binding Background}"
+                                                                    BorderBrush="{Binding BorderBrush}"
+                                                                    BorderThickness="1"
+                                                                    CornerRadius="4"
+                                                                    Visibility="{Binding IsTag, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                                <Grid>
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="*" />
+                                                                        <ColumnDefinition Width="Auto" />
+                                                                    </Grid.ColumnDefinitions>
+                                                                    <TextBlock VerticalAlignment="Center"
+                                                                               FontSize="13"
+                                                                               Foreground="{Binding Foreground}"
+                                                                               Text="{Binding Text}"
+                                                                               Cursor="IBeam">
+                                                                        <TextBlock.InputBindings>
+                                                                            <MouseBinding MouseAction="LeftClick"
+                                                                                          Command="{Binding DataContext.BeginAutoPublishShopEditCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                                          CommandParameter="{Binding Text}" />
+                                                                        </TextBlock.InputBindings>
+                                                                    </TextBlock>
+                                                                    <Button Grid.Column="1"
+                                                                            Margin="6,0,0,0"
+                                                                            Width="14"
+                                                                            Height="14"
+                                                                            MinWidth="0"
+                                                                            Padding="0"
+                                                                            VerticalAlignment="Center"
+                                                                            Background="Transparent"
+                                                                            BorderThickness="0"
+                                                                            Content="×"
+                                                                            Cursor="Hand"
+                                                                            FontSize="12"
+                                                                            Foreground="#909399"
+                                                                            Command="{Binding DataContext.RemoveSelectedAutoPublishShopCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                            CommandParameter="{Binding Text}" />
+                                                                </Grid>
+                                                            </Border>
+                                                            <Button Width="28"
+                                                                    Height="26"
+                                                                    MinWidth="28"
+                                                                    Padding="0"
+                                                                    Content="+"
+                                                                    Style="{StaticResource ElementSecondaryButtonStyle}"
+                                                                    Command="{Binding DataContext.OpenAutoPublishShopAddCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                    Visibility="{Binding IsAddButton, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                                            <TextBox Width="92"
+                                                                     Height="26"
+                                                                     MinWidth="88"
+                                                                     MaxWidth="110"
+                                                                     Padding="6,3"
+                                                                     BorderBrush="#409EFF"
+                                                                     BorderThickness="1"
+                                                                     Background="White"
+                                                                     VerticalAlignment="Center"
+                                                                     VerticalContentAlignment="Center"
+                                                                     Style="{StaticResource ElementInputTextBoxStyle}"
+                                                                     Text="{Binding DataContext.NewAutoPublishShopName, RelativeSource={RelativeSource AncestorType=Window}, UpdateSourceTrigger=PropertyChanged}"
+                                                                     Visibility="{Binding IsInput, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                                     Loaded="AutoPublishShopInput_Loaded"
+                                                                     KeyDown="AutoPublishShopInput_KeyDown"
+                                                                     LostKeyboardFocus="AutoPublishShopInput_LostKeyboardFocus" />
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </WrapPanel>
+                                    </Border>
+                                </StackPanel>
+                            </Grid>
                         </StackPanel>
 
                         <StackPanel Grid.Row="2"
@@ -5640,6 +5751,117 @@
                             <Button Content="确定"
                                     Style="{StaticResource ElementPrimaryButtonStyle}"
                                     Command="{Binding CloseAutoPublishSettingsCommand}" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <Grid Panel.ZIndex="83"
+                  Grid.RowSpan="2"
+                  Background="#66000000"
+                  Visibility="{Binding IsPublishShopSelectionDialogOpen, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <Border Width="620"
+                        MinHeight="360"
+                        MaxHeight="720"
+                        Padding="22"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Background="White"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="12">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right"
+                                    Width="24"
+                                    Height="24"
+                                    MinWidth="0"
+                                    MinHeight="0"
+                                    Padding="0"
+                                    Content="x"
+                                    Style="{StaticResource ElementSecondaryButtonStyle}"
+                                    Command="{Binding CancelPublishShopSelectionCommand}" />
+                            <StackPanel>
+                                <TextBlock FontSize="18"
+                                           FontWeight="SemiBold"
+                                           Text="上架店铺" />
+                                <TextBlock Margin="0,4,0,0"
+                                           Foreground="{StaticResource MutedTextBrush}"
+                                           Text="从设置里的店铺标签中勾选，可多选。"
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
+                        </DockPanel>
+
+                        <Border Grid.Row="1"
+                                Margin="0,18,0,0"
+                                Padding="12"
+                                Background="#FAFBFD"
+                                BorderBrush="#E5EAF3"
+                                BorderThickness="1"
+                                CornerRadius="8">
+                            <Grid>
+                                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                              HorizontalScrollBarVisibility="Disabled">
+                                    <ItemsControl ItemsSource="{Binding PublishShopSelectionItems}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <WrapPanel />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <ToggleButton Content="{Binding Name}"
+                                                              IsChecked="{Binding IsSelected, Mode=TwoWay}">
+                                                    <ToggleButton.Style>
+                                                        <Style TargetType="ToggleButton">
+                                                            <Setter Property="MinWidth" Value="72" />
+                                                            <Setter Property="Height" Value="28" />
+                                                            <Setter Property="Padding" Value="12,0" />
+                                                            <Setter Property="Background" Value="White" />
+                                                            <Setter Property="BorderBrush" Value="#DCDFE6" />
+                                                            <Setter Property="Foreground" Value="#303133" />
+                                                            <Setter Property="FontSize" Value="13" />
+                                                            <Setter Property="Cursor" Value="Hand" />
+                                                            <Setter Property="Margin" Value="0,0,8,8" />
+                                                            <Style.Triggers>
+                                                                <Trigger Property="IsChecked" Value="True">
+                                                                    <Setter Property="Background" Value="#E8F3FF" />
+                                                                    <Setter Property="BorderBrush" Value="#409EFF" />
+                                                                    <Setter Property="Foreground" Value="#409EFF" />
+                                                                </Trigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </ToggleButton.Style>
+                                                </ToggleButton>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                                <TextBlock HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           Foreground="{StaticResource MutedTextBrush}"
+                                           Text="暂无店铺，请先到设置里添加。"
+                                           Visibility="{Binding HasAutoPublishShops, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
+                            </Grid>
+                        </Border>
+
+                        <StackPanel Grid.Row="2"
+                                    Margin="0,20,0,0"
+                                    HorizontalAlignment="Right"
+                                    Orientation="Horizontal">
+                            <Button Content="取消"
+                                    Style="{StaticResource ElementSecondaryButtonStyle}"
+                                    Command="{Binding CancelPublishShopSelectionCommand}" />
+                            <Button Margin="8,0,0,0"
+                                    Content="确定"
+                                    Style="{StaticResource ElementPrimaryButtonStyle}"
+                                    Command="{Binding ConfirmPublishShopSelectionCommand}" />
                         </StackPanel>
                     </Grid>
                 </Border>

@@ -12,6 +12,7 @@ using System.Runtime.ExceptionServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -114,6 +115,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private readonly ICardSizeInfoService _cardSizeInfoService;
 
+	private readonly ICardPublishShopInfoService _cardPublishShopInfoService;
+
 	private readonly ITemplateLibraryService _templateLibraryService;
 
 	private readonly SemaphoreSlim _autoPublishLock = new SemaphoreSlim(1, 1);
@@ -135,6 +138,22 @@ public sealed class MainWindowViewModel : ViewModelBase
 	private readonly RelayCommand _openAutoPublishSettingsCommand;
 
 	private readonly RelayCommand _closeAutoPublishSettingsCommand;
+
+	private readonly RelayCommand _openAutoPublishShopAddCommand;
+
+	private readonly AsyncRelayCommand _commitAutoPublishShopCommand;
+
+	private readonly RelayCommand _cancelAutoPublishShopCommand;
+
+	private readonly RelayCommand _removeAutoPublishShopCommand;
+
+	private readonly RelayCommand _beginAutoPublishShopEditCommand;
+
+	private readonly AsyncRelayCommand _openPublishShopSelectionCommand;
+
+	private readonly AsyncRelayCommand _confirmPublishShopSelectionCommand;
+
+	private readonly RelayCommand _cancelPublishShopSelectionCommand;
 
 	private readonly AsyncRelayCommand _generateProductSheetCommand;
 
@@ -449,6 +468,22 @@ public sealed class MainWindowViewModel : ViewModelBase
 	private string _backupFolder = string.Empty;
 
 	private bool _titleChineseOnly;
+
+	private readonly ObservableCollection<string> _autoPublishShopNames = new ObservableCollection<string>();
+
+	public ObservableCollection<AutoPublishShopTagViewModel> AutoPublishShopTags { get; } = new ObservableCollection<AutoPublishShopTagViewModel>();
+
+	private bool _isAutoPublishShopAddVisible;
+
+	private string _newAutoPublishShopName = string.Empty;
+
+	private string _autoPublishShopEditingOriginalName = string.Empty;
+
+	public ObservableCollection<PublishShopSelectionItemViewModel> PublishShopSelectionItems { get; } = new ObservableCollection<PublishShopSelectionItemViewModel>();
+
+	private bool _isPublishShopSelectionDialogOpen;
+
+	private RootCardViewModel? _publishShopSelectionCard;
 
 	private bool _isAutoPublishSettingsDialogOpen;
 
@@ -793,6 +828,22 @@ public sealed class MainWindowViewModel : ViewModelBase
 	public ICommand OpenAutoPublishSettingsCommand => _openAutoPublishSettingsCommand;
 
 	public ICommand CloseAutoPublishSettingsCommand => _closeAutoPublishSettingsCommand;
+
+	public ICommand OpenAutoPublishShopAddCommand => _openAutoPublishShopAddCommand;
+
+	public ICommand CommitAutoPublishShopCommand => _commitAutoPublishShopCommand;
+
+	public ICommand CancelAutoPublishShopCommand => _cancelAutoPublishShopCommand;
+
+	public ICommand RemoveSelectedAutoPublishShopCommand => _removeAutoPublishShopCommand;
+
+	public ICommand BeginAutoPublishShopEditCommand => _beginAutoPublishShopEditCommand;
+
+	public ICommand OpenPublishShopSelectionCommand => _openPublishShopSelectionCommand;
+
+	public ICommand ConfirmPublishShopSelectionCommand => _confirmPublishShopSelectionCommand;
+
+	public ICommand CancelPublishShopSelectionCommand => _cancelPublishShopSelectionCommand;
 
 	public ICommand GenerateProductSheetCommand => _generateProductSheetCommand;
 
@@ -2471,6 +2522,34 @@ public sealed class MainWindowViewModel : ViewModelBase
 		}
 	}
 
+	public bool IsAutoPublishShopAddVisible
+	{
+		get => _isAutoPublishShopAddVisible;
+		set
+		{
+			if (SetProperty(ref _isAutoPublishShopAddVisible, value, "IsAutoPublishShopAddVisible"))
+			{
+				_commitAutoPublishShopCommand.RaiseCanExecuteChanged();
+			}
+		}
+	}
+
+	public string NewAutoPublishShopName
+	{
+		get => _newAutoPublishShopName;
+		set
+		{
+			if (SetProperty(ref _newAutoPublishShopName, value, "NewAutoPublishShopName"))
+			{
+				_commitAutoPublishShopCommand.RaiseCanExecuteChanged();
+			}
+		}
+	}
+
+	public ObservableCollection<string> AutoPublishShopNames => _autoPublishShopNames;
+
+	public bool HasAutoPublishShops => _autoPublishShopNames.Count > 0;
+
 	public bool IsAutoPublishSettingsDialogOpen
 	{
 		get
@@ -2480,6 +2559,19 @@ public sealed class MainWindowViewModel : ViewModelBase
 		set
 		{
 			SetProperty(ref _isAutoPublishSettingsDialogOpen, value, "IsAutoPublishSettingsDialogOpen");
+		}
+	}
+
+	public bool IsPublishShopSelectionDialogOpen
+	{
+		get => _isPublishShopSelectionDialogOpen;
+		set
+		{
+			if (SetProperty(ref _isPublishShopSelectionDialogOpen, value, "IsPublishShopSelectionDialogOpen"))
+			{
+				_confirmPublishShopSelectionCommand.RaiseCanExecuteChanged();
+				_cancelPublishShopSelectionCommand.RaiseCanExecuteChanged();
+			}
 		}
 	}
 
@@ -2997,7 +3089,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	public Brush SpBatchStatsFailedBrush => new SolidColorBrush(Color.FromRgb(245, 108, 108));
 
-	public MainWindowViewModel(IFolderScanService folderScanService, IImageWorkspaceService imageWorkspaceService, IWorkspaceStateService workspaceStateService, IAppSettingsService appSettingsService, IProductSheetService productSheetService, ITemplateGenerationService templateGenerationService, ISpBatchService spBatchService, ISkuOptimizeService skuOptimizeService, IMiaoshouPublishService miaoshouPublishService, IAutoPublishStateService autoPublishStateService, ICardSizeInfoService cardSizeInfoService, ITemplateLibraryService templateLibraryService)
+	public MainWindowViewModel(IFolderScanService folderScanService, IImageWorkspaceService imageWorkspaceService, IWorkspaceStateService workspaceStateService, IAppSettingsService appSettingsService, IProductSheetService productSheetService, ITemplateGenerationService templateGenerationService, ISpBatchService spBatchService, ISkuOptimizeService skuOptimizeService, IMiaoshouPublishService miaoshouPublishService, IAutoPublishStateService autoPublishStateService, ICardSizeInfoService cardSizeInfoService, ICardPublishShopInfoService cardPublishShopInfoService, ITemplateLibraryService templateLibraryService)
 	{
 		_folderScanService = folderScanService;
 		_imageWorkspaceService = imageWorkspaceService;
@@ -3010,6 +3102,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		_miaoshouPublishService = miaoshouPublishService;
 		_autoPublishStateService = autoPublishStateService;
 		_cardSizeInfoService = cardSizeInfoService;
+		_cardPublishShopInfoService = cardPublishShopInfoService;
 		_templateLibraryService = templateLibraryService;
 		_generationTabStates["main-image-generate"] = CreateEmptyGenerationTabState();
 		_generationTabStates["scene-image-generate"] = CreateEmptyGenerationTabState();
@@ -3042,7 +3135,53 @@ public sealed class MainWindowViewModel : ViewModelBase
 		});
 		_closeAutoPublishSettingsCommand = new RelayCommand(delegate
 		{
+			CancelAutoPublishShopInput();
 			IsAutoPublishSettingsDialogOpen = false;
+		});
+		_openAutoPublishShopAddCommand = new RelayCommand(delegate
+		{
+			_autoPublishShopEditingOriginalName = string.Empty;
+			IsAutoPublishShopAddVisible = true;
+			NewAutoPublishShopName = string.Empty;
+			RefreshAutoPublishShopTags();
+		});
+		_commitAutoPublishShopCommand = new AsyncRelayCommand(async _ =>
+		{
+			await CommitAutoPublishShopAsync();
+		}, _
+		=>
+		{
+			return IsAutoPublishShopAddVisible && !string.IsNullOrWhiteSpace(NewAutoPublishShopName);
+		});
+		_cancelAutoPublishShopCommand = new RelayCommand(delegate
+		{
+			CancelAutoPublishShopInput();
+		});
+		_removeAutoPublishShopCommand = new RelayCommand(delegate(object? parameter)
+		{
+			RemoveAutoPublishShop(parameter as string);
+		}, delegate
+		{
+			return true;
+		});
+		_beginAutoPublishShopEditCommand = new RelayCommand(delegate(object? parameter)
+		{
+			BeginAutoPublishShopEdit(parameter as string);
+		});
+		_openPublishShopSelectionCommand = new AsyncRelayCommand(async parameter =>
+		{
+			await OpenPublishShopSelectionDialogAsync(parameter as RootCardViewModel);
+		}, parameter => parameter is RootCardViewModel);
+		_confirmPublishShopSelectionCommand = new AsyncRelayCommand(async _ =>
+		{
+			await ConfirmPublishShopSelectionAsync();
+		}, _ => IsPublishShopSelectionDialogOpen && _publishShopSelectionCard != null);
+		_cancelPublishShopSelectionCommand = new RelayCommand(delegate
+		{
+			CancelPublishShopSelection();
+		}, delegate
+		{
+			return IsPublishShopSelectionDialogOpen;
 		});
 		_generateProductSheetCommand = new AsyncRelayCommand((object? _) => GenerateProductSheetAsync(), delegate
 		{
@@ -5959,6 +6098,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 			tab.SetRootNodes(readOnlyList);
 			await tab.RefreshAutoPublishRecordsAsync(_autoPublishStateService);
 			await tab.RefreshCardSizeInfoAsync(_cardSizeInfoService, IsCardSizeInfoStaleAsync);
+			await tab.RefreshCardPublishShopInfoAsync(_cardPublishShopInfoService);
 			ApplyAutoPublishStatusFilter();
 			NotifyAutoPublishFilterPropertiesChanged();
 			tab.RestoreDefaultSelection();
@@ -6603,7 +6743,10 @@ public sealed class MainWindowViewModel : ViewModelBase
 		using JsonDocument jsonDocument = JsonDocument.Parse(await File.ReadAllTextAsync(productSheetTask.ProductsJsonPath));
 		foreach (JsonElement item in jsonDocument.RootElement.EnumerateArray())
 		{
-			productItems.Add(item.Clone());
+			JsonObject productItem = JsonNode.Parse(item.GetRawText())?.AsObject()
+				?? throw new InvalidOperationException("上架商品 JSON 格式无效。");
+			productItem["publish_shop_names"] = JsonSerializer.SerializeToNode(card.SelectedPublishShopNames);
+			productItems.Add(JsonSerializer.SerializeToElement(productItem));
 		}
 		return productItems;
 	}
@@ -7304,6 +7447,15 @@ public sealed class MainWindowViewModel : ViewModelBase
 		SkuOptimizeOutputDirectory = NormalizeWritableWorkspacePath(state.SkuOptimizeOutputDirectory ?? string.Empty);
 		SelectedImageGenerationProvider = state.ImageGenerationProvider;
 		TitleChineseOnly = state.TitleChineseOnly;
+		AutoPublishShopNames.Clear();
+		IEnumerable<string> autoPublishShopNames = state.AutoPublishShopNames ?? new List<string>();
+		foreach (string shopName in autoPublishShopNames.Select(name => name?.Trim()).Where(name => !string.IsNullOrWhiteSpace(name)).Distinct(StringComparer.OrdinalIgnoreCase))
+		{
+			AutoPublishShopNames.Add(shopName);
+		}
+		IsAutoPublishShopAddVisible = false;
+		NewAutoPublishShopName = string.Empty;
+		RefreshAutoPublishShopTags();
 		_selectedGenerationMaterial = NormalizeMaterial(state.GenerationMaterial);
 		OnPropertyChanged("IsGenerationLycheeMaterialSelected");
 		OnPropertyChanged("IsGenerationSuedeMaterialSelected");
@@ -7364,12 +7516,200 @@ public sealed class MainWindowViewModel : ViewModelBase
 		appUserPathsState.SkuOptimizeOutputDirectory = SkuOptimizeOutputDirectory;
 		appUserPathsState.ImageGenerationProvider = SelectedImageGenerationProvider;
 		appUserPathsState.TitleChineseOnly = TitleChineseOnly;
+		appUserPathsState.AutoPublishShopNames = AutoPublishShopNames
+			.Where(name => !string.IsNullOrWhiteSpace(name))
+			.Select(name => name.Trim())
+			.Distinct(StringComparer.OrdinalIgnoreCase)
+			.ToList();
 		appUserPathsState.GenerationMaterial = _selectedGenerationMaterial;
 		appUserPathsState.SelectedSpBatchColorTemplateGroupId = _selectedSpBatchColorTemplateGroupId;
 		appUserPathsState.SpBatchSelectedColorNamesByGroupId = _spBatchSelectedColorNamesByGroupId.ToDictionary(
 			item => item.Key,
 			item => item.Value.OrderBy(name => name, StringComparer.OrdinalIgnoreCase).ToArray());
 		appSettingsService.SaveUserPaths(appUserPathsState);
+	}
+
+	private async Task CommitAutoPublishShopAsync()
+	{
+		string shopName = NewAutoPublishShopName.Trim();
+		if (string.IsNullOrWhiteSpace(shopName))
+		{
+			CancelAutoPublishShopInput();
+			return;
+		}
+		int existingIndex = AutoPublishShopNames
+			.ToList()
+			.FindIndex(name => string.Equals(name.Trim(), shopName, StringComparison.OrdinalIgnoreCase));
+		bool isEditing = !string.IsNullOrWhiteSpace(_autoPublishShopEditingOriginalName);
+		if (existingIndex >= 0 && (!isEditing || !string.Equals(AutoPublishShopNames[existingIndex], _autoPublishShopEditingOriginalName, StringComparison.OrdinalIgnoreCase)))
+		{
+			StatusMessage = "店铺名称已存在，未重复添加。";
+			System.Windows.MessageBox.Show("店铺名称已存在，未重复添加。", "提示", MessageBoxButton.OK, MessageBoxImage.Asterisk);
+			CancelAutoPublishShopInput();
+			return;
+		}
+
+		if (isEditing)
+		{
+			int editingIndex = AutoPublishShopNames
+				.ToList()
+				.FindIndex(name => string.Equals(name, _autoPublishShopEditingOriginalName, StringComparison.OrdinalIgnoreCase));
+			if (editingIndex < 0)
+			{
+				CancelAutoPublishShopInput();
+				return;
+			}
+			AutoPublishShopNames[editingIndex] = shopName;
+			await _cardPublishShopInfoService.RenameShopAsync(_autoPublishShopEditingOriginalName, shopName);
+			await RefreshLoadedCardPublishShopInfoAsync();
+			StatusMessage = "已修改店铺：" + shopName;
+		}
+		else
+		{
+			AutoPublishShopNames.Add(shopName);
+			StatusMessage = "已添加店铺：" + shopName;
+		}
+
+		IsAutoPublishShopAddVisible = false;
+		NewAutoPublishShopName = string.Empty;
+		_autoPublishShopEditingOriginalName = string.Empty;
+		RefreshAutoPublishShopTags();
+		PersistUserPathSettings();
+	}
+
+	private void CancelAutoPublishShopInput()
+	{
+		IsAutoPublishShopAddVisible = false;
+		NewAutoPublishShopName = string.Empty;
+		_autoPublishShopEditingOriginalName = string.Empty;
+		_commitAutoPublishShopCommand.RaiseCanExecuteChanged();
+		RefreshAutoPublishShopTags();
+	}
+
+	private void BeginAutoPublishShopEdit(string? shopName)
+	{
+		string originalName = shopName?.Trim() ?? string.Empty;
+		if (string.IsNullOrWhiteSpace(originalName)
+			|| !AutoPublishShopNames.Any(name => string.Equals(name, originalName, StringComparison.OrdinalIgnoreCase)))
+		{
+			return;
+		}
+		_autoPublishShopEditingOriginalName = originalName;
+		NewAutoPublishShopName = originalName;
+		IsAutoPublishShopAddVisible = true;
+		RefreshAutoPublishShopTags();
+	}
+
+	private void RemoveAutoPublishShop(string? shopName = null)
+	{
+		string? selectedShopName = shopName;
+		if (string.IsNullOrWhiteSpace(selectedShopName))
+		{
+			return;
+		}
+		int index = AutoPublishShopNames.ToList().FindIndex(name => string.Equals(name, selectedShopName, StringComparison.OrdinalIgnoreCase));
+		if (index < 0)
+		{
+			return;
+		}
+		AutoPublishShopNames.RemoveAt(index);
+		RefreshAutoPublishShopTags();
+		PersistUserPathSettings();
+		StatusMessage = "已删除店铺：" + selectedShopName;
+	}
+
+	private void RefreshAutoPublishShopTags()
+	{
+		AutoPublishShopTags.Clear();
+		foreach (string shopName in _autoPublishShopNames)
+		{
+			AutoPublishShopTags.Add(AutoPublishShopTagViewModel.CreateTag(shopName));
+		}
+		AutoPublishShopTags.Add(IsAutoPublishShopAddVisible ? AutoPublishShopTagViewModel.CreateInput() : AutoPublishShopTagViewModel.CreateAddButton());
+		OnPropertyChanged("HasAutoPublishShops");
+		_openPublishShopSelectionCommand.RaiseCanExecuteChanged();
+		RefreshLoadedCardPublishShopDisplays();
+	}
+
+	private async Task OpenPublishShopSelectionDialogAsync(RootCardViewModel? card)
+	{
+		if (card == null)
+		{
+			return;
+		}
+		CardPublishShopInfoRecord? record = await _cardPublishShopInfoService.GetByCardPathAsync(card.AutoPublishKeyPath);
+		card.ApplyCardPublishShopInfo(record);
+		_publishShopSelectionCard = card;
+		RefreshPublishShopSelectionItems();
+		IsPublishShopSelectionDialogOpen = true;
+	}
+
+	private async Task ConfirmPublishShopSelectionAsync()
+	{
+		RootCardViewModel? card = _publishShopSelectionCard;
+		if (card == null)
+		{
+			return;
+		}
+		string[] selectedNames = PublishShopSelectionItems
+			.Where(item => item.IsSelected)
+			.Select(item => item.Name.Trim())
+			.Where(name => !string.IsNullOrWhiteSpace(name))
+			.Distinct(StringComparer.OrdinalIgnoreCase)
+			.ToArray();
+		CardPublishShopInfoRecord record = new CardPublishShopInfoRecord
+		{
+			CardPath = card.AutoPublishKeyPath,
+			ShopNamesJson = JsonSerializer.Serialize(selectedNames),
+			UpdatedAt = DateTimeOffset.Now
+		};
+		await _cardPublishShopInfoService.UpsertAsync(record);
+		card.ApplyCardPublishShopInfo(record);
+		IsPublishShopSelectionDialogOpen = false;
+		_publishShopSelectionCard = null;
+		StatusMessage = selectedNames.Length > 0
+			? $"已保存 {card.DisplayName} 的上架店铺：{string.Join("、", selectedNames)}"
+			: $"已设置 {card.DisplayName} 上架至全部店铺";
+	}
+
+	private void CancelPublishShopSelection()
+	{
+		IsPublishShopSelectionDialogOpen = false;
+		_publishShopSelectionCard = null;
+	}
+
+	private void RefreshPublishShopSelectionItems()
+	{
+		PublishShopSelectionItems.Clear();
+		HashSet<string> selectedShopNames = new HashSet<string>(_publishShopSelectionCard?.SelectedPublishShopNames ?? Array.Empty<string>(), StringComparer.OrdinalIgnoreCase);
+		foreach (string shopName in _autoPublishShopNames)
+		{
+			PublishShopSelectionItems.Add(new PublishShopSelectionItemViewModel(shopName, selectedShopNames.Contains(shopName)));
+		}
+	}
+
+	private void RefreshLoadedCardPublishShopDisplays()
+	{
+		foreach (WorkspaceTabViewModel tab in WorkspaceTabs)
+		{
+			foreach (RootCardViewModel card in tab.RootCards)
+			{
+				CardPublishShopInfoRecord record = new CardPublishShopInfoRecord
+				{
+					CardPath = card.AutoPublishKeyPath,
+					ShopNamesJson = JsonSerializer.Serialize(card.SelectedPublishShopNames)
+				};
+				card.ApplyCardPublishShopInfo(record);
+			}
+		}
+	}
+
+	private async Task RefreshLoadedCardPublishShopInfoAsync()
+	{
+		foreach (WorkspaceTabViewModel tab in WorkspaceTabs)
+		{
+			await tab.RefreshCardPublishShopInfoAsync(_cardPublishShopInfoService);
+		}
 	}
 
 	private static bool TryParsePositiveInt(string text, string fieldName, out int value)

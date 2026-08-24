@@ -303,6 +303,17 @@ public sealed class WorkspaceTabViewModel : ViewModelBase
 		}
 	}
 
+	public async Task RefreshCardPublishShopInfoAsync(ICardPublishShopInfoService cardPublishShopInfoService, CancellationToken cancellationToken = default(CancellationToken))
+	{
+		RootCardViewModel[] cards = RootCards.Where(card => !string.IsNullOrWhiteSpace(card.AutoPublishKeyPath)).ToArray();
+		IReadOnlyDictionary<string, CardPublishShopInfoRecord> records = await cardPublishShopInfoService.GetByCardPathsAsync(cards.Select(card => card.AutoPublishKeyPath), cancellationToken);
+		foreach (RootCardViewModel card in cards)
+		{
+			records.TryGetValue(card.AutoPublishKeyPath, out CardPublishShopInfoRecord? record);
+			card.ApplyCardPublishShopInfo(record);
+		}
+	}
+
 	private static bool MatchesAutoPublishStatusFilter(RootCardViewModel card, AutoPublishStatusFilter filter)
 	{
 		if (filter != AutoPublishStatusFilter.All)
