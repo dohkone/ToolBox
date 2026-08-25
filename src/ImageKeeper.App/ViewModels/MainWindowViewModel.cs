@@ -121,6 +121,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private readonly SemaphoreSlim _autoPublishLock = new SemaphoreSlim(1, 1);
 
+	private readonly SemaphoreSlim _appUpdateCheckLock = new SemaphoreSlim(1, 1);
+
 	private readonly AsyncRelayCommand _chooseFolderCommand;
 
 	private readonly AsyncRelayCommand _selectBackupFolderCommand;
@@ -156,6 +158,10 @@ public sealed class MainWindowViewModel : ViewModelBase
 	private readonly RelayCommand _cancelPublishShopSelectionCommand;
 
 	private readonly AsyncRelayCommand _generateProductSheetCommand;
+
+	private readonly RelayCommand _openProductSheetFolderCommand;
+
+	private readonly RelayCommand _openAutoPublishErrorFolderCommand;
 
 	private readonly AsyncRelayCommand _addTabCommand;
 
@@ -846,6 +852,10 @@ public sealed class MainWindowViewModel : ViewModelBase
 	public ICommand CancelPublishShopSelectionCommand => _cancelPublishShopSelectionCommand;
 
 	public ICommand GenerateProductSheetCommand => _generateProductSheetCommand;
+
+	public ICommand OpenProductSheetFolderCommand => _openProductSheetFolderCommand;
+
+	public ICommand OpenAutoPublishErrorFolderCommand => _openAutoPublishErrorFolderCommand;
 
 	public ICommand AddTabCommand => _addTabCommand;
 
@@ -3196,6 +3206,14 @@ public sealed class MainWindowViewModel : ViewModelBase
 			}
 			return false;
 		});
+		_openProductSheetFolderCommand = new RelayCommand(delegate
+		{
+			TryOpenFolder(ProductSheetDataFolder, "价格表目录");
+		});
+		_openAutoPublishErrorFolderCommand = new RelayCommand(delegate
+		{
+			TryOpenFolder(AutoPublishOutputFolder, "自动上架报错目录");
+		});
 		_addTabCommand = new AsyncRelayCommand((object? _) => ChooseFolderAsync(), (object? _) => !IsBusy);
 		_showReviewWorkspaceCommand = new RelayCommand(delegate
 		{
@@ -3497,10 +3515,18 @@ public sealed class MainWindowViewModel : ViewModelBase
 		_ = CheckForAppUpdateAsync();
 	}
 
-	private async Task CheckForAppUpdateAsync()
+	public async Task CheckForAppUpdateAsync()
 	{
+		if (!await _appUpdateCheckLock.WaitAsync(0))
+		{
+			return;
+		}
 		try
 		{
+			if (IsAppUpdateDownloading)
+			{
+				return;
+			}
 			using HttpClient client = CreateUpdateHttpClient();
 			using HttpResponseMessage response = await client.GetAsync(UpdateServerManifestUrl);
 			if (!response.IsSuccessStatusCode)
@@ -3542,7 +3568,11 @@ public sealed class MainWindowViewModel : ViewModelBase
 		}
 		catch
 		{
-			IsAppUpdateAvailable = false;
+			// Keep a previously detected update visible while a later background check fails.
+		}
+		finally
+		{
+			_appUpdateCheckLock.Release();
 		}
 	}
 
@@ -6405,6 +6435,19 @@ public sealed class MainWindowViewModel : ViewModelBase
 			StatusMessage = "打开目录失败：" + ex.Message;
 		}
 	}
+
+	private static string AutoPublishOutputFolder => Path.Combine(
+		Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+		"ToolBox",
+		"output",
+		"miaoshou");
+
+	private static string ProductSheetDataFolder => Path.Combine(
+		AppContext.BaseDirectory,
+		"tools",
+		"python",
+		"temu-product-sheet",
+		"data");
 
 	private static void OpenFolder(string folderPath)
 	{

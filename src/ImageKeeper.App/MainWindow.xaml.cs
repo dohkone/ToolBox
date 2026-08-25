@@ -7,6 +7,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Linq;
 using System.Windows.Interop;
+using System.Windows.Threading;
 using ImageKeeper.App.ViewModels;
 using ImageKeeper.Core.Services;
 using ImageKeeper.Infrastructure.Services;
@@ -21,6 +22,7 @@ public partial class MainWindow : Window
     private const int DwmaTextColor = 36;
 
     private readonly MainWindowViewModel _viewModel;
+    private readonly DispatcherTimer _appUpdateCheckTimer;
 
     public MainWindow()
     {
@@ -40,8 +42,14 @@ public partial class MainWindow : Window
             CreateCardPublishShopInfoService(),
             CreateTemplateLibraryService());
         DataContext = _viewModel;
+        _appUpdateCheckTimer = new DispatcherTimer(DispatcherPriority.Background)
+        {
+            Interval = TimeSpan.FromMinutes(1)
+        };
+        _appUpdateCheckTimer.Tick += OnAppUpdateCheckTimerTickAsync;
         SizeToCurrentWorkArea();
         Loaded += OnLoadedAsync;
+        Closed += OnClosed;
         SourceInitialized += OnSourceInitialized;
         PreviewKeyDown += OnPreviewKeyDownAsync;
     }
@@ -65,6 +73,19 @@ public partial class MainWindow : Window
     {
         Loaded -= OnLoadedAsync;
         await _viewModel.InitializeAsync();
+        _appUpdateCheckTimer.Start();
+    }
+
+    private async void OnAppUpdateCheckTimerTickAsync(object? sender, EventArgs e)
+    {
+        await _viewModel.CheckForAppUpdateAsync();
+    }
+
+    private void OnClosed(object? sender, EventArgs e)
+    {
+        _appUpdateCheckTimer.Stop();
+        _appUpdateCheckTimer.Tick -= OnAppUpdateCheckTimerTickAsync;
+        Closed -= OnClosed;
     }
 
     private void OnSourceInitialized(object? sender, EventArgs e)

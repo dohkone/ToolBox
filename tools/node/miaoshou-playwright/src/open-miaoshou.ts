@@ -70,7 +70,7 @@ const suedeLeatherTypeValueText = "\u7ed2\u9762\u76ae";
 const productTitleText = "\u4ea7\u54c1\u6807\u9898";
 const englishTitleText = "\u82f1\u8bed\u6807\u9898";
 const originText = "\u4ea7\u5730";
-const originValueText = "\u52a0\u62ff\u5927";
+const originValueText = "\u4e2d\u56fd\u5927\u9646 / \u5e7f\u4e1c\u7701";
 const productInfoNavText = "\u4ea7\u54c1\u4fe1\u606f";
 const salesAttributesNavText = "\u9500\u552e\u5c5e\u6027";
 const packagingInfoNavText = "\u5305\u88c5\u4fe1\u606f";
@@ -1269,8 +1269,7 @@ async function selectConfiguredShops(page: Page, releaseDialog: Locator, request
     new Set(requestedShopNames.map(normalizeShopName).filter((name) => name.length > 0)),
   );
 
-  await page.waitForTimeout(500);
-  const selectionResult = await releaseDialog.evaluate((root, requestedNames) => {
+  const selectAttempt = async () => releaseDialog.evaluate((root, requestedNames) => {
     const isVisible = (node: Element | null) => {
       if (!(node instanceof HTMLElement)) {
         return false;
@@ -1294,7 +1293,19 @@ async function selectConfiguredShops(page: Page, releaseDialog: Locator, request
     };
 
     const clickLabel = (label: HTMLElement) => {
-      label.click();
+      // 妙手的自定义复选框有时不会响应单纯的 label.click()，因此同时触发
+      // 复选框本体与标签上的完整鼠标事件链。
+      const input = label.querySelector("input[type='checkbox']") as HTMLInputElement | null;
+      const checkbox = label.querySelector(".jx-checkbox__input, .pro-checkbox__input") as HTMLElement | null;
+      const target = checkbox ?? input ?? label;
+      target.dispatchEvent(new MouseEvent("mouseenter", { bubbles: true, cancelable: true }));
+      target.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+      target.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true }));
+      if (input) {
+        input.click();
+      } else {
+        target.click();
+      }
     };
 
     const normalize = (name: string) => name.replace(/\s+/g, " ").trim().toLocaleLowerCase();
@@ -1362,16 +1373,7 @@ async function selectConfiguredShops(page: Page, releaseDialog: Locator, request
     return { found: true, missingNames };
   }, selectedShopNames);
 
-  if (!selectionResult.found) {
-    await captureShopDebugState(page, "miaoshou-shop-selection-missing.png");
-    throw new Error("Could not find the shop selector.");
-  }
-  if (selectionResult.missingNames.length > 0) {
-    throw new Error(`Configured shops were not found in Miaoshou: ${selectionResult.missingNames.join(", ")}`);
-  }
-
-  await page.waitForTimeout(500);
-  const snapshot = await releaseDialog.evaluate((root) => {
+  const getSnapshot = async () => releaseDialog.evaluate((root) => {
     const isVisible = (node: Element | null) => {
       if (!(node instanceof HTMLElement)) {
         return false;
@@ -1433,16 +1435,49 @@ async function selectConfiguredShops(page: Page, releaseDialog: Locator, request
       .filter((name) => name.length > 0);
     return { found: true, shopCount: shopLabels.length, checkedNames };
   });
+
+  const isExpectedSelection = (snapshot: Awaited<ReturnType<typeof getSnapshot>>) => {
+    const selectedNames = new Set(snapshot.checkedNames.map(normalizeShopName));
+    const missingSelections = selectedShopNames.filter((name) => !selectedNames.has(name));
+    const expectedSelectionCount = selectedShopNames.length === 0 ? snapshot.shopCount : selectedShopNames.length;
+    return {
+      missingSelections,
+      matches: snapshot.found && missingSelections.length === 0 && snapshot.checkedNames.length === expectedSelectionCount,
+    };
+  };
+
+  await page.waitForTimeout(500);
+  let selectionResult = await selectAttempt();
+
+  if (!selectionResult.found) {
+    await captureShopDebugState(page, "miaoshou-shop-selection-missing.png");
+    throw new Error("Could not find the shop selector.");
+  }
+  if (selectionResult.missingNames.length > 0) {
+    throw new Error(`Configured shops were not found in Miaoshou: ${selectionResult.missingNames.join(", ")}`);
+  }
+
+  let snapshot = await getSnapshot();
+  let validation = isExpectedSelection(snapshot);
+  for (let attempt = 1; !validation.matches && attempt < 3; attempt += 1) {
+    console.log(`Retrying configured shop selection (${attempt + 1}/3).`);
+    await page.waitForTimeout(400);
+    selectionResult = await selectAttempt();
+    if (!selectionResult.found || selectionResult.missingNames.length > 0) {
+      break;
+    }
+    await page.waitForTimeout(500);
+    snapshot = await getSnapshot();
+    validation = isExpectedSelection(snapshot);
+  }
+
   if (!snapshot.found) {
     await captureShopDebugState(page, "miaoshou-release-shop-selection-missing.png");
     throw new Error("Could not verify the shop selector in the release dialog.");
   }
-  const selectedNames = new Set(snapshot.checkedNames.map(normalizeShopName));
-  const missingSelections = selectedShopNames.filter((name) => !selectedNames.has(name));
-  const expectedSelectionCount = selectedShopNames.length === 0 ? snapshot.shopCount : selectedShopNames.length;
-  if (missingSelections.length > 0 || snapshot.checkedNames.length !== expectedSelectionCount) {
+  if (!validation.matches) {
     await captureShopDebugState(page, "miaoshou-release-shop-selection-incomplete.png");
-    throw new Error(`Shop selection did not match the configured shops: ${missingSelections.join(", ") || "unknown"}`);
+    throw new Error(`Shop selection did not match the configured shops: ${validation.missingSelections.join(", ") || "unknown"}`);
   }
 
   console.log(`Selected configured shops: ${snapshot.checkedNames.join(", ")}`);
@@ -2158,6 +2193,7 @@ async function inputTitleFieldFromScrollPane(page: Page, labelText: string, titl
 
 async function openCollectBoxItemsPage(page: Page) {
   if (page.url().includes("/pddkj/collect_box/items")) {
+    await dismissBlockingDialogsBeforeCreate(page);
     await waitForBlockingLayersToClear(page);
     try {
       await waitForVisibleButtonByName(page, createProductText, 3_000);
@@ -2170,11 +2206,35 @@ async function openCollectBoxItemsPage(page: Page) {
   }
 
   await page.goto(collectBoxItemsUrl, { waitUntil: "domcontentloaded", timeout: 60_000 });
+  await dismissBlockingDialogsBeforeCreate(page);
   await waitForBlockingLayersToClear(page);
   await waitForVisibleButtonByName(page, createProductText, 20_000);
   await page.waitForTimeout(500);
 
   console.log(`Opened ${collectBoxItemsUrl}`);
+}
+
+async function dismissBlockingDialogsBeforeCreate(page: Page) {
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    const visibleDialogCount = await page.locator(".jx-overlay-dialog:visible, .jx-dialog:visible").count().catch(() => 0);
+    if (visibleDialogCount === 0) {
+      return;
+    }
+
+    const closed = await closeTopVisibleDialogByHeaderButtonStable(page);
+    if (!closed) {
+      await page.keyboard.press("Escape").catch(() => {});
+      await page.waitForTimeout(500);
+    }
+
+    await waitForBlockingLayersToClear(page);
+  }
+
+  const remainingDialogCount = await page.locator(".jx-overlay-dialog:visible, .jx-dialog:visible").count().catch(() => 0);
+  if (remainingDialogCount > 0) {
+    await captureShopDebugState(page, "miaoshou-precreate-dialog-blocked.png");
+    throw new Error("A previous dialog is still blocking the Create Product button.");
+  }
 }
 
 async function closeTopVisibleDialogByHeaderButton(page: Page) {
@@ -2459,23 +2519,53 @@ async function openDescriptionEditor(page: Page) {
 
 async function openBatchImageUploadDialogFromDescription(page: Page) {
   const editorDialog = await getDescriptionEditorDialog(page);
-  const batchOperationButton = editorDialog.locator("button").filter({ hasText: batchOperationText }).first();
-  await batchOperationButton.waitFor({ state: "visible", timeout: 20_000 });
-  await clickLocatorLowConflict(batchOperationButton, page);
-  console.log(`Clicked ${batchOperationText}`);
-  await page.waitForTimeout(500);
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    const batchOperationButton = editorDialog.locator("button").filter({ hasText: batchOperationText }).first();
+    await batchOperationButton.waitFor({ state: "visible", timeout: 20_000 });
+    await clickLocatorLowConflict(batchOperationButton, page);
+    console.log(`Clicked ${batchOperationText} (attempt ${attempt}/3)`);
+    await page.waitForTimeout(400);
 
-  await clickFirstVisibleLocator(
-    [
-      page.locator(".jx-dropdown__popper, .jx-popper").locator("li, [role='menuitem'], .jx-dropdown-menu__item").filter({ hasText: batchImageProcessText }).first(),
-      page.locator("li, [role='menuitem'], .jx-dropdown-menu__item").filter({ hasText: batchImageProcessText }).first(),
-      page.getByText(batchImageProcessText, { exact: true }).first(),
-    ],
-    `Could not find the '${batchImageProcessText}' dropdown option.`,
-  );
-  console.log(`Clicked ${batchImageProcessText}`);
-  await getBatchImageUploadDialog(page);
-  await page.waitForTimeout(500);
+    const batchImageProcessOption = await findVisibleBatchImageProcessOption(page);
+    if (!batchImageProcessOption) {
+      console.log(`The '${batchImageProcessText}' option was not visible after attempt ${attempt}/3.`);
+      continue;
+    }
+
+    await clickLocatorLowConflict(batchImageProcessOption, page);
+    console.log(`Clicked ${batchImageProcessText}`);
+    await getBatchImageUploadDialog(page);
+    await page.waitForTimeout(500);
+    return;
+  }
+
+  await captureShopDebugState(page, "miaoshou-batch-image-process-option-missing.png");
+  throw new Error(`Could not find a visible '${batchImageProcessText}' dropdown option after reopening '${batchOperationText}' three times.`);
+}
+
+async function findVisibleBatchImageProcessOption(page: Page): Promise<Locator | null> {
+  const candidates = [
+    page
+      .locator(".jx-dropdown__popper:visible, .jx-popper:visible, [role='menu']:visible")
+      .locator("li, [role='menuitem'], .jx-dropdown-menu__item")
+      .filter({ hasText: batchImageProcessText }),
+    page
+      .locator("li:visible, [role='menuitem']:visible, .jx-dropdown-menu__item:visible")
+      .filter({ hasText: batchImageProcessText }),
+    page.getByText(batchImageProcessText, { exact: true }),
+  ];
+
+  for (const candidate of candidates) {
+    const count = await candidate.count();
+    for (let index = 0; index < count; index += 1) {
+      const option = candidate.nth(index);
+      if (await option.isVisible().catch(() => false)) {
+        return option;
+      }
+    }
+  }
+
+  return null;
 }
 
 async function saveTopDialogByPrimaryButton(page: Page, dialog: Locator, logText: string) {

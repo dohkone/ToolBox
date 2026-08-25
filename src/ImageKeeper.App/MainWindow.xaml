@@ -831,6 +831,14 @@
                                         <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}" />
                                     </Button.Style>
                                 </Button>
+                                <Button Command="{Binding OpenProductSheetFolderCommand}"
+                                        Margin="0,0,8,0"
+                                        Style="{StaticResource SecondaryButtonStyle}"
+                                        Content="价格表目录" />
+                                <Button Command="{Binding OpenAutoPublishErrorFolderCommand}"
+                                        Margin="0,0,8,0"
+                                        Style="{StaticResource SecondaryButtonStyle}"
+                                        Content="上架报错目录" />
                             </WrapPanel>
 
                         </StackPanel>
