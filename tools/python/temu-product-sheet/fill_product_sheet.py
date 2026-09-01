@@ -930,5 +930,10 @@ def main():
     print(f"skipped={skipped_total}")
 
 
+def is_size_image_name(image_path):
+    name = image_path.stem.casefold()
+    return name.startswith("2")
+
+
 if __name__ == "__main__":
     main()

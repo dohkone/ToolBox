@@ -10,10 +10,10 @@
     <UseWindowsForms>true</UseWindowsForms>
     <AssemblyName>EcomTool</AssemblyName>
     <Product>EcomTool</Product>
-    <Version>1.1.2</Version>
-    <AssemblyVersion>1.1.2.0</AssemblyVersion>
-    <FileVersion>1.1.2.0</FileVersion>
-    <InformationalVersion>1.1.2</InformationalVersion>
+    <Version>1.1.4</Version>
+    <AssemblyVersion>1.1.4.0</AssemblyVersion>
+    <FileVersion>1.1.4.0</FileVersion>
+    <InformationalVersion>1.1.4</InformationalVersion>
     <Description>E-commerce image, generation, product sheet, and listing automation studio.</Description>
     <ApplicationIcon>..\..\logo\new_logo.ico</ApplicationIcon>
   </PropertyGroup>

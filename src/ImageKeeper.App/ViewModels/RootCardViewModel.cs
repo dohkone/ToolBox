@@ -958,7 +958,7 @@ public sealed class RootCardViewModel : ViewModelBase
 			return false;
 		}
 		string name = Path.GetFileNameWithoutExtension(filePath);
-		return name.StartsWith("2-", StringComparison.OrdinalIgnoreCase)
+		return name.StartsWith("2", StringComparison.OrdinalIgnoreCase)
 			|| name.Contains("\u5C3A\u5BF8", StringComparison.OrdinalIgnoreCase)
 			|| name.Contains("size", StringComparison.OrdinalIgnoreCase);
 	}

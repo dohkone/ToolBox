@@ -94,7 +94,7 @@ SUEDE_MASTER_COLOR = ColorSpec(
     "caramel_red_brown",
     "Caramel reddish brown",
     "焦糖红棕色",
-    "#A05C3A",
+    "#773725",
 )
 
 COLOR_ALIAS_MAP: dict[str, str] = {
@@ -724,90 +724,236 @@ def build_master_prompt(color: ColorSpec, material: str = "lychee_grain") -> str
         Realistic premium lifestyle presentation.
         Clean modern composition.
         The final image should look like the same real scene,
-        with one matching-color PU leather repair roll naturally applied to the main subject.
-"""
+        with one matching-color PU leather repair roll naturally applied to the main subject"""
 
 
 def build_suede_master_prompt(color: ColorSpec) -> str:
     return f"""
-        MATERIAL — ABSOLUTE HIGHEST PRIORITY:
-        Premium automotive ultra-fine short-pile faux suede / microsuede.
-        The entire image must prioritize authentic suede material rendering above composition, furniture details, background, and product placement.
-        Extremely short, ultra-fine, ultra-dense fibers tightly packed and lying close to the surface. At close range, clearly visible fine short fibers create a dense, soft, slightly fuzzy velvety nap. Never long, shaggy, fluffy, or wool-like.
-        MOST IMPORTANT — NATURAL NAP DIRECTION:
+                Premium luxury automotive faux suede / microsuede / Alcantara-style material.
 
-        Clear but natural brushed and reverse-brushed nap directions are REQUIRED.
+                MATERIAL - HIGHEST PRIORITY:
 
-        Different nap directions must create broad, soft, continuous light-dark variation:
-        brushed areas appear naturally lighter,
-        reverse-brushed areas appear naturally deeper.
+                The repair roll and automotive upholstery must look like REAL premium automotive faux suede, not leather and not ordinary fabric.
 
-        This variation must come from real short-fiber direction and lighting, creating authentic suede nap shading and natural brushed color variation.
+                Use high-density ultra-fine short-pile microsuede:
+                extremely short fibers, very fine nap, dense brushed microfiber surface, soft compact velvet-like touch, refined matte finish.
 
-        The surface must NEVER look like a perfectly uniform solid-color plane.
+                The surface must show a visible suede nap, not a flat uniform color.
+                The nap should look like high-end car interior Alcantara-style suede.
 
-        NOT stains, dirt, mottling, blotches, color patches, scratches, or artificial gradients.
+                ABSOLUTE MATERIAL RULES:
 
-        Low-reflective soft matte suede with subtle natural nap sheen.
+                NOT leather.
+                NOT PU leather.
+                NOT lychee grain.
+                NOT cracked grain.
+                NOT pebbled texture.
+                NOT embossed texture.
+                NOT woven cloth.
+                NOT rough fabric.
+                NOT felt.
+                NOT long-pile velvet.
+                NOT fluffy fleece.
+                NOT plastic.
 
-        NOT leather, PU leather, pebble grain, litchi grain, embossed texture, woven texture, coarse fabric, plastic, rubber, PVC, long pile, shaggy or fluffy fabric.
+                REAL SUEDE NAP EFFECT - ABSOLUTE PRIORITY:
 
-        TARGET COLOR + MATERIAL LOCK:
+                The brushed suede nap effect must be obvious at normal viewing distance.
 
-        Target suede color: {color.hex_code}
+                Create broad, soft, continuous light and dark zones caused by different fiber directions.
+                Adjacent suede areas should have different nap directions.
 
-        The repair roll and ALL intended covered surfaces of the main subject — including leather seats, door panels, armrests, padded areas, and other suitable interior surfaces — must be completely transformed into the SAME ultra-fine short-pile faux suede material and the SAME target color.
+                When the short fibers face the light, the area becomes lighter, brighter and slightly warmer.
+                When the short fibers face away from the light, the area becomes darker, deeper and slightly cooler.
 
-        Color must match in hue, saturation, and overall tone.
-        Natural light-dark variation caused by suede nap direction is allowed and REQUIRED.
+                These light-dark changes must come only from the direction of the short fibers interacting with directional lighting.
+                Do not paint stains, dirt, camouflage, random spots, speckles or artificial mottling onto the material.
 
-        Preserve the original geometry, contours, proportions, and structure, but completely replace the surface material with premium ultra-fine short-pile faux suede.
+                The effect should resemble real brushed automotive suede after being touched by hand:
+                soft directional nap marks, gentle cloudy tonal shifts, broad velvet-like shading, smooth transitions.
 
-        SCENE:
+                Do not hide the nap effect in tiny details.
+                Do not make the surface uniformly matte.
+                Do not make the whole roll one flat shade.
 
-        Use the uploaded image as lifestyle scene reference.
+                The base material remains one uniform target color:
+                Target color: {color.hex_code}
 
-        Keep the original environment and main subject structure.
-        Keep steering wheel, dashboard plastic, metal trim, glass, buttons, wood, floor, background, and natural shadows unchanged.
+                The material does not actually change color.
+                The lighter and darker appearance is purely optical nap-direction shading.
 
-        PRODUCT:
+                The same strong directional suede effect must appear on both the roll and all visible suede-covered upholstery.
 
-        Show ONE main subject and ONE fully rolled self-adhesive suede repair roll.
+                TWO-LAYER SELF-ADHESIVE MATERIAL:
 
-        Create a slim, long, lightweight cylindrical roll.
-        Reduce roll diameter by approximately 50% compared with the reference.
-        Keep the roll elongated and clearly visible.
+                Show exactly one self-adhesive faux suede repair roll made from one continuous two-layer sheet.
 
-        Place the roll naturally on a suitable nearby surface or beside the main subject.
-        Realistic gravity, contact shadows, and natural positioning.
-        Do not float, intersect, or duplicate the roll.
+                Front layer:
+                Premium ultra-fine short-pile automotive faux suede.
 
-        DUAL LAYER:
+                Back layer:
+                Thin light-brown kraft paper release liner.
 
-        Front: premium ultra-fine short-pile faux suede.
+                The suede layer and kraft release liner are tightly attached and rolled together as one integrated two-layer material.
 
-        Back: tightly attached kraft paper release liner.
+                The kraft paper is only the release liner on the back of the suede.
+                It is not an outer wrapping.
+                It is not a separate strip.
+                It is not a paper tube.
+                It is not a roll core.
 
-        The liner must remain aligned with the suede layer and stay completely inside the roll edges.
-        No paper lip, exposed edge, lifted edge, curled edge, or loose paper.
+                The suede and kraft liner have exactly the same width and perfectly aligned edges.
+                The kraft paper must remain tightly attached to the suede.
+                No paper overhang.
+                No protruding paper edge.
+                No curled paper.
+                No lifted paper.
+                No loose paper.
+                No separated paper layer.
 
-        CAMERA:
+                CORELESS ROLL - ABSOLUTE:
 
-        Premium Amazon/TEMU commercial product photography.
-        Close-up realistic lifestyle composition.
-        Keep both the main subject and roll visible.
-        The roll should be sharp and visually prominent.
+                The roll is completely coreless.
 
-        REMOVE:
+                There is no paper tube.
+                No cardboard core.
+                No plastic core.
+                No wooden core.
+                No hollow center.
+                No central hole.
+                No black opening.
 
-        text, logos, icons, watermarks, labels, samples, extra rolls, duplicate products, unnecessary objects.
+                The two-layer suede plus kraft release-liner sheet is wound directly onto itself.
+                The innermost layers continue into the center, forming a compact solid coreless roll.
 
-        FINAL PRIORITY:
+                END FACE:
 
-        If any instruction conflicts with authentic ultra-fine short-pile faux suede rendering, PRIORITIZE THE MATERIAL.
+                If the roll end face is visible, it must be small, clean and realistic.
+
+                The end face should show only a limited number of thin, tight winding layers.
+                Do not create too many thick concentric rings.
+                Do not make the layer thickness exaggerated.
+
+                The suede layer and the thin light-brown kraft release-liner layer appear as fine, close, orderly winding lines.
+                The layers continue all the way to the center with no hole and no tube.
+
+                The end face must look like a real coreless self-adhesive faux suede roll, not ordinary tape, not a spool and not a cardboard roll.
+
+                EXTREME SLIM ROLL - ABSOLUTE:
+
+                Show exactly one long, extremely slim, fully rolled repair roll.
+                The roll is the main subject.
+
+                Compared with the current generated result, reduce the visible cross-section diameter by another 60%.
+                The new roll diameter should be only about 40% of the current generated cross-section diameter.
+                Compared with the current generated result, shorten the roll length by one third.
+                The new roll length should be about 65% to 70% of the current generated roll length.
+                If the roll still appears too long, shorten it by an additional 30% from the latest generated result.
+                The final roll length should be compact but still clearly longer than its diameter.
+                Do not compensate by enlarging the diameter or enlarging the end face.
+
+                Target visual proportion:
+                approximately 2.5:1 length to outer diameter.
+
+                The roll must look like an ultra-thin, extra-long cylindrical material roll.
+                The diameter must occupy only a very small fraction of the total length.
+                The outer diameter must remain uniformly thin from one end to the other.
+                The end face must therefore be extremely small and narrow.
 
 
-"""
+                Do not make the roll thick, bulky, fat, short or spool-shaped.
+                At first glance, the roll must read as a long, thin rod-like roll covered in suede.
+
+                The outer suede surface of the roll must also show obvious broad directional nap shading.
+
+                AUTOMOTIVE INTERIOR:
+
+                Create one premium luxury automotive interior with a large amount of visible suede-covered upholstery.
+
+                Use the same target-color microsuede on suitable interior surfaces such as seats, door panels, armrests, dashboard trim or center console areas.
+
+                All suede upholstery must show broad areas of different nap directions.
+                The interior should visibly demonstrate the real suede light-dark directional effect.
+
+                ROLL PLACEMENT FREEDOM:
+
+                The roll position must be flexible and naturally varied between generations.
+                The roll may appear on or near any realistic automotive interior surface:
+                dashboard top, instrument panel area, center console, gear shift area, armrest, front seat, passenger seat, door panel, door armrest, floor mat area, or leaning against interior trim.
+
+                The roll may be horizontal, diagonal, vertical, slightly tilted, partially resting against a surface, or placed in the foreground.
+                Do not always place the roll on the seat.
+                Do not always use the same angle.
+                Do not always use the same foreground position.
+
+                The roll must keep realistic physical contact with the car interior surface.
+                It must not float, hover, intersect through objects, or appear outside the car interior.
+                The roll remains the main product subject wherever it is placed.
+
+                PHOTOGRAPHY:
+
+                Premium luxury automotive commercial product photography.
+                Close-up, photorealistic, high-end material rendering.
+
+                The roll is sharply focused and highly detailed.
+                The automotive interior is secondary context.
+
+                Use strong but soft directional lighting to reveal the short suede fibers and changing nap direction.
+                Lighting must create broad, smooth suede light-dark transitions without harsh shadows.
+
+                The roll should be bright enough to clearly show the suede surface.
+                Do not let the roll become too dark or merge into the background.
+
+                The suede remains soft, dense, refined, matte and low-glare.
+
+                REALISM:
+
+                The roll must look like a real physical self-adhesive automotive faux suede repair material.
+
+                Real ultra-short microfiber nap.
+                Real brushed suede directional shading.
+                Real two-layer construction.
+                Real tightly wound layers.
+                Real coreless structure.
+                Realistic thin material thickness.
+                Realistic aligned edges.
+
+                NEGATIVE:
+
+                No text.
+                No watermark.
+                No logo.
+                No emblem.
+                No badge.
+                No brand name.
+                No trademark.
+                No extra roll.
+                No duplicate roll.
+                No thick roll.
+                No bulky cylinder.
+                No short fat roll.
+                No spool.
+                No tube.
+                No cardboard core.
+                No hollow center.
+                No central hole.
+                No black center.
+                No loose kraft paper.
+                No protruding paper.
+                No paper lip.
+                No curled paper.
+                No separate paper strip.
+                No leather grain.
+                No lychee grain.
+                No pebbled texture.
+                No cracked leather.
+                No embossed texture.
+                No woven texture.
+                No rough cloth texture.
+                No felt texture.
+                No long fibers.
+                No fluffy
+            """
 
 
 def build_recolor_prompt(color: ColorSpec, material: str = "lychee_grain") -> str:
@@ -944,19 +1090,19 @@ def run_job(
         }
 
     job.bundle.sku_dir.mkdir(parents=True, exist_ok=True)
-    reference_image_path = input_image_path or job.image_path
-    command = [
-        sys.executable,
-        str(image2_script),
-        "--input-image",
-        str(reference_image_path),
-        "--prompt",
-        prompt or build_master_prompt(job.color, material),
-        "--output-dir",
-        str(job.bundle.sku_dir),
-        "--filename",
-        job.output_path.name,
-    ]
+    command = [sys.executable, str(image2_script)]
+    if input_image_path is not None:
+        command.extend(["--input-image", str(input_image_path)])
+    command.extend(
+        [
+            "--prompt",
+            prompt or build_master_prompt(job.color, material),
+            "--output-dir",
+            str(job.bundle.sku_dir),
+            "--filename",
+            job.output_path.name,
+        ]
+    )
     last_error = ""
     for attempt in range(1, retries + 1):
         completed = subprocess.run(
@@ -977,7 +1123,7 @@ def run_job(
                 "sp_dir": str(job.bundle.sp_dir),
                 "color": job.color.suffix,
                 "stage": stage,
-                "reference_image": str(reference_image_path),
+                "reference_image": str(input_image_path) if input_image_path is not None else None,
                 "status": "generated",
                 "attempts": attempt,
                 "image_path": final_path,
@@ -996,7 +1142,7 @@ def run_job(
         "sp_dir": str(job.bundle.sp_dir),
         "color": job.color.suffix,
         "stage": stage,
-        "reference_image": str(reference_image_path),
+        "reference_image": str(input_image_path) if input_image_path is not None else None,
         "status": "failed",
         "attempts": retries,
         "error": last_error or "Unknown error",
@@ -1023,12 +1169,13 @@ def execute_job_group(group_jobs: list[Job], options: RequestOptions) -> list[di
 
     ordered_jobs = sorted(group_jobs, key=lambda item: item.index)
     master_job = ordered_jobs[0]
+    is_suede = normalize_material_token(options.material) == "suede"
     master_result = run_job(
         master_job,
         options.image2_script,
         options.retries,
         options.overwrite,
-        input_image_path=master_job.image_path,
+        input_image_path=None if is_suede else master_job.image_path,
         prompt=build_master_prompt(master_job.color, options.material),
         stage="master",
     )

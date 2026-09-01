@@ -171,6 +171,38 @@
             <Setter Property="BorderBrush" Value="#D6DCE8" />
         </Style>
 
+        <Style x:Key="ProductSheetFolderButtonStyle" TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="Background" Value="#67C23A" />
+            <Setter Property="BorderBrush" Value="#67C23A" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#85CE61" />
+                    <Setter Property="BorderBrush" Value="#85CE61" />
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="#5DAF34" />
+                    <Setter Property="BorderBrush" Value="#5DAF34" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="AutoPublishErrorFolderButtonStyle" TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="Background" Value="#909399" />
+            <Setter Property="BorderBrush" Value="#909399" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#A6A9AD" />
+                    <Setter Property="BorderBrush" Value="#A6A9AD" />
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="#82848A" />
+                    <Setter Property="BorderBrush" Value="#82848A" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
         <Style x:Key="StatusFilterButtonStyle" TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
             <Setter Property="Margin" Value="0,0,6,0" />
             <Setter Property="MinHeight" Value="26" />
@@ -833,11 +865,11 @@
                                 </Button>
                                 <Button Command="{Binding OpenProductSheetFolderCommand}"
                                         Margin="0,0,8,0"
-                                        Style="{StaticResource SecondaryButtonStyle}"
+                                        Style="{StaticResource ProductSheetFolderButtonStyle}"
                                         Content="价格表目录" />
                                 <Button Command="{Binding OpenAutoPublishErrorFolderCommand}"
                                         Margin="0,0,8,0"
-                                        Style="{StaticResource SecondaryButtonStyle}"
+                                        Style="{StaticResource AutoPublishErrorFolderButtonStyle}"
                                         Content="上架报错目录" />
                             </WrapPanel>
 

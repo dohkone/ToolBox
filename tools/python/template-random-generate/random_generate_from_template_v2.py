@@ -48,6 +48,7 @@ SUBJECT_PLACEHOLDER = "{主体}"
 FIXED_COLOR_PLACEHOLDER = "{唯一颜色}"
 FIXED_SUBJECT_PLACEHOLDER = "{唯一主体}"
 ALL_COLORS_PLACEHOLDER = "{全部颜色}"
+RANDOM_FIVE_COLORS_PLACEHOLDER = "{随机5色}"
 ALL_SUBJECTS_PLACEHOLDER = "{全部主体}"
 MAIN_TITLE_PLACEHOLDER = "{大标题}"
 SUB_TITLE_PLACEHOLDER = "{小标题}"
@@ -444,6 +445,11 @@ def build_all_colors_text() -> str:
     return " / ".join(format_color_option(option) for option in COLOR_OPTIONS)
 
 
+def build_random_five_colors_text() -> str:
+    selected_options = random.sample(list(COLOR_OPTIONS), min(5, len(COLOR_OPTIONS)))
+    return " / ".join(format_color_option(option) for option in selected_options)
+
+
 def build_all_subjects_text(global_subjects: list[str], fixed_color: str | None = None) -> str:
     color_values = build_color_replacements(len(global_subjects))
     rendered_subjects: list[str] = []
@@ -614,6 +620,8 @@ def render_prompt(template: SelectedTemplate, library: TemplateLibrary) -> str:
     if fixed_color is not None:
         prompt = prompt.replace(FIXED_COLOR_PLACEHOLDER, fixed_color)
     prompt = prompt.replace(ALL_COLORS_PLACEHOLDER, build_all_colors_text())
+    while RANDOM_FIVE_COLORS_PLACEHOLDER in prompt:
+        prompt = prompt.replace(RANDOM_FIVE_COLORS_PLACEHOLDER, build_random_five_colors_text(), 1)
     prompt = replace_color_placeholders(prompt)
     return prompt.strip()
 

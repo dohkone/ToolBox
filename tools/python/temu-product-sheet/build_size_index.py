@@ -78,37 +78,7 @@ def read_sheet_names(archive):
     return [sheet.attrib.get("name", "") for sheet in sheets]
 
 
-def parse_length_range(text):
-    match = re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\s*", text or "")
-    if not match:
-        return None, None
-    return float(match.group(1)), float(match.group(2))
-
-
-def parse_width_range(value):
-    if value in ("", None):
-        return None, None, ""
-    text = str(value).strip()
-    range_match = re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\s*", text)
-    if range_match:
-        return float(range_match.group(1)), float(range_match.group(2)), text
-    number_match = re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*", text)
-    if number_match:
-        width = float(number_match.group(1))
-        return width, width, text
-    return None, None, text
-
-
-def parse_price_range(text):
-    match = re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\s*", text or "")
-    if not match:
-        return None, None
-    first = float(match.group(1))
-    second = float(match.group(2))
-    return min(first, second), max(first, second)
-
-
-def parse_numeric_range(value, label):
+def parse_number_bounds(value, label, allow_single=False, raise_on_invalid=False):
     if value in ("", None):
         return None, None, ""
 
@@ -120,11 +90,31 @@ def parse_numeric_range(value, label):
         return min(first, second), max(first, second), text
 
     number_match = re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*", text)
-    if number_match:
-        value_number = float(number_match.group(1))
-        return value_number, value_number, text
+    if number_match and allow_single:
+        number = float(number_match.group(1))
+        return number, number, text
 
-    raise ValueError(f"Invalid {label} value: {text}")
+    if raise_on_invalid:
+        raise ValueError(f"Invalid {label} value: {text}")
+    return None, None, text
+
+
+def parse_length_range(text):
+    minimum, maximum, _ = parse_number_bounds(text, "length")
+    return minimum, maximum
+
+
+def parse_width_range(value):
+    return parse_number_bounds(value, "width", allow_single=True)
+
+
+def parse_price_range(text):
+    minimum, maximum, _ = parse_number_bounds(text, "declared price")
+    return minimum, maximum
+
+
+def parse_numeric_range(value, label):
+    return parse_number_bounds(value, label, allow_single=True, raise_on_invalid=True)
 
 
 def to_number(value):

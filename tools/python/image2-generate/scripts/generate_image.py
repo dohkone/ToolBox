@@ -18,7 +18,7 @@ from typing import Any
 
 
 DEFAULT_MODEL = "gpt-image-2"
-DEFAULT_BASE_URL = "https://api.change2pro.com"
+DEFAULT_BASE_URL = "https://api.forkc2p.com"
 DEFAULT_OUTPUT_DIR = Path.home() / "Downloads" / "image2-generations"
 MAX_OUTPUT_IMAGE_BYTES = 3 * 1024 * 1024
 COMPRESSED_JPEG_QUALITY = 86
@@ -678,18 +678,6 @@ def list_image_models(models_endpoint: str, api_key: str) -> list[str]:
     return image_like_models
 
 
-def save_b64_image(item: dict[str, Any], output_dir: Path, filename: str | None, prompt: str) -> Path:
-    b64_value = item.get("b64_json")
-    if not isinstance(b64_value, str) or not b64_value:
-        raise Image2Error("Response item did not contain b64_json.")
-    raw = base64.b64decode(b64_value)
-    extension = detect_extension_from_bytes(raw)
-    final_name = normalize_filename(filename, slugify_filename(prompt), extension)
-    output_path = output_dir / final_name
-    output_path.write_bytes(raw)
-    return compress_image_if_needed(output_path)
-
-
 def download_url_image(item: dict[str, Any], output_dir: Path, filename: str | None, prompt: str, base_url: str) -> Path:
     url = item.get("url")
     if not isinstance(url, str) or not url:
@@ -699,6 +687,18 @@ def download_url_image(item: dict[str, Any], output_dir: Path, filename: str | N
     final_name = normalize_filename(filename, slugify_filename(prompt), extension)
     output_path = output_dir / final_name
     run_curl_download(image_url, output_path)
+    return compress_image_if_needed(output_path)
+
+
+def save_b64_image(item: dict[str, Any], output_dir: Path, filename: str | None, prompt: str) -> Path:
+    b64_value = item.get("b64_json")
+    if not isinstance(b64_value, str) or not b64_value:
+        raise Image2Error("Response item did not contain b64_json.")
+    raw = base64.b64decode(b64_value)
+    extension = detect_extension_from_bytes(raw)
+    final_name = normalize_filename(filename, slugify_filename(prompt), extension)
+    output_path = output_dir / final_name
+    output_path.write_bytes(raw)
     return compress_image_if_needed(output_path)
 
 

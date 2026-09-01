@@ -6954,7 +6954,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 	private static bool IsSizeImageName(string filePath)
 	{
 		string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(filePath);
-		if (!fileNameWithoutExtension.StartsWith("2-", StringComparison.OrdinalIgnoreCase) && !fileNameWithoutExtension.Contains("尺寸", StringComparison.OrdinalIgnoreCase))
+		if (!fileNameWithoutExtension.StartsWith("2", StringComparison.OrdinalIgnoreCase) && !fileNameWithoutExtension.Contains("尺寸", StringComparison.OrdinalIgnoreCase))
 		{
 			return fileNameWithoutExtension.Contains("size", StringComparison.OrdinalIgnoreCase);
 		}
