@@ -81,6 +81,10 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private const string SuedeMaterial = "麂皮绒";
 
+	private const string CanadaOrigin = "加拿大";
+
+	private const string ChinaMainlandOrigin = "中国大陆 / 广东省";
+
 	private static readonly string[] TemplateMaterialOptions = { LycheeMaterial, SuedeMaterial };
 
 	private static readonly string[] SkuMasterColorTokens =
@@ -474,6 +478,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 	private string _backupFolder = string.Empty;
 
 	private bool _titleChineseOnly;
+
+	private string _autoPublishOrigin = CanadaOrigin;
 
 	private readonly ObservableCollection<string> _autoPublishShopNames = new ObservableCollection<string>();
 
@@ -2532,6 +2538,53 @@ public sealed class MainWindowViewModel : ViewModelBase
 		}
 	}
 
+	public bool IsCanadaOriginSelected
+	{
+		get => string.Equals(_autoPublishOrigin, CanadaOrigin, StringComparison.Ordinal);
+		set
+		{
+			if (value)
+			{
+				AutoPublishOrigin = CanadaOrigin;
+			}
+			else if (IsCanadaOriginSelected)
+			{
+				OnPropertyChanged("IsCanadaOriginSelected");
+			}
+		}
+	}
+
+	public bool IsChinaMainlandOriginSelected
+	{
+		get => string.Equals(_autoPublishOrigin, ChinaMainlandOrigin, StringComparison.Ordinal);
+		set
+		{
+			if (value)
+			{
+				AutoPublishOrigin = ChinaMainlandOrigin;
+			}
+			else if (IsChinaMainlandOriginSelected)
+			{
+				OnPropertyChanged("IsChinaMainlandOriginSelected");
+			}
+		}
+	}
+
+	public string AutoPublishOrigin
+	{
+		get => _autoPublishOrigin;
+		private set
+		{
+			string normalized = NormalizeAutoPublishOrigin(value);
+			if (SetProperty(ref _autoPublishOrigin, normalized, "AutoPublishOrigin"))
+			{
+				OnPropertyChanged("IsCanadaOriginSelected");
+				OnPropertyChanged("IsChinaMainlandOriginSelected");
+				PersistUserPathSettings();
+			}
+		}
+	}
+
 	public bool IsAutoPublishShopAddVisible
 	{
 		get => _isAutoPublishShopAddVisible;
@@ -3208,6 +3261,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		});
 		_openProductSheetFolderCommand = new RelayCommand(delegate
 		{
+			EnsureProductSheetDataFolder();
 			TryOpenFolder(ProductSheetDataFolder, "价格表目录");
 		});
 		_openAutoPublishErrorFolderCommand = new RelayCommand(delegate
@@ -6443,11 +6497,32 @@ public sealed class MainWindowViewModel : ViewModelBase
 		"miaoshou");
 
 	private static string ProductSheetDataFolder => Path.Combine(
+		Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+		"ToolBox",
+		"data",
+		"temu-product-sheet");
+
+	private static string BundledProductSheetDataFolder => Path.Combine(
 		AppContext.BaseDirectory,
 		"tools",
 		"python",
 		"temu-product-sheet",
 		"data");
+
+	private static void EnsureProductSheetDataFolder()
+	{
+		Directory.CreateDirectory(ProductSheetDataFolder);
+		string targetPath = Path.Combine(ProductSheetDataFolder, "size_specs.xlsx");
+		if (File.Exists(targetPath))
+		{
+			return;
+		}
+		string bundledPath = Path.Combine(BundledProductSheetDataFolder, "size_specs.xlsx");
+		if (File.Exists(bundledPath))
+		{
+			File.Copy(bundledPath, targetPath, overwrite: false);
+		}
+	}
 
 	private static void OpenFolder(string folderPath)
 	{
@@ -7041,7 +7116,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		return (cmValue / 2.54).ToString("0.##", CultureInfo.InvariantCulture);
 	}
 
-	private static MiaoshouPublishRequest CreateMiaoshouPublishRequest(Func<MiaoshouPublishProgressEvent, Task>? progressHandler = null)
+	private MiaoshouPublishRequest CreateMiaoshouPublishRequest(Func<MiaoshouPublishProgressEvent, Task>? progressHandler = null)
 	{
 		string path = DateTime.Now.ToString("yyyyMMdd_HHmmss");
 		string path2 = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ToolBox", "output", "miaoshou", path);
@@ -7052,6 +7127,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 			EventsPath = Path.Combine(path2, "events.jsonl"),
 			LogPath = Path.Combine(path2, "publish.log"),
 			ConfigPath = Path.Combine(AppContext.BaseDirectory, "config", "miaoshou.json"),
+			OriginValueText = AutoPublishOrigin,
 			ProgressHandler = progressHandler
 		};
 	}
@@ -7482,6 +7558,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private void ApplyUserPathSettings(AppUserPathsState state)
 	{
+		_autoPublishOrigin = NormalizeAutoPublishOrigin(state.AutoPublishOrigin);
 		BackupFolder = NormalizeWritableWorkspacePath(state.BackupFolder ?? string.Empty);
 		TemplateLibraryPath = state.TemplateLibraryPath ?? string.Empty;
 		GenerationOutputDirectory = NormalizeWritableWorkspacePath(state.GenerationOutputDirectory ?? string.Empty);
@@ -7490,6 +7567,9 @@ public sealed class MainWindowViewModel : ViewModelBase
 		SkuOptimizeOutputDirectory = NormalizeWritableWorkspacePath(state.SkuOptimizeOutputDirectory ?? string.Empty);
 		SelectedImageGenerationProvider = state.ImageGenerationProvider;
 		TitleChineseOnly = state.TitleChineseOnly;
+		OnPropertyChanged("AutoPublishOrigin");
+		OnPropertyChanged("IsCanadaOriginSelected");
+		OnPropertyChanged("IsChinaMainlandOriginSelected");
 		AutoPublishShopNames.Clear();
 		IEnumerable<string> autoPublishShopNames = state.AutoPublishShopNames ?? new List<string>();
 		foreach (string shopName in autoPublishShopNames.Select(name => name?.Trim()).Where(name => !string.IsNullOrWhiteSpace(name)).Distinct(StringComparer.OrdinalIgnoreCase))
@@ -7545,6 +7625,13 @@ public sealed class MainWindowViewModel : ViewModelBase
 		}
 	}
 
+	private static string NormalizeAutoPublishOrigin(string? origin)
+	{
+		return string.Equals(origin?.Trim(), ChinaMainlandOrigin, StringComparison.Ordinal)
+			? ChinaMainlandOrigin
+			: CanadaOrigin;
+	}
+
 	private void PersistUserPathSettings()
 	{
 		IAppSettingsService appSettingsService = _appSettingsService;
@@ -7559,6 +7646,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 		appUserPathsState.SkuOptimizeOutputDirectory = SkuOptimizeOutputDirectory;
 		appUserPathsState.ImageGenerationProvider = SelectedImageGenerationProvider;
 		appUserPathsState.TitleChineseOnly = TitleChineseOnly;
+		appUserPathsState.AutoPublishOrigin = AutoPublishOrigin;
 		appUserPathsState.AutoPublishShopNames = AutoPublishShopNames
 			.Where(name => !string.IsNullOrWhiteSpace(name))
 			.Select(name => name.Trim())

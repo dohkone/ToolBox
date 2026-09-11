@@ -15,5 +15,7 @@ public sealed class MiaoshouPublishRequest
 
 	public string LogPath { get; init; } = string.Empty;
 
+	public string OriginValueText { get; init; } = string.Empty;
+
 	public Func<MiaoshouPublishProgressEvent, Task>? ProgressHandler { get; init; }
 }

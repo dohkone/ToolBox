@@ -37,6 +37,7 @@ public sealed class ProductSheetService : IProductSheetService
 			string text = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ToolBox", "output", "products");
 			Directory.CreateDirectory(text);
 			string sizeIndexPath = GetWritableSizeIndexPath();
+			string sizeSpecWorkbookPath = EnsureWritableSizeSpecWorkbook();
 			string productsJsonPath = Path.Combine(text, Path.GetFileName(spRootFolder) + ".product.json");
 			List<string> list = new List<string>
 			{
@@ -48,6 +49,8 @@ public sealed class ProductSheetService : IProductSheetService
 				text,
 				"--index",
 				sizeIndexPath,
+				"--source",
+				sizeSpecWorkbookPath,
 				"--products-json",
 				productsJsonPath
 			};
@@ -79,7 +82,8 @@ public sealed class ProductSheetService : IProductSheetService
 	public async Task RebuildSizeIndexAsync(CancellationToken cancellationToken = default(CancellationToken))
 	{
 		string sizeIndexPath = GetWritableSizeIndexPath();
-		await _scriptRunner.RunAsync(_buildSizeIndexScriptPath, new[] { "--output", sizeIndexPath }, cancellationToken);
+		string sizeSpecWorkbookPath = EnsureWritableSizeSpecWorkbook();
+		await _scriptRunner.RunAsync(_buildSizeIndexScriptPath, new[] { "--source", sizeSpecWorkbookPath, "--output", sizeIndexPath }, cancellationToken);
 	}
 
 	private static string GetWritableSizeIndexPath()
@@ -92,5 +96,33 @@ public sealed class ProductSheetService : IProductSheetService
 		string directory = Path.Combine(localAppData, "ToolBox", "cache", "temu-product-sheet");
 		Directory.CreateDirectory(directory);
 		return Path.Combine(directory, "size_specs_index.json");
+	}
+
+	private static string EnsureWritableSizeSpecWorkbook()
+	{
+		string dataFolder = GetWritableProductSheetDataFolder();
+		Directory.CreateDirectory(dataFolder);
+		string writablePath = Path.Combine(dataFolder, "size_specs.xlsx");
+		if (File.Exists(writablePath))
+		{
+			return writablePath;
+		}
+		string bundledPath = Path.Combine(AppContext.BaseDirectory, "tools", "python", "temu-product-sheet", "data", "size_specs.xlsx");
+		if (!File.Exists(bundledPath))
+		{
+			throw new FileNotFoundException("Source size spec workbook not found.", bundledPath);
+		}
+		File.Copy(bundledPath, writablePath, overwrite: false);
+		return writablePath;
+	}
+
+	private static string GetWritableProductSheetDataFolder()
+	{
+		string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+		if (string.IsNullOrWhiteSpace(localAppData))
+		{
+			localAppData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".toolbox");
+		}
+		return Path.Combine(localAppData, "ToolBox", "data", "temu-product-sheet");
 	}
 }

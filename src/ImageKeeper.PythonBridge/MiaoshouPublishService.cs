@@ -66,6 +66,11 @@ public sealed class MiaoshouPublishService : IMiaoshouPublishService
 		processStartInfo.ArgumentList.Add(request.EventsPath);
 		processStartInfo.ArgumentList.Add("--log");
 		processStartInfo.ArgumentList.Add(request.LogPath);
+		if (!string.IsNullOrWhiteSpace(request.OriginValueText))
+		{
+			processStartInfo.ArgumentList.Add("--origin");
+			processStartInfo.ArgumentList.Add(request.OriginValueText);
+		}
 		using Process process = Process.Start(processStartInfo) ?? throw new InvalidOperationException("Unable to start Miaoshou Playwright process.");
 		Task<string> outputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
 		Task<string> errorTask = process.StandardError.ReadToEndAsync(cancellationToken);

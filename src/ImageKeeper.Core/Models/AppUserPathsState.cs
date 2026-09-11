@@ -20,6 +20,8 @@ public sealed class AppUserPathsState
 
 	public bool TitleChineseOnly { get; set; }
 
+	public string AutoPublishOrigin { get; set; } = string.Empty;
+
 	public string GenerationMaterial { get; set; } = string.Empty;
 
 	public List<string> AutoPublishShopNames { get; set; } = new List<string>();

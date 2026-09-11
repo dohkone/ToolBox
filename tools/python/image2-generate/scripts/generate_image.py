@@ -13,12 +13,14 @@ import subprocess
 import sys
 import tempfile
 import urllib.parse
+import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Any
 
 
 DEFAULT_MODEL = "gpt-image-2"
-DEFAULT_BASE_URL = "https://api.forkc2p.com"
+DEFAULT_BASE_URL = "https://patrickstart.dpdns.org"
 DEFAULT_OUTPUT_DIR = Path.home() / "Downloads" / "image2-generations"
 MAX_OUTPUT_IMAGE_BYTES = 3 * 1024 * 1024
 COMPRESSED_JPEG_QUALITY = 86
@@ -565,37 +567,39 @@ def should_retry_with_url(error: Image2Error) -> bool:
 
 
 def run_curl_download(url: str, output_path: Path) -> None:
-    command = [
-        "curl.exe",
-        "--noproxy",
-        "*",
-        "--silent",
-        "--show-error",
-        "--location",
-        "--output",
-        str(output_path),
-        "--write-out",
-        "\n%{http_code}",
+    # Do not pass the generated URL to curl.exe: some providers return URLs
+    # longer than Windows' process command-line limit (WinError 206).
+    request = urllib.request.Request(
         url,
-    ]
-    completed = subprocess.run(
-        command,
-        capture_output=True,
-        check=False,
+        headers={"User-Agent": "EcomTool-Image2/1.0"},
     )
-    if completed.returncode != 0:
-        message = decode_subprocess_output(completed.stderr).strip() or decode_subprocess_output(completed.stdout).strip()
+    downloaded = bytearray()
+    status_code = 0
+    try:
+        with urllib.request.urlopen(request, timeout=180) as response:
+            status_code = int(getattr(response, "status", 200) or 200)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            with output_path.open("wb") as output_file:
+                while True:
+                    chunk = response.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    output_file.write(chunk)
+                    downloaded.extend(chunk)
+    except urllib.error.HTTPError as exc:
+        status_code = int(exc.code)
+        downloaded.extend(exc.read(64 * 1024))
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
         output_path.unlink(missing_ok=True)
-        raise Image2Error(message or "Failed to download generated image URL.")
-    status_lines = decode_subprocess_output(completed.stdout).strip().splitlines()
-    status_code = int(status_lines[-1]) if status_lines and status_lines[-1].isdigit() else 0
-    downloaded = output_path.read_bytes() if output_path.exists() else b""
+        raise Image2Error(f"Failed to download generated image URL: {exc}") from exc
+
+    downloaded_bytes = bytes(downloaded)
     if status_code >= 400:
-        message = describe_non_image_payload(downloaded)
+        message = describe_non_image_payload(downloaded_bytes)
         output_path.unlink(missing_ok=True)
         raise Image2Error(f"Image URL download failed ({status_code}): {message}")
-    if not is_supported_image_bytes(downloaded):
-        message = describe_non_image_payload(downloaded)
+    if not is_supported_image_bytes(downloaded_bytes):
+        message = describe_non_image_payload(downloaded_bytes)
         output_path.unlink(missing_ok=True)
         raise Image2Error(f"Image URL did not return a valid image: {message}")
 

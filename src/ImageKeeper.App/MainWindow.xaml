@@ -5692,6 +5692,27 @@
                                 </Grid.ColumnDefinitions>
                                 <TextBlock VerticalAlignment="Center"
                                            FontWeight="SemiBold"
+                                           Text="产地" />
+                                <StackPanel Grid.Column="1"
+                                            Orientation="Horizontal"
+                                            VerticalAlignment="Center">
+                                    <CheckBox VerticalAlignment="Center"
+                                              IsChecked="{Binding IsCanadaOriginSelected, Mode=TwoWay}"
+                                              Content="加拿大" />
+                                    <CheckBox Margin="18,0,0,0"
+                                              VerticalAlignment="Center"
+                                              IsChecked="{Binding IsChinaMainlandOriginSelected, Mode=TwoWay}"
+                                              Content="中国大陆 / 广东省" />
+                                </StackPanel>
+                            </Grid>
+
+                            <Grid Margin="0,14,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="86" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock VerticalAlignment="Center"
+                                           FontWeight="SemiBold"
                                            Text="店铺" />
                                 <StackPanel Grid.Column="1"
                                             VerticalAlignment="Center">

@@ -13,7 +13,6 @@ from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DATA_DIR = SCRIPT_DIR / "data"
-DEFAULT_SOURCE = DATA_DIR / "size_specs.xlsx"
 DEFAULT_OUTPUT_DIR = Path("D:/temu_auto/excel")
 DEFAULT_ASSERT_DIR = Path("D:/temu_auto/assert")
 DEFAULT_TITLE_JSON = DATA_DIR / "title.json"
@@ -38,7 +37,15 @@ def get_default_cache_dir():
     return Path.home() / ".toolbox" / "cache" / "temu-product-sheet"
 
 
+def get_default_data_dir():
+    local_app_data = os.environ.get("LOCALAPPDATA")
+    if local_app_data:
+        return Path(local_app_data) / "ToolBox" / "data" / "temu-product-sheet"
+    return Path.home() / ".toolbox" / "data" / "temu-product-sheet"
+
+
 DEFAULT_INDEX = get_default_cache_dir() / "size_specs_index.json"
+DEFAULT_SOURCE = get_default_data_dir() / "size_specs.xlsx"
 
 
 def parse_args():

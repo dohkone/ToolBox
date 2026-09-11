@@ -21,11 +21,12 @@ type MiaoshouConfig = {
 };
 
 type CliOptions = {
-  manifestPath: string;
-  resultPath: string;
-  configPath: string;
-  eventsPath: string;
-  logPath: string;
+	manifestPath: string;
+	resultPath: string;
+	configPath: string;
+	eventsPath: string;
+	logPath: string;
+	originValueText: string;
 };
 
 const cliOptions = parseCliOptions(process.argv.slice(2));
@@ -70,7 +71,7 @@ const suedeLeatherTypeValueText = "\u7ed2\u9762\u76ae";
 const productTitleText = "\u4ea7\u54c1\u6807\u9898";
 const englishTitleText = "\u82f1\u8bed\u6807\u9898";
 const originText = "\u4ea7\u5730";
-const originValueText = "\u4e2d\u56fd\u5927\u9646 / \u5e7f\u4e1c\u7701";
+const originValueText = cliOptions.originValueText || "\u52a0\u62ff\u5927";
 const productInfoNavText = "\u4ea7\u54c1\u4fe1\u606f";
 const salesAttributesNavText = "\u9500\u552e\u5c5e\u6027";
 const packagingInfoNavText = "\u5305\u88c5\u4fe1\u606f";
@@ -136,8 +137,9 @@ function parseCliOptions(args: string[]): CliOptions {
   const manifestPath = getValue("--manifest") || process.env.MIAOSHOU_MANIFEST || "";
   const resultPath = getValue("--result") || process.env.MIAOSHOU_RESULT || getDefaultOutputPath("batch-result.json");
   const configPath = getValue("--config") || process.env.MIAOSHOU_CONFIG || path.resolve(__dirname, "..", "..", "..", "config", "miaoshou.json");
-  const eventsPath = getValue("--events") || process.env.MIAOSHOU_EVENTS || getDefaultOutputPath("events.jsonl");
-  const logPath = getValue("--log") || process.env.MIAOSHOU_LOG || getDefaultOutputPath("publish.log");
+	const eventsPath = getValue("--events") || process.env.MIAOSHOU_EVENTS || getDefaultOutputPath("events.jsonl");
+	const logPath = getValue("--log") || process.env.MIAOSHOU_LOG || getDefaultOutputPath("publish.log");
+	const originValueText = getValue("--origin") || process.env.MIAOSHOU_ORIGIN || "\u52a0\u62ff\u5927";
 
   if (!manifestPath) {
     throw new Error("Missing required --manifest path.");
@@ -147,9 +149,10 @@ function parseCliOptions(args: string[]): CliOptions {
     manifestPath: path.resolve(manifestPath),
     resultPath: path.resolve(resultPath),
     configPath: path.resolve(configPath),
-    eventsPath: path.resolve(eventsPath),
-    logPath: path.resolve(logPath),
-  };
+		eventsPath: path.resolve(eventsPath),
+		logPath: path.resolve(logPath),
+		originValueText,
+	};
 }
 
 function readMiaoshouConfig(configPath: string): MiaoshouConfig {
@@ -1264,12 +1267,21 @@ function normalizeShopName(name: string) {
   return name.replace(/\s+/g, " ").trim().toLocaleLowerCase();
 }
 
-async function selectConfiguredShops(page: Page, releaseDialog: Locator, requestedShopNames: string[]) {
-  const selectedShopNames = Array.from(
-    new Set(requestedShopNames.map(normalizeShopName).filter((name) => name.length > 0)),
-  );
+type ReleaseShopEntry = {
+  name: string;
+  normalizedName: string;
+  checked: boolean;
+};
 
-  const selectAttempt = async () => releaseDialog.evaluate((root, requestedNames) => {
+type ReleaseShopSnapshot = {
+  found: boolean;
+  entries: ReleaseShopEntry[];
+  checkedNames: string[];
+  uncheckedNames: string[];
+};
+
+async function getReleaseShopSelectorSnapshot(releaseDialog: Locator): Promise<ReleaseShopSnapshot> {
+  return await releaseDialog.evaluate((root) => {
     const isVisible = (node: Element | null) => {
       if (!(node instanceof HTMLElement)) {
         return false;
@@ -1279,128 +1291,37 @@ async function selectConfiguredShops(page: Page, releaseDialog: Locator, request
       return rect.width > 0 && rect.height > 0;
     };
 
-    const isChecked = (label: Element | null) => {
-      if (!(label instanceof HTMLElement)) {
-        return false;
-      }
-
-      const input = label.querySelector("input") as HTMLInputElement | null;
-      return (
-        label.classList.contains("is-checked") ||
-        label.querySelector(".jx-checkbox__input.is-checked") !== null ||
-        input?.checked === true
-      );
-    };
-
-    const clickLabel = (label: HTMLElement) => {
-      // 妙手的自定义复选框有时不会响应单纯的 label.click()，因此同时触发
-      // 复选框本体与标签上的完整鼠标事件链。
-      const input = label.querySelector("input[type='checkbox']") as HTMLInputElement | null;
-      const checkbox = label.querySelector(".jx-checkbox__input, .pro-checkbox__input") as HTMLElement | null;
-      const target = checkbox ?? input ?? label;
-      target.dispatchEvent(new MouseEvent("mouseenter", { bubbles: true, cancelable: true }));
-      target.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
-      target.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true }));
+    const getCheckedState = (label: Element) => {
+      const input = label.querySelector('input[type="checkbox"]') as HTMLInputElement | null;
       if (input) {
-        input.click();
-      } else {
-        target.click();
-      }
-    };
-
-    const normalize = (name: string) => name.replace(/\s+/g, " ").trim().toLocaleLowerCase();
-    const checkAll = Array.from(
-      root.querySelectorAll("label.shop-selector-check-all, label.pro-checkbox-group-all-select"),
-    ).find(isVisible) as HTMLElement | undefined;
-    if (!checkAll) {
-      return { found: false, missingNames: requestedNames };
-    }
-
-    const candidateContainers = [
-      checkAll.closest(".pro-checkbox-group"),
-      checkAll.closest(".jx-checkbox-group"),
-      checkAll.closest(".jx-scrollbar"),
-      checkAll.closest(".shop-selector"),
-      checkAll.closest(".jx-popper"),
-      checkAll.closest(".jx-overlay"),
-      checkAll.parentElement,
-      checkAll.parentElement?.parentElement,
-      root,
-    ].filter((node): node is Element => node instanceof Element);
-    const container =
-      candidateContainers.find((node) => {
-        const visibleLabels = Array.from(node.querySelectorAll("label.jx-checkbox, label.pro-checkbox")).filter(isVisible);
-        return visibleLabels.length >= 2;
-      }) ?? checkAll.parentElement ?? checkAll;
-    const shopLabels = Array.from(container.querySelectorAll("label.jx-checkbox, label.pro-checkbox"))
-      .filter(isVisible)
-      .filter((label) => label !== checkAll)
-      .filter((label) => {
-        const element = label as HTMLElement;
-        return (
-          !element.classList.contains("shop-selector-check-all") &&
-          !element.classList.contains("pro-checkbox-group-all-select")
-        );
-      }) as HTMLElement[];
-
-    const requested = new Set(requestedNames);
-    const available = new Map(
-      shopLabels.map((label) => [normalize(label.textContent ?? ""), label] as const).filter(([name]) => name.length > 0),
-    );
-    const missingNames = requestedNames.filter((name) => !available.has(name));
-
-    if (requestedNames.length === 0) {
-      for (const label of shopLabels) {
-        if (!isChecked(label)) {
-          clickLabel(label);
-        }
-      }
-    } else {
-      for (const label of shopLabels) {
-        if (isChecked(label)) {
-          clickLabel(label);
-        }
+        return input.checked;
       }
 
-      for (const name of requested) {
-        const label = available.get(name);
-        if (label) {
-          clickLabel(label);
-        }
-      }
-    }
-
-    return { found: true, missingNames };
-  }, selectedShopNames);
-
-  const getSnapshot = async () => releaseDialog.evaluate((root) => {
-    const isVisible = (node: Element | null) => {
-      if (!(node instanceof HTMLElement)) {
-        return false;
+      const inputWrapper = label.querySelector(".jx-checkbox__input, .pro-checkbox__input") as HTMLElement | null;
+      const ariaChecked =
+        label.getAttribute("aria-checked") ??
+        inputWrapper?.getAttribute("aria-checked");
+      if (ariaChecked === "true" || ariaChecked === "false") {
+        return ariaChecked === "true";
       }
 
-      const rect = node.getBoundingClientRect();
-      return rect.width > 0 && rect.height > 0;
-    };
-
-    const isChecked = (label: Element | null) => {
-      if (!(label instanceof HTMLElement)) {
-        return false;
-      }
-
-      const input = label.querySelector("input") as HTMLInputElement | null;
       return (
         label.classList.contains("is-checked") ||
-        label.querySelector(".jx-checkbox__input.is-checked") !== null ||
-        input?.checked === true
+        inputWrapper?.classList.contains("is-checked") === true
       );
     };
 
     const checkAll = Array.from(
       root.querySelectorAll("label.shop-selector-check-all, label.pro-checkbox-group-all-select"),
     ).find(isVisible) as HTMLElement | undefined;
+
     if (!checkAll) {
-      return { found: false, shopCount: 0, checkedNames: [] as string[] };
+      return {
+        found: false,
+        entries: [],
+        checkedNames: [],
+        uncheckedNames: [],
+      };
     }
 
     const candidateContainers = [
@@ -1414,12 +1335,20 @@ async function selectConfiguredShops(page: Page, releaseDialog: Locator, request
       checkAll.parentElement?.parentElement,
       root,
     ].filter((node): node is Element => node instanceof Element);
+
     const container =
       candidateContainers.find((node) => {
-        const visibleLabels = Array.from(node.querySelectorAll("label.jx-checkbox, label.pro-checkbox")).filter(isVisible);
+        const visibleLabels = Array.from(
+          node.querySelectorAll("label.jx-checkbox, label.pro-checkbox"),
+        ).filter(isVisible);
         return visibleLabels.length >= 2;
-      }) ?? checkAll.parentElement ?? checkAll;
-    const shopLabels = Array.from(container.querySelectorAll("label.jx-checkbox, label.pro-checkbox"))
+      }) ??
+      checkAll.parentElement ??
+      checkAll;
+
+    const entries = Array.from(
+      container.querySelectorAll("label.jx-checkbox, label.pro-checkbox"),
+    )
       .filter(isVisible)
       .filter((label) => label !== checkAll)
       .filter((label) => {
@@ -1428,59 +1357,214 @@ async function selectConfiguredShops(page: Page, releaseDialog: Locator, request
           !element.classList.contains("shop-selector-check-all") &&
           !element.classList.contains("pro-checkbox-group-all-select")
         );
-      });
-    const checkedNames = shopLabels
-      .filter(isChecked)
-      .map((label) => label.textContent?.replace(/\s+/g, " ").trim() ?? "")
-      .filter((name) => name.length > 0);
-    return { found: true, shopCount: shopLabels.length, checkedNames };
-  });
+      })
+      .map((label) => {
+        const name = (label.textContent ?? "").replace(/\s+/g, " ").trim();
+        return {
+          name,
+          normalizedName: name.replace(/\s+/g, " ").trim().toLocaleLowerCase(),
+          checked: getCheckedState(label),
+        };
+      })
+      .filter((entry) => entry.name.length > 0);
 
-  const isExpectedSelection = (snapshot: Awaited<ReturnType<typeof getSnapshot>>) => {
-    const selectedNames = new Set(snapshot.checkedNames.map(normalizeShopName));
-    const missingSelections = selectedShopNames.filter((name) => !selectedNames.has(name));
-    const expectedSelectionCount = selectedShopNames.length === 0 ? snapshot.shopCount : selectedShopNames.length;
     return {
-      missingSelections,
-      matches: snapshot.found && missingSelections.length === 0 && snapshot.checkedNames.length === expectedSelectionCount,
+      found: true,
+      entries,
+      checkedNames: entries.filter((entry) => entry.checked).map((entry) => entry.name),
+      uncheckedNames: entries.filter((entry) => !entry.checked).map((entry) => entry.name),
     };
-  };
+  });
+}
+
+async function clickReleaseShopOnce(
+  page: Page,
+  releaseDialog: Locator,
+  normalizedShopName: string,
+) {
+  const labels = releaseDialog.locator("label.jx-checkbox, label.pro-checkbox");
+  const labelCount = await labels.count();
+
+  for (let index = 0; index < labelCount; index += 1) {
+    const label = labels.nth(index);
+    const isVisible = await label.isVisible().catch(() => false);
+    if (!isVisible) {
+      continue;
+    }
+
+    const className = await label.getAttribute("class").catch(() => null);
+    if (
+      className?.split(/\s+/).includes("shop-selector-check-all") ||
+      className?.split(/\s+/).includes("pro-checkbox-group-all-select")
+    ) {
+      continue;
+    }
+
+    const labelName = normalizeShopName((await label.textContent().catch(() => "")) ?? "");
+    if (labelName !== normalizedShopName) {
+      continue;
+    }
+
+    const target = label.locator(".jx-checkbox__input, .pro-checkbox__input").first();
+    const clickTarget = (await target.count()) > 0 ? target : label;
+    await clickTarget.scrollIntoViewIfNeeded().catch(() => {});
+
+    try {
+      // Use one real Playwright click. The previous synthetic event chain could toggle twice.
+      await clickTarget.click({ timeout: 5_000 });
+    } catch {
+      // Re-querying is intentional because 妙手 may re-render the label after a click.
+      await label.evaluate((element) => {
+        (element as HTMLElement).click();
+      });
+    }
+
+    return true;
+  }
+
+  return false;
+}
+
+async function waitForReleaseShopState(
+  page: Page,
+  releaseDialog: Locator,
+  normalizedShopName: string,
+  expectedChecked: boolean,
+  timeoutMs = 5_000,
+) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const snapshot = await getReleaseShopSelectorSnapshot(releaseDialog).catch(() => null);
+    const entry = snapshot?.entries.find((item) => item.normalizedName === normalizedShopName);
+    if (entry?.checked === expectedChecked) {
+      return true;
+    }
+
+    await page.waitForTimeout(200);
+  }
+
+  return false;
+}
+
+async function setReleaseShopState(
+  page: Page,
+  releaseDialog: Locator,
+  shopName: string,
+  expectedChecked: boolean,
+) {
+  const normalizedShopName = normalizeShopName(shopName);
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    const snapshot = await getReleaseShopSelectorSnapshot(releaseDialog);
+    const entry = snapshot.entries.find((item) => item.normalizedName === normalizedShopName);
+    if (!entry) {
+      return false;
+    }
+
+    if (entry.checked === expectedChecked) {
+      return true;
+    }
+
+    const clicked = await clickReleaseShopOnce(page, releaseDialog, normalizedShopName);
+    if (!clicked) {
+      return false;
+    }
+
+    if (await waitForReleaseShopState(page, releaseDialog, normalizedShopName, expectedChecked)) {
+      return true;
+    }
+
+    console.log(
+      `Shop ${shopName} state did not change after click; retrying (${attempt + 1}/3).`,
+    );
+  }
+
+  return false;
+}
+
+async function selectConfiguredShops(page: Page, releaseDialog: Locator, requestedShopNames: string[]) {
+  const requestedNamesByNormalized = new Map<string, string>();
+  for (const name of requestedShopNames) {
+    const trimmedName = name.trim();
+    const normalizedName = normalizeShopName(trimmedName);
+    if (normalizedName.length > 0 && !requestedNamesByNormalized.has(normalizedName)) {
+      requestedNamesByNormalized.set(normalizedName, trimmedName);
+    }
+  }
 
   await page.waitForTimeout(500);
-  let selectionResult = await selectAttempt();
-
-  if (!selectionResult.found) {
-    await captureShopDebugState(page, "miaoshou-shop-selection-missing.png");
-    throw new Error("Could not find the shop selector.");
-  }
-  if (selectionResult.missingNames.length > 0) {
-    throw new Error(`Configured shops were not found in Miaoshou: ${selectionResult.missingNames.join(", ")}`);
-  }
-
-  let snapshot = await getSnapshot();
-  let validation = isExpectedSelection(snapshot);
-  for (let attempt = 1; !validation.matches && attempt < 3; attempt += 1) {
-    console.log(`Retrying configured shop selection (${attempt + 1}/3).`);
-    await page.waitForTimeout(400);
-    selectionResult = await selectAttempt();
-    if (!selectionResult.found || selectionResult.missingNames.length > 0) {
-      break;
-    }
-    await page.waitForTimeout(500);
-    snapshot = await getSnapshot();
-    validation = isExpectedSelection(snapshot);
-  }
-
+  let snapshot = await getReleaseShopSelectorSnapshot(releaseDialog);
   if (!snapshot.found) {
     await captureShopDebugState(page, "miaoshou-release-shop-selection-missing.png");
-    throw new Error("Could not verify the shop selector in the release dialog.");
-  }
-  if (!validation.matches) {
-    await captureShopDebugState(page, "miaoshou-release-shop-selection-incomplete.png");
-    throw new Error(`Shop selection did not match the configured shops: ${validation.missingSelections.join(", ") || "unknown"}`);
+    throw new Error("Could not find the shop selector in the release dialog.");
   }
 
-  console.log(`Selected configured shops: ${snapshot.checkedNames.join(", ")}`);
+  const targetNames = requestedNamesByNormalized.size > 0
+    ? Array.from(requestedNamesByNormalized.keys())
+    : snapshot.entries.map((entry) => entry.normalizedName);
+  const availableNames = new Set(snapshot.entries.map((entry) => entry.normalizedName));
+  const missingNames = Array.from(requestedNamesByNormalized.entries())
+    .filter(([normalizedName]) => !availableNames.has(normalizedName))
+    .map(([, originalName]) => originalName);
+
+  if (missingNames.length > 0) {
+    throw new Error(
+      `Configured shops were not found in Miaoshou: ${missingNames.join(", ")}. Available shops: ${snapshot.entries.map((entry) => entry.name).join(", ")}`,
+    );
+  }
+
+  console.log(
+    `Shop selection target: ${targetNames.map((name) => requestedNamesByNormalized.get(name) ?? name).join(", ") || "all shops"}`,
+  );
+  console.log(`Shop selection before reset: ${snapshot.checkedNames.join(", ") || "none"}`);
+
+  // First clear the current state so stale selections cannot leak into this product.
+  for (const entry of snapshot.entries.filter((item) => item.checked)) {
+    const changed = await setReleaseShopState(page, releaseDialog, entry.name, false);
+    if (!changed) {
+      await captureShopDebugState(page, "miaoshou-release-shop-reset-failed.png");
+      throw new Error(`Could not uncheck shop '${entry.name}'.`);
+    }
+  }
+
+  snapshot = await getReleaseShopSelectorSnapshot(releaseDialog);
+  if (snapshot.checkedNames.length > 0) {
+    await captureShopDebugState(page, "miaoshou-release-shop-reset-incomplete.png");
+    throw new Error(`Could not clear current shop selection: ${snapshot.checkedNames.join(", ")}`);
+  }
+
+  // Then apply only the requested shops. Re-querying after every click handles 妙手 re-renders.
+  for (const normalizedName of targetNames) {
+    const originalName = requestedNamesByNormalized.get(normalizedName) ?? normalizedName;
+    const changed = await setReleaseShopState(page, releaseDialog, originalName, true);
+    if (!changed) {
+      await captureShopDebugState(page, "miaoshou-release-shop-selection-retry-failed.png");
+      throw new Error(`Could not select shop '${originalName}'.`);
+    }
+  }
+
+  snapshot = await getReleaseShopSelectorSnapshot(releaseDialog);
+  const actualNames = new Set(snapshot.checkedNames.map(normalizeShopName));
+  const targetNameSet = new Set(targetNames);
+  const missingSelections = targetNames.filter((name) => !actualNames.has(name));
+  const extraSelections = snapshot.checkedNames.filter((name) => !targetNameSet.has(normalizeShopName(name)));
+
+  if (
+    !snapshot.found ||
+    missingSelections.length > 0 ||
+    extraSelections.length > 0 ||
+    actualNames.size !== targetNameSet.size
+  ) {
+    await captureShopDebugState(page, "miaoshou-release-shop-selection-incomplete.png");
+    throw new Error(
+      `Shop selection did not match the configured shops. Expected: ${
+        targetNames.map((name) => requestedNamesByNormalized.get(name) ?? name).join(", ") || "all shops"
+      }; actual: ${snapshot.checkedNames.join(", ") || "none"}; missing: ${
+        missingSelections.join(", ") || "none"
+      }; extra: ${extraSelections.join(", ") || "none"}`,
+    );
+  }
+
+  console.log(`Selected configured shops: ${snapshot.checkedNames.join(", ") || "all shops"}`);
 }
 
 async function selectProductCategory(page: Page) {
