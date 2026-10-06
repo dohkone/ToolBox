@@ -20,7 +20,7 @@ from typing import Any
 
 
 DEFAULT_MODEL = "gpt-image-2"
-DEFAULT_BASE_URL = "https://patrickstart.dpdns.org"
+DEFAULT_BASE_URL = "https://api.forkc2p.com"
 DEFAULT_OUTPUT_DIR = Path.home() / "Downloads" / "image2-generations"
 MAX_OUTPUT_IMAGE_BYTES = 3 * 1024 * 1024
 COMPRESSED_JPEG_QUALITY = 86

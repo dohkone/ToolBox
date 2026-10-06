@@ -154,6 +154,16 @@ SUEDE_RANDOMIZER.shuffle(SUEDE_PLACEMENT_COMBINATIONS)
 SUEDE_PLACEMENT_LOCK = threading.Lock()
 SUEDE_PLACEMENT_INDEX = 0
 
+LYCHEE_SUBJECT_CONDITIONS: tuple[str, ...] = (
+    "intact, clean, and undamaged",
+    "naturally worn with localized leather damage, including peeling, cracks, scratches, scuffed areas, and small patches of exposed lighter backing material",
+)
+LYCHEE_SUBJECT_RANDOMIZER = random.SystemRandom()
+LYCHEE_SUBJECT_CONDITION_POOL = list(LYCHEE_SUBJECT_CONDITIONS)
+LYCHEE_SUBJECT_RANDOMIZER.shuffle(LYCHEE_SUBJECT_CONDITION_POOL)
+LYCHEE_SUBJECT_CONDITION_LOCK = threading.Lock()
+LYCHEE_SUBJECT_CONDITION_INDEX = 0
+
 COLOR_ALIAS_MAP: dict[str, str] = {
     "black": "black",
     "黑色": "black",
@@ -678,13 +688,16 @@ def build_master_prompt(color: ColorSpec, material: str = "lychee_grain") -> str
     if normalize_material_token(material) == "suede":
         return build_suede_master_prompt(color)
 
+    lychee_subject_condition = next_lychee_subject_condition()
+
     return f"""
         Use the uploaded image as lifestyle scene reference.
 
         Create a premium Amazon/TEMU ecommerce product photo.
 
         Keep the original lifestyle environment and main subject structure.
-        The main furniture/object must remain clearly visible.
+        The main furniture/object must remain clearly visible and be {lychee_subject_condition}.
+        This condition applies only to the main furniture/object, never to the PU leather repair roll.
 
         The final image must show:
         ONE main subject,
@@ -782,6 +795,19 @@ def build_master_prompt(color: ColorSpec, material: str = "lychee_grain") -> str
         Clean modern composition.
         The final image should look like the same real scene,
         with one matching-color PU leather repair roll naturally applied to the main subject"""
+
+
+def next_lychee_subject_condition() -> str:
+    """Return a non-repeating main-subject condition for lychee-grain master images."""
+    global LYCHEE_SUBJECT_CONDITION_INDEX
+
+    with LYCHEE_SUBJECT_CONDITION_LOCK:
+        if LYCHEE_SUBJECT_CONDITION_INDEX >= len(LYCHEE_SUBJECT_CONDITION_POOL):
+            LYCHEE_SUBJECT_RANDOMIZER.shuffle(LYCHEE_SUBJECT_CONDITION_POOL)
+            LYCHEE_SUBJECT_CONDITION_INDEX = 0
+        condition = LYCHEE_SUBJECT_CONDITION_POOL[LYCHEE_SUBJECT_CONDITION_INDEX]
+        LYCHEE_SUBJECT_CONDITION_INDEX += 1
+    return condition
 
 
 def next_suede_placement() -> tuple[str, str, str, str]:

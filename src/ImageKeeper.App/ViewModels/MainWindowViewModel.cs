@@ -67,6 +67,10 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private const string Image2GenerationProvider = "image2";
 
+	private const string DefaultImageToImagePrompt = "Create a new high-quality image based on the uploaded reference image. Keep the same general subject type, product category, composition logic, camera angle, lighting mood, color harmony, and commercial photography style, but make it a natural new variation rather than an exact copy. Preserve realistic materials, clean edges, natural shadows, and a polished ecommerce product-photo look. Do not copy any text, watermark, logo, brand mark, label, UI element, border, poster layout, or unreadable characters from the reference image. The final image should look like a similar professional product image, clean, realistic, sharp, and suitable for ecommerce display.";
+
+	private const string ImageToImageForbiddenPrompt = "STRICTLY FORBIDDEN: any car logo, vehicle emblem, badge, brand name, brand letters, trademark, watermark, cartoon style, illustration style, 3D-rendered look, incorrect text, fake text, garbled text, unreadable characters, UI elements, labels, or poster-like graphic layout.";
+
 	private const string UpdateServerBaseUrl = "http://124.222.17.225";
 
 	private const string UpdateServerManifestUrl = UpdateServerBaseUrl + "/download/latest.json";
@@ -301,6 +305,10 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private readonly AsyncRelayCommand _chooseGenerationImagesCommand;
 
+	private readonly AsyncRelayCommand _chooseImageToImageSourceImagesCommand;
+
+	private readonly AsyncRelayCommand _runImageToImageGenerationCommand;
+
 	private readonly RelayCommand _sendSelectedImagesToSpBatchCommand;
 
 	private readonly AsyncRelayCommand _chooseSpBatchInputFolderCommand;
@@ -356,6 +364,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 	private CancellationTokenSource? _previewCancellationTokenSource;
 
 	private CancellationTokenSource? _templateGenerationCancellationTokenSource;
+
+	private CancellationTokenSource? _imageToImageGenerationCancellationTokenSource;
 
 	private CancellationTokenSource? _spBatchCancellationTokenSource;
 
@@ -521,6 +531,14 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private bool _isGenerationPromptsOnly;
 
+	private bool _isImageToImageGenerationModeSelected;
+
+	private bool _isImageToImageGenerating;
+
+	private bool _isImageToImageDropTarget;
+
+	private string _imageToImagePromptText = string.Empty;
+
 	private bool _isImageGenerationKeyDialogOpen;
 
 	private string _imageGenerationKeyText = string.Empty;
@@ -666,6 +684,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 	public ObservableCollection<GenerationPromptCardViewModel> GenerationPromptCards { get; } = new ObservableCollection<GenerationPromptCardViewModel>();
 
 	public ObservableCollection<GeneratedImageResultCardViewModel> GeneratedImageResultCards { get; } = new ObservableCollection<GeneratedImageResultCardViewModel>();
+
+	public ObservableCollection<GeneratedImageResultCardViewModel> ImageToImageSourceImageCards { get; } = new ObservableCollection<GeneratedImageResultCardViewModel>();
 
 	public ObservableCollection<GeneratedImageResultCardViewModel> SpBatchSourceImageCards { get; } = new ObservableCollection<GeneratedImageResultCardViewModel>();
 
@@ -1001,6 +1021,10 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	public ICommand ChooseGenerationImagesCommand => _chooseGenerationImagesCommand;
 
+	public ICommand ChooseImageToImageSourceImagesCommand => _chooseImageToImageSourceImagesCommand;
+
+	public ICommand RunImageToImageGenerationCommand => _runImageToImageGenerationCommand;
+
 	public ICommand SendSelectedImagesToSpBatchCommand => _sendSelectedImagesToSpBatchCommand;
 
 	public ICommand ChooseSpBatchInputFolderCommand => _chooseSpBatchInputFolderCommand;
@@ -1168,6 +1192,39 @@ public sealed class MainWindowViewModel : ViewModelBase
 	public bool IsCompareGenerateTabSelected => IsCompareImageGenerateTabSelected;
 
 	public bool IsTemplateImageGenerateTabSelected => IsTemplateGenerateTabSelected;
+
+	public bool IsTemplateGenerationModeSelected
+	{
+		get => !IsImageToImageGenerationModeSelected;
+		set
+		{
+			if (value)
+			{
+				IsImageToImageGenerationModeSelected = false;
+			}
+			else
+			{
+				OnPropertyChanged("IsTemplateGenerationModeSelected");
+			}
+		}
+	}
+
+	public bool IsImageToImageGenerationModeSelected
+	{
+		get => _isImageToImageGenerationModeSelected;
+		set
+		{
+			if (SetProperty(ref _isImageToImageGenerationModeSelected, value, "IsImageToImageGenerationModeSelected"))
+			{
+				OnPropertyChanged("IsTemplateGenerationModeSelected");
+				_chooseGenerationOutputFolderCommand.RaiseCanExecuteChanged();
+				_openGenerationTemplatePickerCommand.RaiseCanExecuteChanged();
+				_runTemplateGenerationCommand.RaiseCanExecuteChanged();
+				_chooseImageToImageSourceImagesCommand.RaiseCanExecuteChanged();
+				_runImageToImageGenerationCommand.RaiseCanExecuteChanged();
+			}
+		}
+	}
 
 	public string CurrentTemplateGenerateTitle => CurrentGenerationImageType switch
 	{
@@ -1565,6 +1622,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	public bool HasGeneratedImageResultCards => GeneratedImageResultCards.Count > 0;
 
+	public bool HasImageToImageSourceImageCards => ImageToImageSourceImageCards.Count > 0;
+
 	public bool HasAnyGenerationResultCards
 	{
 		get
@@ -1600,6 +1659,43 @@ public sealed class MainWindowViewModel : ViewModelBase
 				return string.Equals(_activeTemplateGenerationTab, _selectedImageGenerateTab, StringComparison.Ordinal);
 			}
 			return false;
+		}
+	}
+
+	public bool IsImageToImageGenerating
+	{
+		get => _isImageToImageGenerating;
+		private set
+		{
+			if (SetProperty(ref _isImageToImageGenerating, value, "IsImageToImageGenerating"))
+			{
+				OnPropertyChanged("IsAnyGenerationRunning");
+				_chooseGenerationOutputFolderCommand.RaiseCanExecuteChanged();
+				_openGenerationTemplatePickerCommand.RaiseCanExecuteChanged();
+				_runTemplateGenerationCommand.RaiseCanExecuteChanged();
+				_chooseImageToImageSourceImagesCommand.RaiseCanExecuteChanged();
+				_runImageToImageGenerationCommand.RaiseCanExecuteChanged();
+			}
+		}
+	}
+
+	public bool IsAnyGenerationRunning => IsTemplateGenerating || IsImageToImageGenerating;
+
+	public bool IsImageToImageDropTarget
+	{
+		get => _isImageToImageDropTarget;
+		private set => SetProperty(ref _isImageToImageDropTarget, value, "IsImageToImageDropTarget");
+	}
+
+	public string ImageToImagePromptText
+	{
+		get => _imageToImagePromptText;
+		set
+		{
+			if (SetProperty(ref _imageToImagePromptText, value, "ImageToImagePromptText"))
+			{
+				_runImageToImageGenerationCommand.RaiseCanExecuteChanged();
+			}
 		}
 	}
 
@@ -2651,11 +2747,14 @@ public sealed class MainWindowViewModel : ViewModelBase
 				OnPropertyChanged("TemplateGenerationButtonText");
 				OnPropertyChanged("IsCurrentTemplateGenerationRunning");
 				OnPropertyChanged("IsCurrentTemplateGenerationStopping");
+				OnPropertyChanged("IsAnyGenerationRunning");
 				_chooseTemplateLibraryCommand.RaiseCanExecuteChanged();
 				_openGenerationTemplatePickerCommand.RaiseCanExecuteChanged();
 				_chooseGenerationOutputFolderCommand.RaiseCanExecuteChanged();
 				_runTemplateGenerationCommand.RaiseCanExecuteChanged();
 				_stopTemplateGenerationCommand.RaiseCanExecuteChanged();
+				_chooseImageToImageSourceImagesCommand.RaiseCanExecuteChanged();
+				_runImageToImageGenerationCommand.RaiseCanExecuteChanged();
 			}
 		}
 	}
@@ -3467,6 +3566,8 @@ public sealed class MainWindowViewModel : ViewModelBase
 			StopTemplateGeneration();
 		}, (object? _) => IsTemplateGenerating);
 		_chooseGenerationImagesCommand = new AsyncRelayCommand((object? _) => ChooseGenerationImagesAsync(), (object? _) => true);
+		_chooseImageToImageSourceImagesCommand = new AsyncRelayCommand((object? _) => ChooseImageToImageSourceImagesAsync(), (object? _) => CanEditImageToImageGeneration());
+		_runImageToImageGenerationCommand = new AsyncRelayCommand((object? count) => RunImageToImageGenerationAsync(ParseImageToImageCount(count)), (object? count) => CanRunImageToImageGeneration(count));
 		_sendSelectedImagesToSpBatchCommand = new RelayCommand(delegate
 		{
 			SendSelectedImagesToSpBatch();
@@ -5790,7 +5891,7 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private bool CanEditTemplateGenerationSettings()
 	{
-		if (!IsTemplateGenerating)
+		if (!IsTemplateGenerating && !IsImageToImageGenerating)
 		{
 			return !IsTemplateGenerationStopping;
 		}
@@ -5799,7 +5900,28 @@ public sealed class MainWindowViewModel : ViewModelBase
 
 	private bool CanRunTemplateGeneration()
 	{
-		return CanEditTemplateGenerationSettings();
+		return IsTemplateGenerationModeSelected && CanEditTemplateGenerationSettings();
+	}
+
+	private bool CanEditImageToImageGeneration()
+	{
+		return IsImageToImageGenerationModeSelected && CanEditTemplateGenerationSettings();
+	}
+
+	private bool CanRunImageToImageGeneration(object? count)
+	{
+		return CanEditImageToImageGeneration()
+			&& ParseImageToImageCount(count) > 0
+			&& HasImageToImageSourceImageCards;
+	}
+
+	private static int ParseImageToImageCount(object? count)
+	{
+		if (count is int intValue)
+		{
+			return intValue;
+		}
+		return int.TryParse(count?.ToString(), out int parsed) ? parsed : 0;
 	}
 
 	private async Task OpenGenerationTemplatePickerAsync()
@@ -6303,6 +6425,17 @@ public sealed class MainWindowViewModel : ViewModelBase
 		await Task.CompletedTask;
 	}
 
+	private async Task ChooseImageToImageSourceImagesAsync()
+	{
+		string[] fileNames = ChooseImageFiles("选择图生图参考图片", Directory.Exists(GenerationOutputDirectory) ? GenerationOutputDirectory : WorkspaceDefaults.DefaultOpenFolder);
+		if (fileNames.Length != 0)
+		{
+			AddImageToImageSourceImages(fileNames);
+			StatusMessage = $"已添加 {fileNames.Length} 张图生图参考图片。";
+		}
+		await Task.CompletedTask;
+	}
+
 	private async Task ChooseSpBatchSourceImagesAsync()
 	{
 		string initialDirectory = Directory.Exists(SpBatchInputDirectory) ? SpBatchInputDirectory : (Directory.Exists(GenerationOutputDirectory) ? GenerationOutputDirectory : WorkspaceDefaults.DefaultOpenFolder);
@@ -6641,6 +6774,190 @@ public sealed class MainWindowViewModel : ViewModelBase
 			StatusMessage = "正在停止当前生图任务...";
 			_templateGenerationService.CancelCurrentRun();
 			_templateGenerationCancellationTokenSource?.Cancel();
+		}
+	}
+
+	private async Task RunImageToImageGenerationAsync(int count)
+	{
+		if (count <= 0)
+		{
+			return;
+		}
+		if (ImageToImageSourceImageCards.Count == 0)
+		{
+			throw new InvalidOperationException("请先添加图生图参考图片。");
+		}
+		string imageToImagePrompt = BuildImageToImagePrompt(ImageToImagePromptText);
+		Directory.CreateDirectory(GenerationOutputDirectory);
+		IsImageToImageGenerating = true;
+		GenerationStatusText = $"正在图生图生成 {count} 张...";
+		GenerationResultModeText = "模式：图生图";
+		GenerationResultOutputText = "输出目录：" + GenerationOutputDirectory;
+		ClearGenerationPromptCards();
+		ClearGeneratedImageResultCards();
+		OnPropertyChanged("HasGenerationPromptCards");
+		OnPropertyChanged("HasAnyGenerationResultCards");
+		StatusMessage = GenerationStatusText;
+		_imageToImageGenerationCancellationTokenSource?.Cancel();
+		_imageToImageGenerationCancellationTokenSource?.Dispose();
+		_imageToImageGenerationCancellationTokenSource = new CancellationTokenSource();
+		try
+		{
+			IReadOnlyList<TemplateGenerateItem> items = await RunImageToImageProcessesAsync(
+				imageToImagePrompt,
+				ImageToImageSourceImageCards.Select((GeneratedImageResultCardViewModel card) => card.ImagePath).ToArray(),
+				count,
+				_imageToImageGenerationCancellationTokenSource.Token);
+			TemplateGenerateResult result = new TemplateGenerateResult
+			{
+				Success = true,
+				Mode = "image_to_image",
+				OutputDirectory = GenerationOutputDirectory,
+				Prompts = Array.Empty<string>(),
+				Items = items
+			};
+			ApplyGenerationVisualResult(result);
+			GenerationStatusText = "图生图生成完成";
+			StatusMessage = $"图生图生成完成，共 {items.Count} 张。";
+		}
+		catch (OperationCanceledException)
+		{
+			GenerationStatusText = "已停止";
+			GenerationResultModeText = "模式：图生图已停止";
+			StatusMessage = "已停止当前图生图任务。";
+		}
+		catch (Exception ex)
+		{
+			GenerationStatusText = "执行失败";
+			GenerationResultModeText = "模式：图生图失败";
+			GenerationPromptCards.Add(new GenerationPromptCardViewModel
+			{
+				Title = "错误信息",
+				PromptText = ex.Message
+			});
+			OnPropertyChanged("HasGenerationPromptCards");
+			OnPropertyChanged("HasAnyGenerationResultCards");
+			StatusMessage = "图生图失败：" + ex.Message;
+		}
+		finally
+		{
+			_imageToImageGenerationCancellationTokenSource?.Dispose();
+			_imageToImageGenerationCancellationTokenSource = null;
+			IsImageToImageGenerating = false;
+		}
+	}
+
+	private async Task<IReadOnlyList<TemplateGenerateItem>> RunImageToImageProcessesAsync(string prompt, IReadOnlyList<string> inputImages, int count, CancellationToken cancellationToken)
+	{
+		if (count == 10)
+		{
+			TemplateGenerateItem[][] batches = await Task.WhenAll(
+				RunImageToImageProcessAsync(prompt, inputImages, 5, cancellationToken),
+				RunImageToImageProcessAsync(prompt, inputImages, 5, cancellationToken));
+			return batches
+				.SelectMany((TemplateGenerateItem[] batch) => batch)
+				.Select((TemplateGenerateItem item, int index) => new TemplateGenerateItem
+				{
+					Index = index + 1,
+					Prompt = item.Prompt,
+					FileName = item.FileName,
+					ImagePath = item.ImagePath
+				})
+				.ToArray();
+		}
+		return await RunImageToImageProcessAsync(prompt, inputImages, count, cancellationToken);
+	}
+
+	private static string BuildImageToImagePrompt(string prompt)
+	{
+		string basePrompt = string.IsNullOrWhiteSpace(prompt) ? DefaultImageToImagePrompt : prompt.Trim();
+		if (basePrompt.Contains(ImageToImageForbiddenPrompt, StringComparison.OrdinalIgnoreCase))
+		{
+			return basePrompt;
+		}
+		return basePrompt + Environment.NewLine + Environment.NewLine + ImageToImageForbiddenPrompt;
+	}
+
+	private async Task<TemplateGenerateItem[]> RunImageToImageProcessAsync(string prompt, IReadOnlyList<string> inputImages, int count, CancellationToken cancellationToken)
+	{
+		ProcessStartInfo processStartInfo = new ProcessStartInfo
+		{
+			FileName = ResolvePythonExecutableForImageGeneration(),
+			WorkingDirectory = Path.GetTempPath(),
+			UseShellExecute = false,
+			RedirectStandardOutput = true,
+			RedirectStandardError = true,
+			StandardOutputEncoding = Encoding.UTF8,
+			StandardErrorEncoding = Encoding.UTF8,
+			CreateNoWindow = true
+		};
+		processStartInfo.Environment["PYTHONIOENCODING"] = "utf-8";
+		processStartInfo.Environment["PYTHONUTF8"] = "1";
+		processStartInfo.Environment["PYTHONDONTWRITEBYTECODE"] = "1";
+		processStartInfo.ArgumentList.Add(CurrentImageGenerationScriptPath);
+		processStartInfo.ArgumentList.Add("--prompt");
+		processStartInfo.ArgumentList.Add(prompt);
+		processStartInfo.ArgumentList.Add("--output-dir");
+		processStartInfo.ArgumentList.Add(GenerationOutputDirectory);
+		processStartInfo.ArgumentList.Add("--n");
+		processStartInfo.ArgumentList.Add(count.ToString(CultureInfo.InvariantCulture));
+		foreach (string imagePath in inputImages)
+		{
+			processStartInfo.ArgumentList.Add("--input-image");
+			processStartInfo.ArgumentList.Add(imagePath);
+		}
+		using Process process = Process.Start(processStartInfo) ?? throw new InvalidOperationException("无法启动图生图脚本。");
+		await using CancellationTokenRegistration registration = cancellationToken.Register(delegate
+		{
+			TryKillProcess(process);
+		});
+		Task<string> stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+		Task<string> stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
+		try
+		{
+			await process.WaitForExitAsync(cancellationToken);
+		}
+		catch (OperationCanceledException)
+		{
+			TryKillProcess(process);
+			throw;
+		}
+		string stdout = (await stdoutTask).Trim();
+		string stderr = (await stderrTask).Trim();
+		if (process.ExitCode != 0)
+		{
+			throw new InvalidOperationException(string.IsNullOrWhiteSpace(stderr) ? stdout : stderr);
+		}
+		TemplateGenerateItem[] items = stdout
+			.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+			.Select((string line) => line.Trim())
+			.Where((string line) => File.Exists(line) && IsSupportedImageFile(line))
+			.Select((string path, int index) => new TemplateGenerateItem
+			{
+				Index = index + 1,
+				Prompt = prompt,
+				FileName = Path.GetFileName(path),
+				ImagePath = path
+			})
+			.ToArray();
+		if (items.Length == 0)
+		{
+			throw new InvalidOperationException(string.IsNullOrWhiteSpace(stderr) ? "图生图脚本没有返回可用图片。" : stderr);
+		}
+		return items;
+	}
+
+	private static void TryKillProcess(Process process)
+	{
+		try
+		{
+			if (!process.HasExited)
+			{
+				process.Kill(entireProcessTree: true);
+			}
+		}
+		catch
+		{
 		}
 	}
 
@@ -7469,6 +7786,18 @@ public sealed class MainWindowViewModel : ViewModelBase
 			Path.Combine("D:\\new_project\\tools\\python", "image2-generate", "scripts", "generate_image.py")
 		};
 		return array.FirstOrDefault(File.Exists) ?? array[0];
+	}
+
+	private static string ResolvePythonExecutableForImageGeneration()
+	{
+		string baseDirectory = AppContext.BaseDirectory;
+		string[] array = new string[3]
+		{
+			Path.Combine(baseDirectory, "runtime", "python", "python.exe"),
+			Path.Combine(baseDirectory, "python", "python.exe"),
+			"python"
+		};
+		return array.FirstOrDefault(File.Exists) ?? array[^1];
 	}
 
 	private static string GetUserImageGenerationKeyPath()
@@ -8323,6 +8652,16 @@ public sealed class MainWindowViewModel : ViewModelBase
 		}
 	}
 
+	private void OnImageToImageSourceImageRemoved(GeneratedImageResultCardViewModel card)
+	{
+		if (ImageToImageSourceImageCards.Contains(card))
+		{
+			ImageToImageSourceImageCards.Remove(card);
+			OnPropertyChanged("HasImageToImageSourceImageCards");
+			_runImageToImageGenerationCommand.RaiseCanExecuteChanged();
+		}
+	}
+
 	private void OnSpBatchSourceImageRemoved(GeneratedImageResultCardViewModel card)
 	{
 		if (SpBatchSourceImageCards.Contains(card))
@@ -8520,6 +8859,24 @@ public sealed class MainWindowViewModel : ViewModelBase
 			OnPropertyChanged("HasSelectedGeneratedImages");
 			OnPropertyChanged("CanGenerateSkuFromTemplate");
 			_sendSelectedImagesToSpBatchCommand.RaiseCanExecuteChanged();
+		}
+	}
+
+	private void AddImageToImageSourceImages(IEnumerable<string> filePaths)
+	{
+		bool added = false;
+		foreach (string filePath in filePaths.Where(File.Exists).Where(IsSupportedImageFile).Distinct<string>(StringComparer.OrdinalIgnoreCase))
+		{
+			if (!ImageToImageSourceImageCards.Any((GeneratedImageResultCardViewModel card) => string.Equals(card.ImagePath, filePath, StringComparison.OrdinalIgnoreCase)))
+			{
+				ImageToImageSourceImageCards.Add(new GeneratedImageResultCardViewModel(filePath, Path.GetFileName(filePath), canToggleSelection: false, showRemoveAction: true, null, OnImageToImageSourceImageRemoved));
+				added = true;
+			}
+		}
+		if (added)
+		{
+			OnPropertyChanged("HasImageToImageSourceImageCards");
+			_runImageToImageGenerationCommand.RaiseCanExecuteChanged();
 		}
 	}
 
@@ -9065,6 +9422,16 @@ public sealed class MainWindowViewModel : ViewModelBase
 	public void SetSkuOptimizeStagingDropTarget(bool isActive)
 	{
 		IsSkuOptimizeStagingDropTarget = isActive;
+	}
+
+	public void SetImageToImageDropTarget(bool isActive)
+	{
+		IsImageToImageDropTarget = isActive;
+	}
+
+	public void AddDroppedImagesToImageToImage(IEnumerable<string> filePaths)
+	{
+		AddImageToImageSourceImages(filePaths);
 	}
 
 	public void AddDroppedImagesToSkuOptimize(IEnumerable<string> filePaths)

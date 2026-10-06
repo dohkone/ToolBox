@@ -607,6 +607,34 @@ public partial class MainWindow : Window
         }
     }
 
+    private void ImageToImagePromptTextBox_OnPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (sender is not TextBox textBox || (Keyboard.Modifiers & ModifierKeys.Control) != ModifierKeys.Control)
+        {
+            return;
+        }
+
+        switch (e.Key)
+        {
+            case Key.C:
+                textBox.Copy();
+                e.Handled = true;
+                break;
+            case Key.V:
+                textBox.Paste();
+                e.Handled = true;
+                break;
+            case Key.X:
+                textBox.Cut();
+                e.Handled = true;
+                break;
+            case Key.A:
+                textBox.SelectAll();
+                e.Handled = true;
+                break;
+        }
+    }
+
     private void SpBatchStagingArea_OnDragEnter(object sender, System.Windows.DragEventArgs e)
     {
         HandleSpBatchStagingDragState(e);
@@ -640,6 +668,43 @@ public partial class MainWindow : Window
         var files = GetDroppedImageFiles(e.Data);
         var hasFiles = files.Count > 0;
         _viewModel.SetSpBatchStagingDropTarget(hasFiles);
+        e.Effects = hasFiles ? System.Windows.DragDropEffects.Copy : System.Windows.DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private void ImageToImageSourceArea_OnDragEnter(object sender, System.Windows.DragEventArgs e)
+    {
+        HandleImageToImageSourceDragState(e);
+    }
+
+    private void ImageToImageSourceArea_OnDragOver(object sender, System.Windows.DragEventArgs e)
+    {
+        HandleImageToImageSourceDragState(e);
+    }
+
+    private void ImageToImageSourceArea_OnDragLeave(object sender, System.Windows.DragEventArgs e)
+    {
+        _viewModel.SetImageToImageDropTarget(false);
+        e.Handled = true;
+    }
+
+    private void ImageToImageSourceArea_OnDrop(object sender, System.Windows.DragEventArgs e)
+    {
+        _viewModel.SetImageToImageDropTarget(false);
+        var files = GetDroppedImageFiles(e.Data);
+        if (files.Count > 0)
+        {
+            _viewModel.AddDroppedImagesToImageToImage(files);
+        }
+
+        e.Handled = true;
+    }
+
+    private void HandleImageToImageSourceDragState(System.Windows.DragEventArgs e)
+    {
+        var files = GetDroppedImageFiles(e.Data);
+        var hasFiles = files.Count > 0;
+        _viewModel.SetImageToImageDropTarget(hasFiles);
         e.Effects = hasFiles ? System.Windows.DragDropEffects.Copy : System.Windows.DragDropEffects.None;
         e.Handled = true;
     }

@@ -60,11 +60,14 @@ const materialValueText = "\u81ea\u7c98PU\u9769";
 const backingMaterialText = "\u5e95\u5e03\u6750\u8d28";
 const backingMaterialValueText = "\u5c3c\u9f99";
 const moreAttributesText = "\u66f4\u591a\u5c5e\u6027";
+const surfaceProcessText = "\u8868\u76ae\u5de5\u827a";
+const lycheeSurfaceProcessValueText = "\u538b\u7eb9";
+const suedeSurfaceProcessValueText = "\u78e8\u7802";
 const surfacePatternText = "\u8868\u76ae\u82b1\u7eb9";
 const lycheeSurfacePatternValueText = "\u8354\u679d\u7eb9";
-const suedeSurfacePatternValueText = "\u7eaf\u8272";
 const thicknessText = "\u539a\u5ea6\uff08mm\uff09";
-const thicknessValueText = "1.01";
+const thicknessMinimumValue = 0.3;
+const thicknessMaximumValue = 0.4;
 const leatherTypeText = "\u8868\u76ae\u7c7b\u578b";
 const lycheeLeatherTypeValueText = "\u6f06\u76ae";
 const suedeLeatherTypeValueText = "\u7ed2\u9762\u76ae";
@@ -108,7 +111,7 @@ const singleItemText = "\u5355\u54c1";
 const packageSizeText = "\u5c3a\u5bf8(CM)";
 const packageSizeDialogTitleText = "\u6279\u91cf\u7f16\u8f91\u5305\u88f9\u5c3a\u5bf8";
 const weightText = "\u6bdb\u91cd";
-const weightDialogTitleText = "\u6279\u91cf\u4fee\u6539\u91cd\u91cf";
+const weightDialogTitleText = "\u6279\u91cf\u4fee\u6539\u6bdb\u91cd";
 const supportedImageExtensions = new Set([".jpg", ".jpeg", ".png", ".webp", ".bmp"]);
 
 function getDefaultOutputDir() {
@@ -1813,6 +1816,13 @@ async function selectMaterial(page: Page) {
 async function selectBackingMaterial(page: Page) {
   await waitForBlockingLayersToClear(page);
   await page.waitForTimeout(800);
+
+  const formItem = await findFormItemByLabel(page, backingMaterialText);
+  if (!formItem) {
+    console.log(`Skipped optional ${backingMaterialText}: form item not present for current category.`);
+    return false;
+  }
+
   return await selectFormItemOption(page, backingMaterialText, backingMaterialValueText);
 }
 
@@ -1822,12 +1832,24 @@ async function clickMoreAttributes(page: Page) {
   await page.waitForTimeout(500);
 }
 
+async function selectSurfaceProcess(page: Page, productItem: ProductJsonItem) {
+  await waitForBlockingLayersToClear(page);
+  await page.waitForTimeout(500);
+  const material = getMaterialToken(productItem);
+  const processValue = material === "suede" ? suedeSurfaceProcessValueText : lycheeSurfaceProcessValueText;
+  return await selectFormItemOption(page, surfaceProcessText, processValue);
+}
+
 async function selectSurfacePattern(page: Page, productItem: ProductJsonItem) {
   await waitForBlockingLayersToClear(page);
   await page.waitForTimeout(500);
   const material = getMaterialToken(productItem);
-  const patternValue = material === "suede" ? suedeSurfacePatternValueText : lycheeSurfacePatternValueText;
-  return await selectFormItemOption(page, surfacePatternText, patternValue);
+  if (material === "suede") {
+    console.log(`Skipped ${surfacePatternText} for suede material.`);
+    return false;
+  }
+
+  return await selectFormItemOption(page, surfacePatternText, lycheeSurfacePatternValueText);
 }
 
 async function inputFormItemValue(page: Page, labelText: string, value: string) {
@@ -1881,7 +1903,11 @@ async function inputFormItemValue(page: Page, labelText: string, value: string) 
 }
 
 async function inputThickness(page: Page) {
-  await inputFormItemValue(page, thicknessText, thicknessValueText);
+  const thicknessValue =
+    (Math.floor(Math.random() * ((thicknessMaximumValue - thicknessMinimumValue) * 100 + 1)) +
+      thicknessMinimumValue * 100) /
+    100;
+  await inputFormItemValue(page, thicknessText, thicknessValue.toFixed(2));
 }
 
 async function selectLeatherType(page: Page, productItem: ProductJsonItem) {
@@ -4500,10 +4526,11 @@ async function prepareCreateProductFlow(page: Page, productItem: ProductJsonItem
     console.log(`Skipped ${backingMaterialText} because ${materialText} was not selected successfully.`);
   }
 
-  await clickMoreAttributes(page);
-  await selectSurfacePattern(page, productItem);
   await inputThickness(page);
+  await selectSurfaceProcess(page, productItem);
+  await clickMoreAttributes(page);
   await selectLeatherType(page, productItem);
+  await selectSurfacePattern(page, productItem);
 
   const productTitle = getProductTitle(productItem);
   if (productTitle) {
